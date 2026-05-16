@@ -1,27 +1,42 @@
-# Frontend
+# TanStack Start - Basic React Query Example
 
-A minimal Remix application starter with a home page and an auth page.
+A TanStack Start example demonstrating integration with TanStack Query (React Query).
 
-## Starter Shape
+- [TanStack Router Docs](https://tanstack.com/router)
+- [TanStack Query Docs](https://tanstack.com/query)
 
-- `app/controllers/home.tsx` owns the home page.
-- `app/controllers/auth.tsx` owns the auth page.
-- `app/routes.ts` defines the route contract.
-- `app/router.ts` wires routes to handlers.
-- `app/ui/` holds the shared document and layout wrappers.
-- `app/utils/render.tsx` centralizes HTML response rendering.
+## Start a new project based on this example
 
-## Growing The App
-
-- Start with flat route files and only introduce route folders when a route needs multiple actions or route-owned modules.
-- Add directories like `app/data/`, `app/middleware/`, `public/`, or `test/` when the app actually needs them.
-- Move shared UI into `app/ui/` once more than one route needs it.
-
-## Commands
+To start a new project based on this example, run:
 
 ```sh
-npm i
-npm run start
-npm test
-npm run typecheck
+npx gitpick TanStack/router/tree/main/examples/react/start-basic-react-query start-basic-react-query
 ```
+
+## Getting Started
+
+From your terminal:
+
+```sh
+pnpm install
+pnpm dev
+```
+
+This starts your app in development mode, rebuilding assets on file changes.
+
+## Build
+
+To build the app for production:
+
+```sh
+pnpm build
+```
+
+## TanStack Query Integration
+
+This example demonstrates how to use TanStack Query with TanStack Start for:
+
+- Server-side data fetching
+- Client-side caching and synchronization
+- Optimistic updates
+- Automatic refetching
