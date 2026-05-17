@@ -8,7 +8,7 @@ A multi-tenant headless commerce engine built as a Turborepo monorepo. The syste
 
 ## Apps
 
-- **`apps/frontend`** — The storefront (Next.js-like Remix v3 beta app). Uses `remix/fetch-router` with file-based controllers. Runs on port 44100. The `server.ts` bootstraps with `remix/node-serve`.
+- **`apps/frontend`** — The storefront (TanStack Start + Vite). Uses TanStack Router (file-based routing, auto-generated `routeTree.gen.ts`), TanStack Query for data fetching (with SSR query integration), and Tailwind CSS v4. Runs on port 3000 via `vite dev`.
 - **`apps/backend`** — The commerce engine API (not yet scaffolded). Will expose GraphQL for storefronts and REST for admin + webhooks.
 
 ## Packages
@@ -39,9 +39,9 @@ npx turbo build --filter=frontend
 Frontend only (from `apps/frontend/`):
 
 ```sh
-npm run dev          # tsx watch server.ts (port 44100)
-npm run test         # tsx --test (Node built-in test runner)
-npm run typecheck    # tsc --noEmit
+npm run dev          # vite dev (port 3000)
+npm run build        # vite build && tsc --noEmit
+npm run preview      # vite preview
 ```
 
 ## Architecture
@@ -69,9 +69,15 @@ Auth resolves `organization_id` from three sources depending on caller:
 
 All monetary values are stored as integers (cents / smallest currency unit). **Never floats.** Never format money server-side except in the GraphQL `Money.formatted` field.
 
-### Frontend Router Pattern
+### Frontend Stack
 
-The `apps/frontend` app uses Remix v3's `fetch-router` pattern: define routes in `app/routes.ts` using typed `route()` helper, create controller handlers in `app/controllers/`, and register them in `app/router.ts`.
+The `apps/frontend` app uses TanStack Start (built on Vite + TanStack Router):
+
+- **Routing**: file-based via TanStack Router. Routes live in `src/routes/`. The route tree is auto-generated into `src/routeTree.gen.ts` — do not hand-edit that file.
+- **Data fetching**: TanStack Query (`@tanstack/react-query`). The `QueryClient` is created in `src/router.tsx` and injected into router context. SSR hydration is handled by `@tanstack/react-router-ssr-query`.
+- **Styling**: Tailwind CSS v4 via `@tailwindcss/vite` plugin (no `tailwind.config.*` file needed).
+- **Root layout**: `src/routes/__root.tsx` wraps the app with `QueryClientProvider` and devtools.
+- **Entry point**: Vite handles SSR; no hand-written `server.ts`.
 
 ### Planned Backend Module Structure
 
