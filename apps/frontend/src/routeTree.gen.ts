@@ -9,13 +9,22 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as OnboardingStep3RouteImport } from './routes/onboarding/step3'
+import { Route as OnboardingStep2RouteImport } from './routes/onboarding/step2'
+import { Route as OnboardingStep1RouteImport } from './routes/onboarding/step1'
 import { Route as AuthSignupRouteImport } from './routes/auth/signup'
 import { Route as AuthLoginRouteImport } from './routes/auth/login'
 import { Route as AdminDashboardRouteImport } from './routes/admin/dashboard'
 
+const OnboardingRoute = OnboardingRouteImport.update({
+  id: '/onboarding',
+  path: '/onboarding',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
@@ -30,6 +39,21 @@ const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const OnboardingStep3Route = OnboardingStep3RouteImport.update({
+  id: '/step3',
+  path: '/step3',
+  getParentRoute: () => OnboardingRoute,
+} as any)
+const OnboardingStep2Route = OnboardingStep2RouteImport.update({
+  id: '/step2',
+  path: '/step2',
+  getParentRoute: () => OnboardingRoute,
+} as any)
+const OnboardingStep1Route = OnboardingStep1RouteImport.update({
+  id: '/step1',
+  path: '/step1',
+  getParentRoute: () => OnboardingRoute,
 } as any)
 const AuthSignupRoute = AuthSignupRouteImport.update({
   id: '/signup',
@@ -51,26 +75,38 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteWithChildren
   '/auth': typeof AuthRouteWithChildren
+  '/onboarding': typeof OnboardingRouteWithChildren
   '/admin/dashboard': typeof AdminDashboardRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/signup': typeof AuthSignupRoute
+  '/onboarding/step1': typeof OnboardingStep1Route
+  '/onboarding/step2': typeof OnboardingStep2Route
+  '/onboarding/step3': typeof OnboardingStep3Route
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteWithChildren
   '/auth': typeof AuthRouteWithChildren
+  '/onboarding': typeof OnboardingRouteWithChildren
   '/admin/dashboard': typeof AdminDashboardRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/signup': typeof AuthSignupRoute
+  '/onboarding/step1': typeof OnboardingStep1Route
+  '/onboarding/step2': typeof OnboardingStep2Route
+  '/onboarding/step3': typeof OnboardingStep3Route
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteWithChildren
   '/auth': typeof AuthRouteWithChildren
+  '/onboarding': typeof OnboardingRouteWithChildren
   '/admin/dashboard': typeof AdminDashboardRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/signup': typeof AuthSignupRoute
+  '/onboarding/step1': typeof OnboardingStep1Route
+  '/onboarding/step2': typeof OnboardingStep2Route
+  '/onboarding/step3': typeof OnboardingStep3Route
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -78,35 +114,55 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/auth'
+    | '/onboarding'
     | '/admin/dashboard'
     | '/auth/login'
     | '/auth/signup'
+    | '/onboarding/step1'
+    | '/onboarding/step2'
+    | '/onboarding/step3'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/admin'
     | '/auth'
+    | '/onboarding'
     | '/admin/dashboard'
     | '/auth/login'
     | '/auth/signup'
+    | '/onboarding/step1'
+    | '/onboarding/step2'
+    | '/onboarding/step3'
   id:
     | '__root__'
     | '/'
     | '/admin'
     | '/auth'
+    | '/onboarding'
     | '/admin/dashboard'
     | '/auth/login'
     | '/auth/signup'
+    | '/onboarding/step1'
+    | '/onboarding/step2'
+    | '/onboarding/step3'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRouteWithChildren
   AuthRoute: typeof AuthRouteWithChildren
+  OnboardingRoute: typeof OnboardingRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/onboarding': {
+      id: '/onboarding'
+      path: '/onboarding'
+      fullPath: '/onboarding'
+      preLoaderRoute: typeof OnboardingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/auth': {
       id: '/auth'
       path: '/auth'
@@ -127,6 +183,27 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/onboarding/step3': {
+      id: '/onboarding/step3'
+      path: '/step3'
+      fullPath: '/onboarding/step3'
+      preLoaderRoute: typeof OnboardingStep3RouteImport
+      parentRoute: typeof OnboardingRoute
+    }
+    '/onboarding/step2': {
+      id: '/onboarding/step2'
+      path: '/step2'
+      fullPath: '/onboarding/step2'
+      preLoaderRoute: typeof OnboardingStep2RouteImport
+      parentRoute: typeof OnboardingRoute
+    }
+    '/onboarding/step1': {
+      id: '/onboarding/step1'
+      path: '/step1'
+      fullPath: '/onboarding/step1'
+      preLoaderRoute: typeof OnboardingStep1RouteImport
+      parentRoute: typeof OnboardingRoute
     }
     '/auth/signup': {
       id: '/auth/signup'
@@ -174,10 +251,27 @@ const AuthRouteChildren: AuthRouteChildren = {
 
 const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
 
+interface OnboardingRouteChildren {
+  OnboardingStep1Route: typeof OnboardingStep1Route
+  OnboardingStep2Route: typeof OnboardingStep2Route
+  OnboardingStep3Route: typeof OnboardingStep3Route
+}
+
+const OnboardingRouteChildren: OnboardingRouteChildren = {
+  OnboardingStep1Route: OnboardingStep1Route,
+  OnboardingStep2Route: OnboardingStep2Route,
+  OnboardingStep3Route: OnboardingStep3Route,
+}
+
+const OnboardingRouteWithChildren = OnboardingRoute._addFileChildren(
+  OnboardingRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRouteWithChildren,
   AuthRoute: AuthRouteWithChildren,
+  OnboardingRoute: OnboardingRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
