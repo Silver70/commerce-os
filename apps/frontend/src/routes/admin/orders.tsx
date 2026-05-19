@@ -1,6 +1,6 @@
 import * as React from "react"
 import { createFileRoute, Link } from "@tanstack/react-router"
-import { EyeIcon } from "lucide-react"
+import { EyeIcon, PlusIcon } from "lucide-react"
 
 import { Button } from "~/components/ui/button"
 import { Badge } from "~/components/ui/badge"
@@ -184,6 +184,17 @@ function OrdersPage() {
         filters={FILTERS}
         pageSize={10}
         emptyMessage="No orders match your filters."
+        action={
+          <Button
+            className="gap-2 bg-orange-700 px-5 py-2.5 text-white shadow-none hover:bg-orange-800"
+            asChild
+          >
+            <Link to="/admin/orders/new">
+              <PlusIcon className="h-4 w-4" />
+              Create order
+            </Link>
+          </Button>
+        }
       />
     </div>
   )
