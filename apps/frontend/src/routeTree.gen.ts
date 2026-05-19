@@ -19,8 +19,10 @@ import { Route as OnboardingStep1RouteImport } from './routes/onboarding/step1'
 import { Route as AuthSignupRouteImport } from './routes/auth/signup'
 import { Route as AuthLoginRouteImport } from './routes/auth/login'
 import { Route as AdminProductsRouteImport } from './routes/admin/products'
+import { Route as AdminOrdersRouteImport } from './routes/admin/orders'
 import { Route as AdminDashboardRouteImport } from './routes/admin/dashboard'
 import { Route as AdminProductsNewRouteImport } from './routes/admin/products_/new'
+import { Route as AdminOrdersOrderIdRouteImport } from './routes/admin/orders_/$orderId'
 
 const OnboardingRoute = OnboardingRouteImport.update({
   id: '/onboarding',
@@ -72,6 +74,11 @@ const AdminProductsRoute = AdminProductsRouteImport.update({
   path: '/products',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminOrdersRoute = AdminOrdersRouteImport.update({
+  id: '/orders',
+  path: '/orders',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminDashboardRoute = AdminDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -82,6 +89,11 @@ const AdminProductsNewRoute = AdminProductsNewRouteImport.update({
   path: '/products/new',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminOrdersOrderIdRoute = AdminOrdersOrderIdRouteImport.update({
+  id: '/orders_/$orderId',
+  path: '/orders/$orderId',
+  getParentRoute: () => AdminRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -89,12 +101,14 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRouteWithChildren
   '/onboarding': typeof OnboardingRouteWithChildren
   '/admin/dashboard': typeof AdminDashboardRoute
+  '/admin/orders': typeof AdminOrdersRoute
   '/admin/products': typeof AdminProductsRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/signup': typeof AuthSignupRoute
   '/onboarding/step1': typeof OnboardingStep1Route
   '/onboarding/step2': typeof OnboardingStep2Route
   '/onboarding/step3': typeof OnboardingStep3Route
+  '/admin/orders/$orderId': typeof AdminOrdersOrderIdRoute
   '/admin/products/new': typeof AdminProductsNewRoute
 }
 export interface FileRoutesByTo {
@@ -103,12 +117,14 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRouteWithChildren
   '/onboarding': typeof OnboardingRouteWithChildren
   '/admin/dashboard': typeof AdminDashboardRoute
+  '/admin/orders': typeof AdminOrdersRoute
   '/admin/products': typeof AdminProductsRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/signup': typeof AuthSignupRoute
   '/onboarding/step1': typeof OnboardingStep1Route
   '/onboarding/step2': typeof OnboardingStep2Route
   '/onboarding/step3': typeof OnboardingStep3Route
+  '/admin/orders/$orderId': typeof AdminOrdersOrderIdRoute
   '/admin/products/new': typeof AdminProductsNewRoute
 }
 export interface FileRoutesById {
@@ -118,12 +134,14 @@ export interface FileRoutesById {
   '/auth': typeof AuthRouteWithChildren
   '/onboarding': typeof OnboardingRouteWithChildren
   '/admin/dashboard': typeof AdminDashboardRoute
+  '/admin/orders': typeof AdminOrdersRoute
   '/admin/products': typeof AdminProductsRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/signup': typeof AuthSignupRoute
   '/onboarding/step1': typeof OnboardingStep1Route
   '/onboarding/step2': typeof OnboardingStep2Route
   '/onboarding/step3': typeof OnboardingStep3Route
+  '/admin/orders_/$orderId': typeof AdminOrdersOrderIdRoute
   '/admin/products_/new': typeof AdminProductsNewRoute
 }
 export interface FileRouteTypes {
@@ -134,12 +152,14 @@ export interface FileRouteTypes {
     | '/auth'
     | '/onboarding'
     | '/admin/dashboard'
+    | '/admin/orders'
     | '/admin/products'
     | '/auth/login'
     | '/auth/signup'
     | '/onboarding/step1'
     | '/onboarding/step2'
     | '/onboarding/step3'
+    | '/admin/orders/$orderId'
     | '/admin/products/new'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -148,12 +168,14 @@ export interface FileRouteTypes {
     | '/auth'
     | '/onboarding'
     | '/admin/dashboard'
+    | '/admin/orders'
     | '/admin/products'
     | '/auth/login'
     | '/auth/signup'
     | '/onboarding/step1'
     | '/onboarding/step2'
     | '/onboarding/step3'
+    | '/admin/orders/$orderId'
     | '/admin/products/new'
   id:
     | '__root__'
@@ -162,12 +184,14 @@ export interface FileRouteTypes {
     | '/auth'
     | '/onboarding'
     | '/admin/dashboard'
+    | '/admin/orders'
     | '/admin/products'
     | '/auth/login'
     | '/auth/signup'
     | '/onboarding/step1'
     | '/onboarding/step2'
     | '/onboarding/step3'
+    | '/admin/orders_/$orderId'
     | '/admin/products_/new'
   fileRoutesById: FileRoutesById
 }
@@ -250,6 +274,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminProductsRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/orders': {
+      id: '/admin/orders'
+      path: '/orders'
+      fullPath: '/admin/orders'
+      preLoaderRoute: typeof AdminOrdersRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/dashboard': {
       id: '/admin/dashboard'
       path: '/dashboard'
@@ -264,18 +295,29 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminProductsNewRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/orders_/$orderId': {
+      id: '/admin/orders_/$orderId'
+      path: '/orders/$orderId'
+      fullPath: '/admin/orders/$orderId'
+      preLoaderRoute: typeof AdminOrdersOrderIdRouteImport
+      parentRoute: typeof AdminRoute
+    }
   }
 }
 
 interface AdminRouteChildren {
   AdminDashboardRoute: typeof AdminDashboardRoute
+  AdminOrdersRoute: typeof AdminOrdersRoute
   AdminProductsRoute: typeof AdminProductsRoute
+  AdminOrdersOrderIdRoute: typeof AdminOrdersOrderIdRoute
   AdminProductsNewRoute: typeof AdminProductsNewRoute
 }
 
 const AdminRouteChildren: AdminRouteChildren = {
   AdminDashboardRoute: AdminDashboardRoute,
+  AdminOrdersRoute: AdminOrdersRoute,
   AdminProductsRoute: AdminProductsRoute,
+  AdminOrdersOrderIdRoute: AdminOrdersOrderIdRoute,
   AdminProductsNewRoute: AdminProductsNewRoute,
 }
 

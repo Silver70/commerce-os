@@ -219,10 +219,6 @@ function VariantRow({
   onToggle: () => void
   onUpdate: (patch: Partial<Variant>) => void
 }) {
-  const stock = parseInt(v.stock) || 0
-  const threshold = parseInt(v.lowStockThreshold) || 0
-  const isLow = stock > 0 && stock <= threshold
-  const isOut = stock === 0
 
   return (
     <div className={cn("border-b border-border/50 last:border-0", isOpen && "bg-muted/10")}>
@@ -251,13 +247,9 @@ function VariantRow({
 
         {/* Stock */}
         <div className="w-24 text-right">
-          {isOut ? (
-            <span className="text-xs font-medium text-destructive">Out of stock</span>
-          ) : isLow ? (
-            <span className="text-xs font-medium text-amber-600">⚠ {v.stock} left</span>
-          ) : (
-            <span className="text-sm tabular-nums text-muted-foreground">{v.stock}</span>
-          )}
+          <span className="text-sm tabular-nums text-muted-foreground">
+            {v.stock || "—"}
+          </span>
         </div>
 
         {/* Active toggle */}
@@ -265,7 +257,7 @@ function VariantRow({
           type="button"
           onClick={(e) => { e.stopPropagation(); onUpdate({ active: !v.active }) }}
           className={cn(
-            "relative h-5 w-9 shrink-0 rounded-full border-2 transition-colors",
+            "relative ml-3 h-5 w-9 shrink-0 rounded-full border-2 transition-colors",
             v.active ? "border-amber-500 bg-amber-500" : "border-border bg-transparent",
           )}
         >
@@ -601,7 +593,7 @@ function VariantsCard({
         <span className="hidden w-32 text-xs font-medium text-muted-foreground sm:block">SKU</span>
         <span className="w-20 text-right text-xs font-medium text-muted-foreground">Price</span>
         <span className="w-24 text-right text-xs font-medium text-muted-foreground">Stock</span>
-        <span className="w-9 text-center text-xs font-medium text-muted-foreground">Active</span>
+        <span className="ml-3 w-9 text-center text-xs font-medium text-muted-foreground">Active</span>
         <div className="w-7 shrink-0" />
       </div>
 
