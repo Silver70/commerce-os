@@ -18,7 +18,9 @@ import { Route as OnboardingStep2RouteImport } from './routes/onboarding/step2'
 import { Route as OnboardingStep1RouteImport } from './routes/onboarding/step1'
 import { Route as AuthSignupRouteImport } from './routes/auth/signup'
 import { Route as AuthLoginRouteImport } from './routes/auth/login'
+import { Route as AdminProductsRouteImport } from './routes/admin/products'
 import { Route as AdminDashboardRouteImport } from './routes/admin/dashboard'
+import { Route as AdminProductsNewRouteImport } from './routes/admin/products_/new'
 
 const OnboardingRoute = OnboardingRouteImport.update({
   id: '/onboarding',
@@ -65,9 +67,19 @@ const AuthLoginRoute = AuthLoginRouteImport.update({
   path: '/login',
   getParentRoute: () => AuthRoute,
 } as any)
+const AdminProductsRoute = AdminProductsRouteImport.update({
+  id: '/products',
+  path: '/products',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminDashboardRoute = AdminDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminProductsNewRoute = AdminProductsNewRouteImport.update({
+  id: '/products_/new',
+  path: '/products/new',
   getParentRoute: () => AdminRoute,
 } as any)
 
@@ -77,11 +89,13 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRouteWithChildren
   '/onboarding': typeof OnboardingRouteWithChildren
   '/admin/dashboard': typeof AdminDashboardRoute
+  '/admin/products': typeof AdminProductsRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/signup': typeof AuthSignupRoute
   '/onboarding/step1': typeof OnboardingStep1Route
   '/onboarding/step2': typeof OnboardingStep2Route
   '/onboarding/step3': typeof OnboardingStep3Route
+  '/admin/products/new': typeof AdminProductsNewRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -89,11 +103,13 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRouteWithChildren
   '/onboarding': typeof OnboardingRouteWithChildren
   '/admin/dashboard': typeof AdminDashboardRoute
+  '/admin/products': typeof AdminProductsRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/signup': typeof AuthSignupRoute
   '/onboarding/step1': typeof OnboardingStep1Route
   '/onboarding/step2': typeof OnboardingStep2Route
   '/onboarding/step3': typeof OnboardingStep3Route
+  '/admin/products/new': typeof AdminProductsNewRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -102,11 +118,13 @@ export interface FileRoutesById {
   '/auth': typeof AuthRouteWithChildren
   '/onboarding': typeof OnboardingRouteWithChildren
   '/admin/dashboard': typeof AdminDashboardRoute
+  '/admin/products': typeof AdminProductsRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/signup': typeof AuthSignupRoute
   '/onboarding/step1': typeof OnboardingStep1Route
   '/onboarding/step2': typeof OnboardingStep2Route
   '/onboarding/step3': typeof OnboardingStep3Route
+  '/admin/products_/new': typeof AdminProductsNewRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -116,11 +134,13 @@ export interface FileRouteTypes {
     | '/auth'
     | '/onboarding'
     | '/admin/dashboard'
+    | '/admin/products'
     | '/auth/login'
     | '/auth/signup'
     | '/onboarding/step1'
     | '/onboarding/step2'
     | '/onboarding/step3'
+    | '/admin/products/new'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -128,11 +148,13 @@ export interface FileRouteTypes {
     | '/auth'
     | '/onboarding'
     | '/admin/dashboard'
+    | '/admin/products'
     | '/auth/login'
     | '/auth/signup'
     | '/onboarding/step1'
     | '/onboarding/step2'
     | '/onboarding/step3'
+    | '/admin/products/new'
   id:
     | '__root__'
     | '/'
@@ -140,11 +162,13 @@ export interface FileRouteTypes {
     | '/auth'
     | '/onboarding'
     | '/admin/dashboard'
+    | '/admin/products'
     | '/auth/login'
     | '/auth/signup'
     | '/onboarding/step1'
     | '/onboarding/step2'
     | '/onboarding/step3'
+    | '/admin/products_/new'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -219,6 +243,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthLoginRouteImport
       parentRoute: typeof AuthRoute
     }
+    '/admin/products': {
+      id: '/admin/products'
+      path: '/products'
+      fullPath: '/admin/products'
+      preLoaderRoute: typeof AdminProductsRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/dashboard': {
       id: '/admin/dashboard'
       path: '/dashboard'
@@ -226,15 +257,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminDashboardRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/products_/new': {
+      id: '/admin/products_/new'
+      path: '/products/new'
+      fullPath: '/admin/products/new'
+      preLoaderRoute: typeof AdminProductsNewRouteImport
+      parentRoute: typeof AdminRoute
+    }
   }
 }
 
 interface AdminRouteChildren {
   AdminDashboardRoute: typeof AdminDashboardRoute
+  AdminProductsRoute: typeof AdminProductsRoute
+  AdminProductsNewRoute: typeof AdminProductsNewRoute
 }
 
 const AdminRouteChildren: AdminRouteChildren = {
   AdminDashboardRoute: AdminDashboardRoute,
+  AdminProductsRoute: AdminProductsRoute,
+  AdminProductsNewRoute: AdminProductsNewRoute,
 }
 
 const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)

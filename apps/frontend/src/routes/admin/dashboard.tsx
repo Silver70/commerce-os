@@ -3,30 +3,23 @@ import { createFileRoute } from "@tanstack/react-router"
 import {
   Area,
   AreaChart,
-  Bar,
-  BarChart,
   CartesianGrid,
-  Cell,
-  Pie,
-  PieChart,
   XAxis,
   YAxis,
 } from "recharts"
 import {
   TrendingUpIcon,
   TrendingDownIcon,
+  DollarSignIcon,
   ShoppingCartIcon,
+  TagIcon,
+  ActivityIcon,
   UsersIcon,
-  RotateCcwIcon,
-  AlertTriangleIcon,
-  PackageIcon,
-  ZapIcon,
 } from "lucide-react"
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "~/components/ui/card"
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs"
 import { Badge } from "~/components/ui/badge"
-import { Progress } from "~/components/ui/progress"
 import {
   Table,
   TableBody,
@@ -114,106 +107,24 @@ const KPI_DATA: Record<Period, {
   },
 }
 
-const FUNNEL_DATA: Record<Period, { stage: string; count: number }[]> = {
-  today: [
-    { stage: "Visitors", count: 5200 },
-    { stage: "Product Views", count: 1480 },
-    { stage: "Add to Cart", count: 420 },
-    { stage: "Checkout", count: 148 },
-    { stage: "Purchases", count: 94 },
-  ],
-  "7d": [
-    { stage: "Visitors", count: 120000 },
-    { stage: "Product Views", count: 32000 },
-    { stage: "Add to Cart", count: 9100 },
-    { stage: "Checkout", count: 3200 },
-    { stage: "Purchases", count: 1842 },
-  ],
-  "30d": [
-    { stage: "Visitors", count: 498000 },
-    { stage: "Product Views", count: 134000 },
-    { stage: "Add to Cart", count: 38200 },
-    { stage: "Checkout", count: 13400 },
-    { stage: "Purchases", count: 7490 },
-  ],
-  "90d": [
-    { stage: "Visitors", count: 1560000 },
-    { stage: "Product Views", count: 421000 },
-    { stage: "Add to Cart", count: 118000 },
-    { stage: "Checkout", count: 41200 },
-    { stage: "Purchases", count: 23600 },
-  ],
-}
+type OrderStatus = "pending" | "paid" | "processing" | "shipped" | "delivered" | "refunded"
 
-const CHANNEL_DATA = [
-  { channel: "Organic Search", revenue: 31400 },
-  { channel: "Paid Ads", revenue: 22100 },
-  { channel: "Email", revenue: 14800 },
-  { channel: "Direct", revenue: 9200 },
-  { channel: "Social", revenue: 4600 },
-  { channel: "Affiliates", revenue: 2130 },
-]
-
-const CUSTOMER_DONUT = [
-  { name: "New", value: 59, fill: "hsl(var(--chart-1))" },
-  { name: "Returning", value: 41, fill: "hsl(var(--chart-2))" },
-]
-
-const CUSTOMER_TREND: Record<Period, { date: string; new: number; returning: number }[]> = {
-  today: Array.from({ length: 24 }, (_, i) => ({
-    date: `${i}:00`,
-    new: Math.floor(20 + Math.random() * 15),
-    returning: Math.floor(12 + Math.random() * 10),
-  })),
-  "7d": [
-    { date: "Mon", new: 142, returning: 78 },
-    { date: "Tue", new: 168, returning: 112 },
-    { date: "Wed", new: 155, returning: 110 },
-    { date: "Thu", new: 190, returning: 120 },
-    { date: "Fri", new: 224, returning: 156 },
-    { date: "Sat", new: 198, returning: 142 },
-    { date: "Sun", new: 148, returning: 82 },
-  ],
-  "30d": Array.from({ length: 30 }, (_, i) => ({
-    date: `${i + 1}`,
-    new: Math.floor(120 + i * 4 + Math.random() * 40),
-    returning: Math.floor(80 + i * 2.5 + Math.random() * 25),
-  })),
-  "90d": Array.from({ length: 13 }, (_, i) => ({
-    date: `W${i + 1}`,
-    new: Math.floor(800 + i * 60 + Math.random() * 150),
-    returning: Math.floor(520 + i * 40 + Math.random() * 100),
-  })),
-}
-
-const TOP_PRODUCTS = [
-  { name: "Wireless Headphones Pro", revenue: 12400, units: 248, conversion: 4.2, stock: 82, trend: "up" },
-  { name: "Leather Minimalist Wallet", revenue: 8900, units: 445, conversion: 5.1, stock: 67, trend: "up" },
-  { name: "Ceramic Pour-Over Kit", revenue: 7200, units: 180, conversion: 3.8, stock: 14, trend: "down" },
-  { name: "Merino Wool Crew Neck", revenue: 6800, units: 136, conversion: 2.9, stock: 45, trend: "up" },
-  { name: "Stainless Travel Bottle", revenue: 5600, units: 373, conversion: 6.2, stock: 91, trend: "up" },
-  { name: "Bamboo Desk Organizer", revenue: 4100, units: 205, conversion: 3.1, stock: 28, trend: "down" },
-]
-
-const INVENTORY_ALERTS = [
-  { name: "Ceramic Pour-Over Kit", sku: "CPK-001", stock: 14, threshold: 50, daysLeft: 3, status: "critical" },
-  { name: "Bamboo Desk Organizer", sku: "BDO-003", stock: 28, threshold: 50, daysLeft: 7, status: "low" },
-  { name: "Merino Wool Crew — S", sku: "MWC-S-04", stock: 8, threshold: 30, daysLeft: 2, status: "critical" },
-  { name: "Linen Throw Pillow", sku: "LTP-002", stock: 34, threshold: 40, daysLeft: 11, status: "low" },
-  { name: "Rubber Plant (Large)", sku: "RPL-007", stock: 380, threshold: 80, daysLeft: null, status: "overstock" },
-]
-
-const LIVE_EVENTS_POOL = [
-  { name: "Marcus W.", product: "Wireless Headphones Pro", value: 89, initials: "MW" },
-  { name: "Sophia L.", product: "Leather Minimalist Wallet", value: 34, initials: "SL" },
-  { name: "James T.", product: "Ceramic Pour-Over Kit", value: 54, initials: "JT" },
-  { name: "Aisha K.", product: "Merino Wool Crew Neck", value: 68, initials: "AK" },
-  { name: "Chris D.", product: "Stainless Travel Bottle", value: 28, initials: "CD" },
-  { name: "Priya M.", product: "Bamboo Desk Organizer", value: 42, initials: "PM" },
-  { name: "Noah B.", product: "Wireless Headphones Pro", value: 89, initials: "NB" },
-  { name: "Elena R.", product: "Linen Throw Pillow", value: 56, initials: "ER" },
-  { name: "Diego F.", product: "Rubber Plant (Large)", value: 120, initials: "DF" },
-  { name: "Yuki S.", product: "Stainless Travel Bottle", value: 28, initials: "YS" },
+const RECENT_ORDERS: {
+  id: string
+  customer: string
+  email: string
+  date: string
+  items: number
+  status: OrderStatus
+  total: number
+}[] = [
+  { id: "#10042", customer: "Marcus Webb",   email: "marcus.w@email.com",  date: "May 18, 2026", items: 3, status: "shipped",    total: 187 },
+  { id: "#10041", customer: "Sophia Lin",    email: "sophia.l@email.com",  date: "May 18, 2026", items: 1, status: "paid",       total: 34  },
+  { id: "#10040", customer: "James Torres",  email: "james.t@email.com",   date: "May 17, 2026", items: 2, status: "processing", total: 122 },
+  { id: "#10039", customer: "Aisha Karimi",  email: "aisha.k@email.com",   date: "May 17, 2026", items: 4, status: "delivered",  total: 268 },
+  { id: "#10038", customer: "Chris Dunn",    email: "chris.d@email.com",   date: "May 16, 2026", items: 1, status: "delivered",  total: 28  },
+  { id: "#10037", customer: "Priya Mehta",   email: "priya.m@email.com",   date: "May 16, 2026", items: 2, status: "refunded",   total: 96  },
+  { id: "#10036", customer: "Noah Baxter",   email: "noah.b@email.com",    date: "May 15, 2026", items: 3, status: "delivered",  total: 211 },
 ]
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -232,35 +143,6 @@ function fmtCount(n: number) {
     : n >= 1_000
       ? `${(n / 1_000).toFixed(1)}k`
       : n.toLocaleString()
-}
-
-// ─── Sparkline ───────────────────────────────────────────────────────────────
-
-const sparkConfig: ChartConfig = { value: { color: "hsl(var(--chart-1))" } }
-
-function SparkLine({ data, positive }: { data: number[]; positive: boolean }) {
-  const chartData = data.map((v, i) => ({ i, value: v }))
-  return (
-    <ChartContainer config={sparkConfig} className="h-8 w-20">
-      <AreaChart data={chartData} margin={{ top: 2, right: 0, bottom: 2, left: 0 }}>
-        <defs>
-          <linearGradient id="sparkGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="5%" stopColor={positive ? "hsl(var(--chart-1))" : "hsl(var(--destructive))"} stopOpacity={0.3} />
-            <stop offset="95%" stopColor={positive ? "hsl(var(--chart-1))" : "hsl(var(--destructive))"} stopOpacity={0} />
-          </linearGradient>
-        </defs>
-        <Area
-          type="monotone"
-          dataKey="value"
-          stroke={positive ? "hsl(var(--chart-1))" : "hsl(var(--destructive))"}
-          strokeWidth={1.5}
-          fill="url(#sparkGrad)"
-          dot={false}
-          isAnimationActive={false}
-        />
-      </AreaChart>
-    </ChartContainer>
-  )
 }
 
 // ─── KPI Card ────────────────────────────────────────────────────────────────
@@ -288,28 +170,45 @@ function KpiCard({
         ? `${value}%`
         : fmtCount(value)
 
+  const bars = sparkline.slice(-5)
+  const maxVal = Math.max(...bars)
+  const barColor = positive ? "hsl(var(--chart-1))" : "var(--destructive)"
+
   return (
-    <Card className="relative overflow-hidden">
+    <Card>
       <CardContent className="p-5">
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">{label}</p>
-            <p className="text-2xl font-bold tracking-tight truncate">{displayValue}</p>
-            <div className="flex items-center gap-1 mt-1">
-              {positive
-                ? <TrendingUpIcon className="h-3 w-3 text-emerald-500" />
-                : <TrendingDownIcon className="h-3 w-3 text-destructive" />}
-              <span className={`text-xs font-medium ${positive ? "text-emerald-500" : "text-destructive"}`}>
-                {positive ? "+" : ""}{delta}%
-              </span>
-              <span className="text-xs text-muted-foreground">vs prior</span>
+        {/* Top row: label + icon (left) | trend pill (right) */}
+        <div className="flex items-center justify-between gap-2 mb-4">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="p-1.5 rounded-md bg-muted shrink-0">
+              <Icon className="h-3.5 w-3.5 text-muted-foreground" />
             </div>
+            <span className="text-xs font-medium text-muted-foreground truncate">{label}</span>
           </div>
-          <div className="flex flex-col items-end gap-2 shrink-0">
-            <div className="p-2 rounded-lg bg-muted">
-              <Icon className="h-4 w-4 text-muted-foreground" />
-            </div>
-            <SparkLine data={sparkline} positive={positive} />
+          <div className={`flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full shrink-0 ${
+            positive
+              ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+              : "bg-destructive/10 text-destructive"
+          }`}>
+            {positive ? <TrendingUpIcon className="h-3 w-3" /> : <TrendingDownIcon className="h-3 w-3" />}
+            {Math.abs(delta)}%
+          </div>
+        </div>
+        {/* Bottom row: hero number (left) | spark bars (right) */}
+        <div className="flex items-end justify-between gap-2">
+          <p className="text-2xl font-bold tracking-tight tabular-nums leading-none">{displayValue}</p>
+          <div className="flex items-end gap-[3px] h-8 shrink-0">
+            {bars.map((v, i) => {
+              const height = Math.max((v / maxVal) * 32, 5)
+              const opacity = 0.15 + (i / (bars.length - 1)) * 0.85
+              return (
+                <div
+                  key={i}
+                  className="w-2 rounded-full"
+                  style={{ height: `${height}px`, backgroundColor: barColor, opacity }}
+                />
+              )
+            })}
           </div>
         </div>
       </CardContent>
@@ -327,7 +226,7 @@ const trendConfig: ChartConfig = {
 function RevenueTrend({ period }: { period: Period }) {
   const data = REVENUE_TREND[period]
   return (
-    <Card className="col-span-2">
+    <Card>
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <div>
@@ -347,7 +246,7 @@ function RevenueTrend({ period }: { period: Period }) {
         </div>
       </CardHeader>
       <CardContent className="pt-0">
-        <ChartContainer config={trendConfig} className="h-56 w-full">
+        <ChartContainer config={trendConfig} className="h-64 w-full">
           <AreaChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: 4 }}>
             <defs>
               <linearGradient id="currentGrad" x1="0" y1="0" x2="0" y2="1">
@@ -359,16 +258,16 @@ function RevenueTrend({ period }: { period: Period }) {
                 <stop offset="95%" stopColor="hsl(var(--chart-2))" stopOpacity={0} />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
             <XAxis
               dataKey="date"
-              tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+              tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
               axisLine={false}
               tickLine={false}
               interval="preserveStartEnd"
             />
             <YAxis
-              tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+              tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
               axisLine={false}
               tickLine={false}
               tickFormatter={(v) => fmt(v)}
@@ -405,423 +304,65 @@ function RevenueTrend({ period }: { period: Period }) {
   )
 }
 
-// ─── Conversion Funnel ───────────────────────────────────────────────────────
+// ─── Recent Orders ────────────────────────────────────────────────────────────
 
-function ConversionFunnel({ period }: { period: Period }) {
-  const data = FUNNEL_DATA[period]
-  const max = data[0].count
+const STATUS_STYLES: Record<OrderStatus, string> = {
+  pending:    "text-muted-foreground border-border bg-muted/40",
+  paid:       "text-blue-600 border-blue-200 bg-blue-50 dark:bg-blue-950/20 dark:border-blue-900",
+  processing: "text-amber-600 border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-900",
+  shipped:    "text-violet-600 border-violet-200 bg-violet-50 dark:bg-violet-950/20 dark:border-violet-900",
+  delivered:  "text-emerald-600 border-emerald-200 bg-emerald-50 dark:bg-emerald-950/20 dark:border-emerald-900",
+  refunded:   "text-destructive border-destructive/20 bg-destructive/10",
+}
 
+function RecentOrders() {
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="text-base font-semibold">Conversion Funnel</CardTitle>
-        <CardDescription className="text-xs">Session to purchase</CardDescription>
-      </CardHeader>
-      <CardContent className="pt-0">
-        <div className="flex flex-col gap-1.5">
-          {data.map((stage, i) => {
-            const pct = (stage.count / max) * 100
-            const dropoff = i > 0 ? Math.round((1 - stage.count / data[i - 1].count) * 100) : null
-            return (
-              <div key={stage.stage}>
-                {dropoff !== null && (
-                  <div className="flex items-center gap-1.5 py-0.5 pl-2">
-                    <div className="h-px flex-1 bg-border" />
-                    <span className="text-[10px] text-muted-foreground shrink-0">−{dropoff}% drop</span>
-                    <div className="h-px flex-1 bg-border" />
-                  </div>
-                )}
-                <div
-                  className="relative flex items-center justify-between rounded px-3 py-2 text-sm font-medium transition-all"
-                  style={{
-                    background: `linear-gradient(135deg, hsl(var(--chart-1) / ${0.08 + (1 - i / data.length) * 0.16}) 0%, hsl(var(--chart-1) / ${0.04 + (1 - i / data.length) * 0.08}) 100%)`,
-                    width: `${Math.max(pct, 40)}%`,
-                    minWidth: "100%",
-                  }}
-                >
-                  <div
-                    className="absolute inset-0 rounded"
-                    style={{
-                      background: `linear-gradient(90deg, hsl(var(--chart-1) / ${0.12 + (1 - i / data.length) * 0.18}) 0%, transparent 100%)`,
-                      width: `${pct}%`,
-                      minWidth: "30%",
-                    }}
-                  />
-                  <span className="relative z-10 text-xs font-semibold">{stage.stage}</span>
-                  <span className="relative z-10 text-xs text-muted-foreground font-normal">
-                    {fmtCount(stage.count)}
-                  </span>
-                </div>
-              </div>
-            )
-          })}
-        </div>
-        <div className="mt-3 pt-3 border-t flex items-center justify-between text-xs text-muted-foreground">
-          <span>Overall conversion</span>
-          <span className="font-semibold text-foreground">
-            {((data[data.length - 1].count / max) * 100).toFixed(1)}%
-          </span>
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
-
-// ─── Channel Performance ─────────────────────────────────────────────────────
-
-const channelConfig: ChartConfig = {
-  revenue: { label: "Revenue", color: "hsl(var(--chart-1))" },
-}
-
-function ChannelChart() {
-  const sorted = [...CHANNEL_DATA].sort((a, b) => b.revenue - a.revenue)
-  const max = sorted[0].revenue
-  return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-base font-semibold">Sales by Channel</CardTitle>
-        <CardDescription className="text-xs">Revenue breakdown by acquisition</CardDescription>
-      </CardHeader>
-      <CardContent className="pt-0">
-        <ChartContainer config={channelConfig} className="h-52 w-full">
-          <BarChart
-            data={sorted}
-            layout="vertical"
-            margin={{ top: 0, right: 8, bottom: 0, left: 8 }}
-            barCategoryGap="28%"
-          >
-            <XAxis
-              type="number"
-              tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
-              axisLine={false}
-              tickLine={false}
-              tickFormatter={(v) => fmt(v)}
-            />
-            <YAxis
-              type="category"
-              dataKey="channel"
-              tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
-              axisLine={false}
-              tickLine={false}
-              width={88}
-            />
-            <ChartTooltip
-              content={<ChartTooltipContent formatter={(v) => fmt(v as number)} />}
-            />
-            <Bar dataKey="revenue" radius={[0, 4, 4, 0]} maxBarSize={16}>
-              {sorted.map((entry, i) => (
-                <Cell
-                  key={entry.channel}
-                  fill={`hsl(var(--chart-1) / ${0.4 + (1 - i / sorted.length) * 0.6})`}
-                />
-              ))}
-            </Bar>
-          </BarChart>
-        </ChartContainer>
-        <div className="mt-2 pt-2 border-t text-xs text-muted-foreground flex justify-between">
-          <span>Total tracked revenue</span>
-          <span className="font-semibold text-foreground">{fmt(CHANNEL_DATA.reduce((a, c) => a + c.revenue, 0))}</span>
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
-
-// ─── Customer Analytics ──────────────────────────────────────────────────────
-
-const customerConfig: ChartConfig = {
-  new: { label: "New", color: "hsl(var(--chart-1))" },
-  returning: { label: "Returning", color: "hsl(var(--chart-2))" },
-}
-
-function CustomerAnalytics({ period }: { period: Period }) {
-  const trend = CUSTOMER_TREND[period]
-  return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-base font-semibold">Customer Analytics</CardTitle>
-        <CardDescription className="text-xs">New vs returning customers</CardDescription>
-      </CardHeader>
-      <CardContent className="pt-0">
-        <div className="flex gap-4">
-          {/* Donut */}
-          <div className="flex flex-col items-center justify-center shrink-0">
-            <ChartContainer config={customerConfig} className="h-28 w-28">
-              <PieChart>
-                <Pie
-                  data={CUSTOMER_DONUT}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={32}
-                  outerRadius={48}
-                  paddingAngle={2}
-                  dataKey="value"
-                  strokeWidth={0}
-                >
-                  {CUSTOMER_DONUT.map((entry) => (
-                    <Cell key={entry.name} fill={entry.fill} />
-                  ))}
-                </Pie>
-              </PieChart>
-            </ChartContainer>
-            <div className="flex flex-col gap-1 mt-1">
-              {CUSTOMER_DONUT.map((entry) => (
-                <div key={entry.name} className="flex items-center gap-1.5 text-xs">
-                  <span className="h-2 w-2 rounded-full shrink-0" style={{ background: entry.fill }} />
-                  <span className="text-muted-foreground">{entry.name}</span>
-                  <span className="font-semibold ml-auto pl-2">{entry.value}%</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Stacked area */}
-          <div className="flex-1 min-w-0">
-            <ChartContainer config={customerConfig} className="h-44 w-full">
-              <AreaChart data={trend} margin={{ top: 4, right: 0, bottom: 0, left: 0 }}>
-                <defs>
-                  <linearGradient id="newGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="hsl(var(--chart-1))" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="hsl(var(--chart-1))" stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="retGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="hsl(var(--chart-2))" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="hsl(var(--chart-2))" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                <XAxis
-                  dataKey="date"
-                  tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
-                  axisLine={false}
-                  tickLine={false}
-                  interval="preserveStartEnd"
-                />
-                <YAxis
-                  tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
-                  axisLine={false}
-                  tickLine={false}
-                  width={36}
-                />
-                <ChartTooltip content={<ChartTooltipContent />} />
-                <Area type="monotone" dataKey="returning" stackId="1" stroke="hsl(var(--chart-2))" strokeWidth={1.5} fill="url(#retGrad)" dot={false} />
-                <Area type="monotone" dataKey="new" stackId="1" stroke="hsl(var(--chart-1))" strokeWidth={1.5} fill="url(#newGrad)" dot={false} />
-              </AreaChart>
-            </ChartContainer>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
-
-// ─── Top Products Table ───────────────────────────────────────────────────────
-
-function TopProductsTable() {
-  const maxRevenue = TOP_PRODUCTS[0].revenue
-  return (
-    <Card>
-      <CardHeader className="pb-2">
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle className="text-base font-semibold">Top Products</CardTitle>
-            <CardDescription className="text-xs">By revenue this period</CardDescription>
-          </div>
-        </div>
+        <CardTitle className="text-base font-semibold">Recent Orders</CardTitle>
+        <CardDescription className="text-xs">Last 7 orders across all channels</CardDescription>
       </CardHeader>
       <CardContent className="pt-0 px-0">
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent border-b">
-              <TableHead className="pl-6 text-xs font-medium w-6">#</TableHead>
-              <TableHead className="text-xs font-medium">Product</TableHead>
-              <TableHead className="text-xs font-medium text-right">Revenue</TableHead>
-              <TableHead className="text-xs font-medium text-right">Units</TableHead>
-              <TableHead className="text-xs font-medium text-right">Conv.</TableHead>
-              <TableHead className="text-xs font-medium pr-6">Stock</TableHead>
+              <TableHead className="pl-6 text-xs font-medium">Order</TableHead>
+              <TableHead className="text-xs font-medium">Customer</TableHead>
+              <TableHead className="text-xs font-medium">Date</TableHead>
+              <TableHead className="text-xs font-medium text-center">Items</TableHead>
+              <TableHead className="text-xs font-medium">Status</TableHead>
+              <TableHead className="text-xs font-medium text-right pr-6">Total</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {TOP_PRODUCTS.map((p, i) => (
-              <TableRow key={p.name} className="group">
-                <TableCell className="pl-6 text-xs text-muted-foreground">{i + 1}</TableCell>
-                <TableCell className="font-medium text-sm">
-                  <div className="flex items-center gap-2">
-                    {p.trend === "up"
-                      ? <TrendingUpIcon className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
-                      : <TrendingDownIcon className="h-3.5 w-3.5 text-destructive shrink-0" />}
-                    <span className="truncate max-w-[160px]">{p.name}</span>
+            {RECENT_ORDERS.map((order) => (
+              <TableRow key={order.id} className="group">
+                <TableCell className="pl-6 text-sm font-mono font-medium text-muted-foreground">
+                  {order.id}
+                </TableCell>
+                <TableCell>
+                  <div>
+                    <p className="text-sm font-medium leading-none">{order.customer}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{order.email}</p>
                   </div>
                 </TableCell>
-                <TableCell className="text-right">
-                  <div className="flex flex-col items-end gap-0.5">
-                    <span className="text-sm font-semibold">{fmt(p.revenue)}</span>
-                    <div
-                      className="h-0.5 rounded-full bg-[hsl(var(--chart-1))]"
-                      style={{ width: `${(p.revenue / maxRevenue) * 48}px`, opacity: 0.6 }}
-                    />
-                  </div>
+                <TableCell className="text-sm text-muted-foreground whitespace-nowrap">{order.date}</TableCell>
+                <TableCell className="text-sm text-center text-muted-foreground">{order.items}</TableCell>
+                <TableCell>
+                  <Badge
+                    variant="outline"
+                    className={`text-[11px] px-2 py-0 capitalize font-medium ${STATUS_STYLES[order.status]}`}
+                  >
+                    {order.status}
+                  </Badge>
                 </TableCell>
-                <TableCell className="text-right text-sm text-muted-foreground">{p.units.toLocaleString()}</TableCell>
-                <TableCell className="text-right text-sm text-muted-foreground">{p.conversion}%</TableCell>
-                <TableCell className="pr-6">
-                  <div className="flex items-center gap-2 min-w-[80px]">
-                    <Progress
-                      value={p.stock}
-                      className="h-1.5 flex-1"
-                      style={{
-                        ["--progress-color" as string]:
-                          p.stock > 50 ? "hsl(var(--chart-2))"
-                          : p.stock > 20 ? "hsl(var(--chart-4))"
-                          : "hsl(var(--destructive))",
-                      }}
-                    />
-                    <span className="text-xs text-muted-foreground w-8 text-right">{p.stock}%</span>
-                  </div>
+                <TableCell className="text-right text-sm font-semibold pr-6">
+                  ${order.total.toFixed(2)}
                 </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
-      </CardContent>
-    </Card>
-  )
-}
-
-// ─── Inventory Alerts ────────────────────────────────────────────────────────
-
-function InventoryAlerts() {
-  return (
-    <Card>
-      <CardHeader className="pb-2">
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle className="text-base font-semibold flex items-center gap-2">
-              <AlertTriangleIcon className="h-4 w-4 text-amber-500" />
-              Inventory Alerts
-            </CardTitle>
-            <CardDescription className="text-xs">Items needing attention</CardDescription>
-          </div>
-          <Badge variant="outline" className="text-xs">
-            {INVENTORY_ALERTS.filter((a) => a.status !== "overstock").length} at risk
-          </Badge>
-        </div>
-      </CardHeader>
-      <CardContent className="pt-0 flex flex-col gap-3">
-        {INVENTORY_ALERTS.map((item) => {
-          const pct = Math.min((item.stock / item.threshold) * 100, 200)
-          const statusColors = {
-            critical: "text-destructive border-destructive/20 bg-destructive/10",
-            low: "text-amber-600 border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-900",
-            overstock: "text-blue-600 border-blue-200 bg-blue-50 dark:bg-blue-950/20 dark:border-blue-900",
-          }
-          return (
-            <div key={item.sku} className="flex items-center gap-3">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-sm font-medium truncate">{item.name}</span>
-                  <span className="text-xs text-muted-foreground ml-2 shrink-0">{item.sku}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Progress
-                    value={Math.min(pct, 100)}
-                    className="h-1.5 flex-1"
-                  />
-                  <span className="text-xs text-muted-foreground shrink-0 w-16 text-right">
-                    {item.stock} / {item.threshold}
-                  </span>
-                </div>
-              </div>
-              <div className="flex flex-col items-end gap-1 shrink-0">
-                <Badge
-                  variant="outline"
-                  className={`text-[10px] px-1.5 py-0 capitalize ${statusColors[item.status as keyof typeof statusColors]}`}
-                >
-                  {item.status}
-                </Badge>
-                {item.daysLeft !== null && (
-                  <span className="text-[10px] text-muted-foreground">{item.daysLeft}d left</span>
-                )}
-              </div>
-            </div>
-          )
-        })}
-      </CardContent>
-    </Card>
-  )
-}
-
-// ─── Live Activity Feed ───────────────────────────────────────────────────────
-
-type LiveEvent = {
-  id: number
-  name: string
-  product: string
-  value: number
-  initials: string
-  secondsAgo: number
-}
-
-function LiveFeed() {
-  const [events, setEvents] = React.useState<LiveEvent[]>(() =>
-    LIVE_EVENTS_POOL.slice(0, 5).map((e, i) => ({ ...e, id: i, secondsAgo: (i + 1) * 8 }))
-  )
-  const counterRef = React.useRef(events.length)
-
-  React.useEffect(() => {
-    const interval = setInterval(() => {
-      const pool = LIVE_EVENTS_POOL
-      const next = pool[counterRef.current % pool.length]
-      const newEvent: LiveEvent = { ...next, id: counterRef.current, secondsAgo: 0 }
-      counterRef.current += 1
-
-      setEvents((prev) => [newEvent, ...prev.slice(0, 7)].map((e, i) => ({ ...e, secondsAgo: i === 0 ? 0 : e.secondsAgo + 4 })))
-    }, 4000)
-    return () => clearInterval(interval)
-  }, [])
-
-  return (
-    <Card>
-      <CardHeader className="pb-2">
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle className="text-base font-semibold flex items-center gap-2">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
-              </span>
-              Live Orders
-            </CardTitle>
-            <CardDescription className="text-xs">Real-time purchase activity</CardDescription>
-          </div>
-          <Badge className="text-[10px] bg-emerald-500/10 text-emerald-600 border-emerald-200 dark:border-emerald-900" variant="outline">
-            <ZapIcon className="h-2.5 w-2.5 mr-1" />
-            Live
-          </Badge>
-        </div>
-      </CardHeader>
-      <CardContent className="pt-0 flex flex-col gap-2.5">
-        {events.map((event, i) => (
-          <div
-            key={event.id}
-            className="flex items-center gap-3 transition-opacity"
-            style={{ opacity: 1 - i * 0.1 }}
-          >
-            <div className="h-8 w-8 rounded-full bg-[hsl(var(--chart-1)/0.15)] flex items-center justify-center text-xs font-semibold text-[hsl(var(--chart-1))] shrink-0">
-              {event.initials}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium leading-none truncate">{event.name}</p>
-              <p className="text-xs text-muted-foreground truncate mt-0.5">{event.product}</p>
-            </div>
-            <div className="text-right shrink-0">
-              <p className="text-sm font-semibold">${event.value}</p>
-              <p className="text-[10px] text-muted-foreground">
-                {event.secondsAgo === 0 ? "just now" : `${event.secondsAgo}s ago`}
-              </p>
-            </div>
-          </div>
-        ))}
       </CardContent>
     </Card>
   )
@@ -863,33 +404,18 @@ function DashboardPage() {
 
       {/* KPI Row */}
       <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
-        <KpiCard label="Revenue" value={kpi.revenue} delta={kpi.revenueDelta} sparkline={kpi.revenueSparkline} icon={ShoppingCartIcon} format="currency" />
-        <KpiCard label="Orders" value={kpi.orders} delta={kpi.ordersDelta} sparkline={kpi.ordersSparkline} icon={PackageIcon} format="number" />
-        <KpiCard label="Avg Order Value" value={kpi.aov} delta={kpi.aovDelta} sparkline={kpi.aovSparkline} icon={ShoppingCartIcon} format="currency" />
-        <KpiCard label="Conversion Rate" value={kpi.conversion} delta={kpi.conversionDelta} sparkline={kpi.conversionSparkline} icon={UsersIcon} format="percent-plain" />
-        <KpiCard label="Returning Customers" value={kpi.returning} delta={kpi.returningDelta} sparkline={kpi.returningSparkline} icon={RotateCcwIcon} format="percent-plain" />
+        <KpiCard label="Revenue" value={kpi.revenue} delta={kpi.revenueDelta} sparkline={kpi.revenueSparkline} icon={DollarSignIcon} format="currency" />
+        <KpiCard label="Orders" value={kpi.orders} delta={kpi.ordersDelta} sparkline={kpi.ordersSparkline} icon={ShoppingCartIcon} format="number" />
+        <KpiCard label="Avg Order Value" value={kpi.aov} delta={kpi.aovDelta} sparkline={kpi.aovSparkline} icon={TagIcon} format="currency" />
+        <KpiCard label="Conversion Rate" value={kpi.conversion} delta={kpi.conversionDelta} sparkline={kpi.conversionSparkline} icon={ActivityIcon} format="percent-plain" />
+        <KpiCard label="Returning Customers" value={kpi.returning} delta={kpi.returningDelta} sparkline={kpi.returningSparkline} icon={UsersIcon} format="percent-plain" />
       </div>
 
-      {/* Revenue Trend + Funnel */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <RevenueTrend period={period} />
-        <ConversionFunnel period={period} />
-      </div>
+      {/* Revenue Chart — full width */}
+      <RevenueTrend period={period} />
 
-      {/* Channel + Customer */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <ChannelChart />
-        <CustomerAnalytics period={period} />
-      </div>
-
-      {/* Top Products */}
-      <TopProductsTable />
-
-      {/* Inventory + Live Feed */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <InventoryAlerts />
-        <LiveFeed />
-      </div>
+      {/* Recent Orders */}
+      <RecentOrders />
     </div>
   )
 }
