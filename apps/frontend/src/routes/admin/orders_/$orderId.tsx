@@ -27,7 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select"
-import { ORDER_STATUS_STYLES } from "~/routes/admin/orders"
+import { ORDER_STATUS_STYLES } from "~/routes/admin/orders_/index"
 
 export const Route = createFileRoute("/admin/orders_/$orderId")({
   component: OrderDetailPage,

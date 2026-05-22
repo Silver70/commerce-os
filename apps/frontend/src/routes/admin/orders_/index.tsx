@@ -6,7 +6,7 @@ import { Button } from "~/components/ui/button"
 import { Badge } from "~/components/ui/badge"
 import { DataTable, type DataTableColumn, type DataTableFilter } from "~/components/data-table"
 
-export const Route = createFileRoute("/admin/orders")({
+export const Route = createFileRoute("/admin/orders_/")({
   component: OrdersPage,
 })
 

@@ -31,7 +31,7 @@ import {
   type DataTableFilter,
 } from "~/components/data-table"
 
-export const Route = createFileRoute("/admin/customers")({
+export const Route = createFileRoute("/admin/customers_/")({
   component: CustomersPage,
 })
 

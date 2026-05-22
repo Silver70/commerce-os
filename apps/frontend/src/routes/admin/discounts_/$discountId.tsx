@@ -21,8 +21,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select"
-import { DISCOUNTS, DiscountStatusBadge } from "~/routes/admin/discounts"
-import type { DiscountType, CouponCode } from "~/routes/admin/discounts"
+import { DISCOUNTS, DiscountStatusBadge } from "~/routes/admin/discounts_/index"
+import type { DiscountType, CouponCode } from "~/routes/admin/discounts_/index"
 
 export const Route = createFileRoute("/admin/discounts_/$discountId")({
   component: DiscountEditPage,

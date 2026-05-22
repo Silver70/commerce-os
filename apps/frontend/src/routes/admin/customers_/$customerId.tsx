@@ -28,8 +28,8 @@ import {
   CustomerStatusBadge,
   CUSTOMER_STATUS_STYLES,
   type CustomerStatus,
-} from "~/routes/admin/customers"
-import { OrderStatusBadge } from "~/routes/admin/orders"
+} from "~/routes/admin/customers_/index"
+import { OrderStatusBadge } from "~/routes/admin/orders_/index"
 
 export const Route = createFileRoute("/admin/customers_/$customerId")({
   component: CustomerDetailPage,

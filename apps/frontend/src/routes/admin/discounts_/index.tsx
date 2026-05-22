@@ -7,7 +7,7 @@ import { Button } from "~/components/ui/button"
 import { Badge } from "~/components/ui/badge"
 import { Card } from "~/components/ui/card"
 
-export const Route = createFileRoute("/admin/discounts")({
+export const Route = createFileRoute("/admin/discounts_/")({
   component: DiscountsPage,
 })
 
