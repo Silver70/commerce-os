@@ -13,51 +13,52 @@ export const Route = createFileRoute("/admin/products_/")({
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type ProductStatus = "active" | "draft" | "archived"
+export type ProductStatus = "active" | "draft" | "archived"
 
-type Product = {
+export type Product = {
   id: string
   name: string
-  sku: string
-  category: string
   status: ProductStatus
-  inventory: number
-  price: number
+  categories: string[]
+  variantCount: number
+  sku?: string            // only present when variantCount === 1
+  priceRange: { min: number; max: number }  // in cents
+  totalInventory: number
 }
 
 // ─── Fake Data ────────────────────────────────────────────────────────────────
 
 const PRODUCTS: Product[] = [
-  { id: "1",  name: "Classic Leather Wallet",            sku: "ACC-0012", category: "Accessories",  status: "active",   inventory: 142, price: 49.99  },
-  { id: "2",  name: "Merino Wool Crewneck",              sku: "APP-0231", category: "Apparel",      status: "active",   inventory: 87,  price: 89.00  },
-  { id: "3",  name: "Running Shorts Pro",                sku: "SPT-0088", category: "Sports",       status: "active",   inventory: 210, price: 38.50  },
-  { id: "4",  name: "Wireless Noise-Cancelling Headphones", sku: "ELC-0501", category: "Electronics", status: "active", inventory: 64,  price: 229.00 },
-  { id: "5",  name: "Canvas Tote Bag",                   sku: "ACC-0045", category: "Accessories",  status: "active",   inventory: 385, price: 24.00  },
-  { id: "6",  name: "Slim Fit Chinos",                   sku: "APP-0102", category: "Apparel",      status: "draft",    inventory: 0,   price: 65.00  },
-  { id: "7",  name: "Foam Yoga Mat",                     sku: "SPT-0210", category: "Sports",       status: "active",   inventory: 52,  price: 44.95  },
-  { id: "8",  name: "USB-C Hub 7-in-1",                  sku: "ELC-0312", category: "Electronics",  status: "active",   inventory: 180, price: 59.99  },
-  { id: "9",  name: "Minimalist Desk Lamp",              sku: "HOM-0076", category: "Home & Living", status: "active",  inventory: 29,  price: 79.00  },
-  { id: "10", name: "Bamboo Cutting Board Set",          sku: "HOM-0212", category: "Home & Living", status: "active",  inventory: 73,  price: 34.50  },
-  { id: "11", name: "Retro Sunglasses",                  sku: "ACC-0090", category: "Accessories",  status: "active",   inventory: 156, price: 28.00  },
-  { id: "12", name: "Organic Face Serum",                sku: "BTY-0033", category: "Beauty",       status: "active",   inventory: 98,  price: 54.00  },
-  { id: "13", name: "Trail Running Shoes",               sku: "FTW-0441", category: "Footwear",     status: "draft",    inventory: 0,   price: 135.00 },
-  { id: "14", name: "Leather Belt — Cognac",             sku: "ACC-0023", category: "Accessories",  status: "archived", inventory: 0,   price: 42.00  },
-  { id: "15", name: "Performance Polo Shirt",            sku: "APP-0318", category: "Apparel",      status: "active",   inventory: 114, price: 55.00  },
-  { id: "16", name: "Portable Bluetooth Speaker",        sku: "ELC-0678", category: "Electronics",  status: "active",   inventory: 41,  price: 99.00  },
-  { id: "17", name: "Heavyweight Hoodie",                sku: "APP-0407", category: "Apparel",      status: "active",   inventory: 230, price: 72.00  },
-  { id: "18", name: "Ceramic Pour-Over Set",             sku: "HOM-0305", category: "Home & Living", status: "draft",   inventory: 0,   price: 48.00  },
-  { id: "19", name: "Slip-On Leather Loafers",           sku: "FTW-0112", category: "Footwear",     status: "active",   inventory: 38,  price: 118.00 },
-  { id: "20", name: "Vitamin C Brightening Cream",       sku: "BTY-0071", category: "Beauty",       status: "active",   inventory: 62,  price: 38.00  },
-  { id: "21", name: "Stainless Steel Water Bottle",      sku: "SPT-0330", category: "Sports",       status: "active",   inventory: 319, price: 29.95  },
-  { id: "22", name: "Quilted Down Jacket",               sku: "APP-0552", category: "Apparel",      status: "archived", inventory: 0,   price: 195.00 },
-  { id: "23", name: "Mechanical Keyboard TKL",           sku: "ELC-0890", category: "Electronics",  status: "draft",    inventory: 0,   price: 149.00 },
-  { id: "24", name: "Linen Throw Pillow Covers",         sku: "HOM-0419", category: "Home & Living", status: "active",  inventory: 187, price: 22.00  },
-  { id: "25", name: "Classic White Sneakers",            sku: "FTW-0203", category: "Footwear",     status: "active",   inventory: 92,  price: 89.00  },
+  { id: "1",  name: "Classic Leather Wallet",               categories: ["Accessories"],           status: "active",   variantCount: 1, sku: "ACC-0012", priceRange: { min: 4999,  max: 4999  }, totalInventory: 142 },
+  { id: "2",  name: "Merino Wool Crewneck",                 categories: ["Apparel"],               status: "active",   variantCount: 4,                  priceRange: { min: 8900,  max: 9900  }, totalInventory: 87  },
+  { id: "3",  name: "Running Shorts Pro",                   categories: ["Sports"],                status: "active",   variantCount: 3,                  priceRange: { min: 3850,  max: 3850  }, totalInventory: 210 },
+  { id: "4",  name: "Wireless Noise-Cancelling Headphones", categories: ["Electronics"],           status: "active",   variantCount: 2,                  priceRange: { min: 22900, max: 27900 }, totalInventory: 64  },
+  { id: "5",  name: "Canvas Tote Bag",                      categories: ["Accessories"],           status: "active",   variantCount: 1, sku: "ACC-0045", priceRange: { min: 2400,  max: 2400  }, totalInventory: 385 },
+  { id: "6",  name: "Slim Fit Chinos",                      categories: ["Apparel"],               status: "draft",    variantCount: 5,                  priceRange: { min: 6500,  max: 6500  }, totalInventory: 0   },
+  { id: "7",  name: "Foam Yoga Mat",                        categories: ["Sports"],                status: "active",   variantCount: 1, sku: "SPT-0210", priceRange: { min: 4495,  max: 4495  }, totalInventory: 52  },
+  { id: "8",  name: "USB-C Hub 7-in-1",                     categories: ["Electronics"],           status: "active",   variantCount: 1, sku: "ELC-0312", priceRange: { min: 5999,  max: 5999  }, totalInventory: 180 },
+  { id: "9",  name: "Minimalist Desk Lamp",                 categories: ["Home & Living"],         status: "active",   variantCount: 3,                  priceRange: { min: 7900,  max: 9900  }, totalInventory: 29  },
+  { id: "10", name: "Bamboo Cutting Board Set",             categories: ["Home & Living"],         status: "active",   variantCount: 1, sku: "HOM-0212", priceRange: { min: 3450,  max: 3450  }, totalInventory: 73  },
+  { id: "11", name: "Retro Sunglasses",                     categories: ["Accessories"],           status: "active",   variantCount: 4,                  priceRange: { min: 2800,  max: 3200  }, totalInventory: 156 },
+  { id: "12", name: "Organic Face Serum",                   categories: ["Beauty"],                status: "active",   variantCount: 2,                  priceRange: { min: 5400,  max: 7200  }, totalInventory: 98  },
+  { id: "13", name: "Trail Running Shoes",                  categories: ["Footwear", "Sports"],    status: "draft",    variantCount: 6,                  priceRange: { min: 13500, max: 13500 }, totalInventory: 0   },
+  { id: "14", name: "Leather Belt — Cognac",                categories: ["Accessories"],           status: "archived", variantCount: 3,                  priceRange: { min: 4200,  max: 4200  }, totalInventory: 0   },
+  { id: "15", name: "Performance Polo Shirt",               categories: ["Apparel"],               status: "active",   variantCount: 5,                  priceRange: { min: 5500,  max: 5500  }, totalInventory: 114 },
+  { id: "16", name: "Portable Bluetooth Speaker",           categories: ["Electronics"],           status: "active",   variantCount: 1, sku: "ELC-0678", priceRange: { min: 9900,  max: 9900  }, totalInventory: 41  },
+  { id: "17", name: "Heavyweight Hoodie",                   categories: ["Apparel"],               status: "active",   variantCount: 4,                  priceRange: { min: 7200,  max: 7200  }, totalInventory: 230 },
+  { id: "18", name: "Ceramic Pour-Over Set",                categories: ["Home & Living"],         status: "draft",    variantCount: 1, sku: "HOM-0305", priceRange: { min: 4800,  max: 4800  }, totalInventory: 0   },
+  { id: "19", name: "Slip-On Leather Loafers",              categories: ["Footwear"],              status: "active",   variantCount: 5,                  priceRange: { min: 11800, max: 11800 }, totalInventory: 38  },
+  { id: "20", name: "Vitamin C Brightening Cream",          categories: ["Beauty"],                status: "active",   variantCount: 1, sku: "BTY-0071", priceRange: { min: 3800,  max: 3800  }, totalInventory: 62  },
+  { id: "21", name: "Stainless Steel Water Bottle",         categories: ["Sports"],                status: "active",   variantCount: 3,                  priceRange: { min: 2995,  max: 3495  }, totalInventory: 319 },
+  { id: "22", name: "Quilted Down Jacket",                  categories: ["Apparel"],               status: "archived", variantCount: 4,                  priceRange: { min: 19500, max: 19500 }, totalInventory: 0   },
+  { id: "23", name: "Mechanical Keyboard TKL",              categories: ["Electronics"],           status: "draft",    variantCount: 2,                  priceRange: { min: 14900, max: 16900 }, totalInventory: 0   },
+  { id: "24", name: "Linen Throw Pillow Covers",            categories: ["Home & Living"],         status: "active",   variantCount: 1, sku: "HOM-0419", priceRange: { min: 2200,  max: 2200  }, totalInventory: 187 },
+  { id: "25", name: "Classic White Sneakers",               categories: ["Footwear"],              status: "active",   variantCount: 4,                  priceRange: { min: 8900,  max: 8900  }, totalInventory: 92  },
 ]
 
 // ─── Thumbnail ────────────────────────────────────────────────────────────────
 
-const CATEGORY_COLORS: Record<string, { bg: string; text: string }> = {
+export const CATEGORY_COLORS: Record<string, { bg: string; text: string }> = {
   "Electronics":   { bg: "bg-blue-50 dark:bg-blue-950/40",    text: "text-blue-600 dark:text-blue-400"    },
   "Apparel":       { bg: "bg-violet-50 dark:bg-violet-950/40", text: "text-violet-600 dark:text-violet-400" },
   "Footwear":      { bg: "bg-amber-50 dark:bg-amber-950/40",   text: "text-amber-600 dark:text-amber-400"   },
@@ -67,8 +68,8 @@ const CATEGORY_COLORS: Record<string, { bg: string; text: string }> = {
   "Beauty":        { bg: "bg-pink-50 dark:bg-pink-950/40",     text: "text-pink-600 dark:text-pink-400"     },
 }
 
-function ProductThumbnail({ name, category }: { name: string; category: string }) {
-  const colors = CATEGORY_COLORS[category] ?? {
+export function ProductThumbnail({ name, categories }: { name: string; categories: string[] }) {
+  const colors = CATEGORY_COLORS[categories[0]] ?? {
     bg: "bg-muted",
     text: "text-muted-foreground",
   }
@@ -81,15 +82,32 @@ function ProductThumbnail({ name, category }: { name: string; category: string }
   )
 }
 
+export function formatPrice(cents: number) {
+  return `$${(cents / 100).toFixed(2)}`
+}
+
+function PriceDisplay({ priceRange }: { priceRange: { min: number; max: number } }) {
+  if (priceRange.min === priceRange.max) {
+    return <span className="text-sm font-semibold tabular-nums">{formatPrice(priceRange.min)}</span>
+  }
+  return (
+    <span className="text-sm font-semibold tabular-nums">
+      {formatPrice(priceRange.min)}
+      <span className="font-normal text-muted-foreground"> – </span>
+      {formatPrice(priceRange.max)}
+    </span>
+  )
+}
+
 // ─── Status Badge ─────────────────────────────────────────────────────────────
 
-const STATUS_STYLES: Record<ProductStatus, string> = {
+export const STATUS_STYLES: Record<ProductStatus, string> = {
   active:   "text-amber-700 border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-900/50 dark:text-amber-400",
   draft:    "text-muted-foreground border-border bg-muted/40",
   archived: "text-destructive border-destructive/20 bg-destructive/10",
 }
 
-function StatusBadge({ status }: { status: ProductStatus }) {
+export function ProductStatusBadge({ status }: { status: ProductStatus }) {
   return (
     <Badge
       variant="outline"
@@ -108,10 +126,14 @@ const COLUMNS: DataTableColumn<Product>[] = [
     header: "Product",
     render: (row) => (
       <div className="flex items-center gap-3">
-        <ProductThumbnail name={row.name} category={row.category} />
+        <ProductThumbnail name={row.name} categories={row.categories} />
         <div className="min-w-0">
           <p className="text-sm font-medium leading-none">{row.name}</p>
-          <p className="mt-0.5 font-mono text-xs text-muted-foreground">{row.sku}</p>
+          <p className="mt-0.5 font-mono text-xs text-muted-foreground">
+            {row.variantCount === 1 && row.sku
+              ? row.sku
+              : `${row.variantCount} variants`}
+          </p>
         </div>
       </div>
     ),
@@ -120,7 +142,7 @@ const COLUMNS: DataTableColumn<Product>[] = [
     key: "status",
     header: "Status",
     className: "w-28",
-    render: (row) => <StatusBadge status={row.status} />,
+    render: (row) => <ProductStatusBadge status={row.status} />,
   },
   {
     key: "inventory",
@@ -130,10 +152,10 @@ const COLUMNS: DataTableColumn<Product>[] = [
     render: (row) => (
       <span
         className={`text-sm tabular-nums ${
-          row.inventory === 0 ? "text-muted-foreground" : ""
+          row.totalInventory === 0 ? "text-muted-foreground" : ""
         }`}
       >
-        {row.inventory === 0 ? "—" : row.inventory.toLocaleString()}
+        {row.totalInventory === 0 ? "—" : row.totalInventory.toLocaleString()}
       </span>
     ),
   },
@@ -141,25 +163,24 @@ const COLUMNS: DataTableColumn<Product>[] = [
     key: "price",
     header: "Price",
     align: "right",
-    className: "w-24",
-    render: (row) => (
-      <span className="text-sm font-semibold tabular-nums">
-        ${row.price.toFixed(2)}
-      </span>
-    ),
+    className: "w-36",
+    render: (row) => <PriceDisplay priceRange={row.priceRange} />,
   },
   {
     key: "view",
     header: "View details",
     align: "center",
     className: "w-28 pl-8",
-    render: () => (
+    render: (row) => (
       <Button
         variant="ghost"
         size="icon"
         className="h-8 w-8 text-muted-foreground hover:text-foreground"
+        asChild
       >
-        <EyeIcon className="h-4 w-4" />
+        <Link to="/admin/products/$productId" params={{ productId: row.id }}>
+          <EyeIcon className="h-4 w-4" />
+        </Link>
       </Button>
     ),
   },

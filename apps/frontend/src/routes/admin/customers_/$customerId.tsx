@@ -27,6 +27,7 @@ import {
   CustomerAvatar,
   CustomerStatusBadge,
   CUSTOMER_STATUS_STYLES,
+  fullName,
   type CustomerStatus,
 } from "~/routes/admin/customers_/index"
 import { OrderStatusBadge } from "~/routes/admin/orders_/index"
@@ -40,13 +41,17 @@ export const Route = createFileRoute("/admin/customers_/$customerId")({
 type Address = {
   id: string
   label: string
-  icon: "home" | "office"
-  line1: string
+  firstName: string
+  lastName: string
+  addressLine1: string
+  addressLine2?: string
   city: string
-  region: string
-  zip: string
-  country: string
-  isDefault: boolean
+  state: string
+  postalCode: string
+  countryCode: string
+  phone?: string
+  isDefaultBilling: boolean
+  isDefaultShipping: boolean
 }
 
 type OrderRow = {
@@ -61,7 +66,8 @@ type OrderRow = {
 
 const SEED_CUSTOMER = {
   id: "1",
-  name: "John Smith",
+  firstName: "John",
+  lastName: "Smith",
   email: "john@email.com",
   phone: "+960 773-1234",
   status: "active" as CustomerStatus,
@@ -70,8 +76,8 @@ const SEED_CUSTOMER = {
   since: "Jan 15, 2026",
   stats: {
     totalOrders: 8,
-    totalSpent: 1247.00,
-    avgOrder: 155.88,
+    totalSpent: 124700,   // cents
+    avgOrder: 15588,      // cents
   },
 }
 
@@ -79,24 +85,29 @@ const SEED_ADDRESSES: Address[] = [
   {
     id: "a1",
     label: "Home",
-    icon: "home",
-    line1: "123 Beach Road",
+    firstName: "John",
+    lastName: "Smith",
+    addressLine1: "123 Beach Road",
     city: "Malé",
-    region: "Kaafu Atoll",
-    zip: "20001",
-    country: "Maldives",
-    isDefault: true,
+    state: "Kaafu Atoll",
+    postalCode: "20001",
+    countryCode: "MV",
+    phone: "+960 773-1234",
+    isDefaultBilling: true,
+    isDefaultShipping: true,
   },
   {
     id: "a2",
     label: "Office",
-    icon: "office",
-    line1: "45 Orchid Magu",
+    firstName: "John",
+    lastName: "Smith",
+    addressLine1: "45 Orchid Magu",
     city: "Malé",
-    region: "Kaafu Atoll",
-    zip: "20002",
-    country: "Maldives",
-    isDefault: false,
+    state: "Kaafu Atoll",
+    postalCode: "20002",
+    countryCode: "MV",
+    isDefaultBilling: false,
+    isDefaultShipping: false,
   },
 ]
 
@@ -144,7 +155,11 @@ function CustomerDetailPage() {
 
   function setDefault(id: string) {
     setAddresses((prev) =>
-      prev.map((a) => ({ ...a, isDefault: a.id === id })),
+      prev.map((a) => ({
+        ...a,
+        isDefaultBilling: a.id === id,
+        isDefaultShipping: a.id === id,
+      })),
     )
   }
 
@@ -166,14 +181,14 @@ function CustomerDetailPage() {
             Customers
           </Link>
           <ChevronRightIcon className="h-3.5 w-3.5" />
-          <span className="text-foreground">{customer.name}</span>
+          <span className="text-foreground">{fullName(customer)}</span>
         </div>
 
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-3">
-            <CustomerAvatar name={customer.name} size="md" />
+            <CustomerAvatar name={fullName(customer)} size="md" />
             <div>
-              <h1 className="text-2xl font-semibold leading-tight">{customer.name}</h1>
+              <h1 className="text-2xl font-semibold leading-tight">{fullName(customer)}</h1>
               <div className="mt-1 flex items-center gap-2">
                 <Badge
                   variant="outline"
@@ -209,7 +224,7 @@ function CustomerDetailPage() {
                 <span className="w-28 shrink-0 text-xs font-medium text-muted-foreground">
                   Name
                 </span>
-                <span className="text-sm font-medium">{customer.name}</span>
+                <span className="text-sm font-medium">{fullName(customer)}</span>
               </div>
               <div className="flex items-baseline justify-between">
                 <span className="w-28 shrink-0 text-xs font-medium text-muted-foreground">
@@ -301,11 +316,11 @@ function CustomerDetailPage() {
               />
               <StatTile
                 label="Total spent"
-                value={`$${customer.stats.totalSpent.toLocaleString("en-US", { minimumFractionDigits: 2 })}`}
+                value={`$${(customer.stats.totalSpent / 100).toLocaleString("en-US", { minimumFractionDigits: 2 })}`}
               />
               <StatTile
                 label="Average order"
-                value={`$${customer.stats.avgOrder.toFixed(2)}`}
+                value={`$${(customer.stats.avgOrder / 100).toFixed(2)}`}
               />
               <StatTile
                 label="Customer since"
@@ -336,7 +351,7 @@ function CustomerDetailPage() {
             addresses.map((addr) => (
               <div key={addr.id} className="flex items-start gap-4 py-4">
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted">
-                  {addr.icon === "home" ? (
+                  {addr.label.toLowerCase().includes("home") ? (
                     <HomeIcon className="h-4 w-4 text-muted-foreground" />
                   ) : (
                     <BuildingIcon className="h-4 w-4 text-muted-foreground" />
@@ -344,29 +359,38 @@ function CustomerDetailPage() {
                 </div>
 
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <p className="text-sm font-medium">{addr.label}</p>
-                    {addr.isDefault && (
+                    {addr.isDefaultBilling && (
                       <Badge
                         variant="outline"
                         className="px-1.5 py-0 text-[10px] font-medium text-amber-700 border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-900/50 dark:text-amber-400"
                       >
-                        Default
+                        Default billing
+                      </Badge>
+                    )}
+                    {addr.isDefaultShipping && (
+                      <Badge
+                        variant="outline"
+                        className="px-1.5 py-0 text-[10px] font-medium text-amber-700 border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-900/50 dark:text-amber-400"
+                      >
+                        Default shipping
                       </Badge>
                     )}
                   </div>
                   <address className="mt-1 not-italic space-y-0 text-xs text-muted-foreground leading-relaxed">
-                    <p>{addr.line1}</p>
+                    <p>{addr.firstName} {addr.lastName}</p>
+                    <p>{addr.addressLine1}{addr.addressLine2 ? `, ${addr.addressLine2}` : ""}</p>
                     <p>
                       {addr.city}
-                      {addr.region ? `, ${addr.region}` : ""} {addr.zip}
+                      {addr.state ? `, ${addr.state}` : ""} {addr.postalCode}
                     </p>
-                    <p>{addr.country}</p>
+                    <p>{addr.countryCode}</p>
                   </address>
                 </div>
 
                 <div className="flex shrink-0 items-center gap-1">
-                  {!addr.isDefault && (
+                  {(!addr.isDefaultBilling || !addr.isDefaultShipping) && (
                     <Button
                       variant="ghost"
                       size="sm"

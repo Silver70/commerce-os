@@ -30,7 +30,7 @@ export const Route = createFileRoute("/admin/discounts_/$discountId")({
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type AppliesTo = "all" | "category" | "product"
+type AppliesTo = "order" | "category" | "product"
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -332,7 +332,7 @@ function DiscountEditPage() {
                 Discount type <span className="text-destructive">*</span>
               </Label>
               <div className="flex flex-col gap-2">
-                {(["percentage", "fixed"] as const).map((t) => (
+                {(["percentage", "fixed_amount"] as const).map((t) => (
                   <label
                     key={t}
                     className="flex cursor-pointer items-center gap-2.5"
@@ -363,7 +363,7 @@ function DiscountEditPage() {
                 Value <span className="text-destructive">*</span>
               </Label>
               <div className="flex items-center gap-2">
-                {type === "fixed" && (
+                {type === "fixed_amount" && (
                   <span className="text-sm text-muted-foreground">$</span>
                 )}
                 <Input
@@ -388,7 +388,7 @@ function DiscountEditPage() {
                 Applies to <span className="text-destructive">*</span>
               </Label>
               <div className="flex flex-col gap-2">
-                {(["all", "category", "product"] as const).map((scope) => (
+                {(["order", "category", "product"] as const).map((scope) => (
                   <label
                     key={scope}
                     className="flex cursor-pointer items-center gap-2.5"
@@ -407,7 +407,7 @@ function DiscountEditPage() {
                       )}
                     </div>
                     <span className="text-sm">
-                      {scope === "all"      && "Entire order"}
+                      {scope === "order"    && "Entire order"}
                       {scope === "category" && "Specific category"}
                       {scope === "product"  && "Specific product"}
                     </span>

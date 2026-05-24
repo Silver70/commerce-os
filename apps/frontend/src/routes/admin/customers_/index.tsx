@@ -41,33 +41,38 @@ export type CustomerStatus = "active" | "suspended" | "banned"
 
 export type Customer = {
   id: string
-  name: string
+  firstName: string
+  lastName: string
   email: string
   phone: string
   orders: number
-  total: number
+  total: number        // in cents
   status: CustomerStatus
   since: string
+}
+
+export function fullName(c: Pick<Customer, "firstName" | "lastName">) {
+  return `${c.firstName} ${c.lastName}`
 }
 
 // ─── Fake Data ────────────────────────────────────────────────────────────────
 
 export const CUSTOMERS: Customer[] = [
-  { id: "1",  name: "John Smith",     email: "john@email.com",       phone: "+960 773-1234",   orders: 8, total: 1247.00, status: "active",    since: "Jan 15, 2026" },
-  { id: "2",  name: "Sara Johnson",   email: "sara@email.com",       phone: "+1 555-0100",     orders: 3, total: 268.00,  status: "active",    since: "Feb 3, 2026"  },
-  { id: "3",  name: "Ali Hassan",     email: "ali@surf.com",         phone: "+960 773-9876",   orders: 5, total: 892.50,  status: "active",    since: "Mar 12, 2026" },
-  { id: "4",  name: "Layla Ahmed",    email: "layla@ocean.com",      phone: "+960 791-2345",   orders: 1, total: 118.00,  status: "active",    since: "Apr 1, 2026"  },
-  { id: "5",  name: "Mike Torres",    email: "mike@example.com",     phone: "+1 555-0199",     orders: 0, total: 0,       status: "suspended", since: "Jan 28, 2026" },
-  { id: "6",  name: "Nina Park",      email: "nina@waves.com",       phone: "+82 10-1234",     orders: 2, total: 310.50,  status: "active",    since: "Feb 20, 2026" },
-  { id: "7",  name: "Omar Rashid",    email: "omar@beach.com",       phone: "+971 50-1234",    orders: 4, total: 621.00,  status: "active",    since: "Jan 5, 2026"  },
-  { id: "8",  name: "Petra Müller",   email: "petra@surf.com",       phone: "+49 171-5678",    orders: 1, total: 149.99,  status: "active",    since: "Mar 25, 2026" },
-  { id: "9",  name: "Quinn Blake",    email: "quin@example.com",     phone: "+44 7700-9000",   orders: 3, total: 197.00,  status: "active",    since: "Feb 14, 2026" },
-  { id: "10", name: "Rosa Carvalho",  email: "rosa@ocean.com",       phone: "+55 11-9999",     orders: 2, total: 99.00,   status: "active",    since: "Apr 8, 2026"  },
-  { id: "11", name: "Sam Fisher",     email: "sam@waves.com",        phone: "+1 555-0177",     orders: 1, total: 79.00,   status: "active",    since: "May 1, 2026"  },
-  { id: "12", name: "Tina Fernandez", email: "tina@board.com",       phone: "+52 55-5678",     orders: 2, total: 258.00,  status: "active",    since: "Mar 3, 2026"  },
-  { id: "13", name: "Uma Patel",      email: "uma@surf.com",         phone: "+91 98765-4321",  orders: 1, total: 54.00,   status: "active",    since: "Apr 19, 2026" },
-  { id: "14", name: "Val Laurent",    email: "val@ocean.com",        phone: "+33 6-1234-5678", orders: 3, total: 347.50,  status: "active",    since: "Feb 7, 2026"  },
-  { id: "15", name: "Wade Chen",      email: "wade@beach.com",       phone: "+86 138-0000",    orders: 1, total: 38.50,   status: "banned",    since: "Mar 15, 2026" },
+  { id: "1",  firstName: "John",  lastName: "Smith",     email: "john@email.com",       phone: "+960 773-1234",   orders: 8, total: 124700, status: "active",    since: "Jan 15, 2026" },
+  { id: "2",  firstName: "Sara",  lastName: "Johnson",   email: "sara@email.com",       phone: "+1 555-0100",     orders: 3, total: 26800,  status: "active",    since: "Feb 3, 2026"  },
+  { id: "3",  firstName: "Ali",   lastName: "Hassan",    email: "ali@surf.com",         phone: "+960 773-9876",   orders: 5, total: 89250,  status: "active",    since: "Mar 12, 2026" },
+  { id: "4",  firstName: "Layla", lastName: "Ahmed",     email: "layla@ocean.com",      phone: "+960 791-2345",   orders: 1, total: 11800,  status: "active",    since: "Apr 1, 2026"  },
+  { id: "5",  firstName: "Mike",  lastName: "Torres",    email: "mike@example.com",     phone: "+1 555-0199",     orders: 0, total: 0,      status: "suspended", since: "Jan 28, 2026" },
+  { id: "6",  firstName: "Nina",  lastName: "Park",      email: "nina@waves.com",       phone: "+82 10-1234",     orders: 2, total: 31050,  status: "active",    since: "Feb 20, 2026" },
+  { id: "7",  firstName: "Omar",  lastName: "Rashid",    email: "omar@beach.com",       phone: "+971 50-1234",    orders: 4, total: 62100,  status: "active",    since: "Jan 5, 2026"  },
+  { id: "8",  firstName: "Petra", lastName: "Müller",    email: "petra@surf.com",       phone: "+49 171-5678",    orders: 1, total: 14999,  status: "active",    since: "Mar 25, 2026" },
+  { id: "9",  firstName: "Quinn", lastName: "Blake",     email: "quin@example.com",     phone: "+44 7700-9000",   orders: 3, total: 19700,  status: "active",    since: "Feb 14, 2026" },
+  { id: "10", firstName: "Rosa",  lastName: "Carvalho",  email: "rosa@ocean.com",       phone: "+55 11-9999",     orders: 2, total: 9900,   status: "active",    since: "Apr 8, 2026"  },
+  { id: "11", firstName: "Sam",   lastName: "Fisher",    email: "sam@waves.com",        phone: "+1 555-0177",     orders: 1, total: 7900,   status: "active",    since: "May 1, 2026"  },
+  { id: "12", firstName: "Tina",  lastName: "Fernandez", email: "tina@board.com",       phone: "+52 55-5678",     orders: 2, total: 25800,  status: "active",    since: "Mar 3, 2026"  },
+  { id: "13", firstName: "Uma",   lastName: "Patel",     email: "uma@surf.com",         phone: "+91 98765-4321",  orders: 1, total: 5400,   status: "active",    since: "Apr 19, 2026" },
+  { id: "14", firstName: "Val",   lastName: "Laurent",   email: "val@ocean.com",        phone: "+33 6-1234-5678", orders: 3, total: 34750,  status: "active",    since: "Feb 7, 2026"  },
+  { id: "15", firstName: "Wade",  lastName: "Chen",      email: "wade@beach.com",       phone: "+86 138-0000",    orders: 1, total: 3850,   status: "banned",    since: "Mar 15, 2026" },
 ]
 
 // ─── Avatar ───────────────────────────────────────────────────────────────────
@@ -93,6 +98,10 @@ export function initials(name: string) {
     .join("")
     .slice(0, 2)
     .toUpperCase()
+}
+
+export function customerInitials(c: Pick<Customer, "firstName" | "lastName">) {
+  return (c.firstName[0] + c.lastName[0]).toUpperCase()
 }
 
 export function CustomerAvatar({
@@ -142,9 +151,9 @@ const COLUMNS: DataTableColumn<Customer>[] = [
     header: "Customer",
     render: (row) => (
       <div className="flex items-center gap-3">
-        <CustomerAvatar name={row.name} />
+        <CustomerAvatar name={fullName(row)} />
         <div className="min-w-0">
-          <p className="text-sm font-medium leading-none">{row.name}</p>
+          <p className="text-sm font-medium leading-none">{fullName(row)}</p>
           <p className="mt-0.5 text-xs text-muted-foreground">{row.email}</p>
         </div>
       </div>
@@ -174,7 +183,7 @@ const COLUMNS: DataTableColumn<Customer>[] = [
     className: "w-32",
     render: (row) => (
       <span className="text-sm font-semibold tabular-nums">
-        {row.total === 0 ? "—" : `$${row.total.toFixed(2)}`}
+        {row.total === 0 ? "—" : `$${(row.total / 100).toFixed(2)}`}
       </span>
     ),
   },
@@ -223,19 +232,21 @@ const FILTERS: DataTableFilter[] = [
 // ─── Create Customer Sheet ────────────────────────────────────────────────────
 
 function CreateCustomerSheet() {
-  const [open, setOpen]           = React.useState(false)
-  const [name, setName]           = React.useState("")
-  const [email, setEmail]         = React.useState("")
-  const [phone, setPhone]         = React.useState("")
-  const [status, setStatus]       = React.useState<CustomerStatus>("active")
-  const [marketing, setMarketing] = React.useState(false)
+  const [open, setOpen]               = React.useState(false)
+  const [firstName, setFirstName]     = React.useState("")
+  const [lastName, setLastName]       = React.useState("")
+  const [email, setEmail]             = React.useState("")
+  const [phone, setPhone]             = React.useState("")
+  const [status, setStatus]           = React.useState<CustomerStatus>("active")
+  const [marketing, setMarketing]     = React.useState(false)
 
-  const canSubmit = name.trim().length > 0 && email.trim().length > 0
+  const canSubmit = firstName.trim().length > 0 && lastName.trim().length > 0 && email.trim().length > 0
 
   function handleOpenChange(next: boolean) {
     setOpen(next)
     if (!next) {
-      setName("")
+      setFirstName("")
+      setLastName("")
       setEmail("")
       setPhone("")
       setStatus("active")
@@ -265,16 +276,29 @@ function CreateCustomerSheet() {
 
           {/* Name + Email */}
           <div className="space-y-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="cs-name">
-                Full name <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                id="cs-name"
-                placeholder="e.g. John Smith"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="cs-first-name">
+                  First name <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  id="cs-first-name"
+                  placeholder="John"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="cs-last-name">
+                  Last name <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  id="cs-last-name"
+                  placeholder="Smith"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                />
+              </div>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="cs-email">

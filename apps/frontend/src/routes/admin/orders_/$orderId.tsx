@@ -56,10 +56,12 @@ type LineItem = {
 
 type TimelineEvent = {
   id: string
-  type: "placed" | "payment" | "status" | "note" | "shipment"
+  eventType: "placed" | "payment" | "status" | "note" | "shipment"
   title: string
   description: string
-  actor: string
+  actorType: "system" | "admin" | "customer"
+  actorId: string | null
+  actorName: string        // resolved display name, included by backend
   time: string
 }
 
@@ -120,15 +122,15 @@ const SEED_ORDER = {
     amount:   171.99,
   },
   timeline: [
-    { id: "1", type: "placed"  as const, title: "Order placed",      description: "Customer placed the order via the storefront.",    actor: "Customer",    time: "May 19, 2026 at 2:34 PM" },
-    { id: "2", type: "payment" as const, title: "Payment captured",  description: "Stripe captured $171.99 from Visa ending 4242.",  actor: "System",      time: "May 19, 2026 at 2:35 PM" },
-    { id: "3", type: "status"  as const, title: "Status updated",    description: "Order status changed: pending → paid.",           actor: "System",      time: "May 19, 2026 at 2:35 PM" },
+    { id: "1", eventType: "placed"  as const, title: "Order placed",     description: "Customer placed the order via the storefront.",   actorType: "customer", actorId: "cust_01JOHNSMITH", actorName: "John Smith", time: "May 19, 2026 at 2:34 PM" },
+    { id: "2", eventType: "payment" as const, title: "Payment captured", description: "Stripe captured $171.99 from Visa ending 4242.", actorType: "system",   actorId: null,               actorName: "System",     time: "May 19, 2026 at 2:35 PM" },
+    { id: "3", eventType: "status"  as const, title: "Status updated",   description: "Order status changed: pending → paid.",          actorType: "system",   actorId: null,               actorName: "System",     time: "May 19, 2026 at 2:35 PM" },
   ] as TimelineEvent[],
 }
 
 // ─── Timeline dot styles ──────────────────────────────────────────────────────
 
-const TIMELINE_DOT: Record<TimelineEvent["type"], string> = {
+const TIMELINE_DOT: Record<TimelineEvent["eventType"], string> = {
   placed:   "bg-emerald-500",
   payment:  "bg-emerald-500",
   status:   "bg-blue-500",
@@ -272,10 +274,12 @@ function OrderDetailPage() {
       ...t,
       {
         id: String(Date.now()),
-        type: "status",
+        eventType: "status" as const,
         title: "Status updated",
         description: `Order status changed: ${prev} → ${newStatus}.`,
-        actor: "You",
+        actorType: "admin" as const,
+        actorId: null,
+        actorName: "You",
         time: "Just now",
       },
     ])
@@ -287,10 +291,12 @@ function OrderDetailPage() {
       ...t,
       {
         id: String(Date.now()),
-        type: "note",
+        eventType: "note" as const,
         title: "Note added",
         description: noteText.trim(),
-        actor: "You",
+        actorType: "admin" as const,
+        actorId: null,
+        actorName: "You",
         time: "Just now",
       },
     ])
@@ -563,13 +569,13 @@ function OrderDetailPage() {
                       <div className="absolute left-[7px] top-4 h-full w-px bg-border" />
                     )}
                     {/* Dot */}
-                    <div className={cn("mt-1 h-3.5 w-3.5 shrink-0 rounded-full ring-2 ring-background", TIMELINE_DOT[event.type])} />
+                    <div className={cn("mt-1 h-3.5 w-3.5 shrink-0 rounded-full ring-2 ring-background", TIMELINE_DOT[event.eventType])} />
                     {/* Content */}
                     <div className="min-w-0 flex-1 space-y-0.5">
                       <p className="text-sm font-medium leading-snug">{event.title}</p>
                       <p className="text-xs text-muted-foreground leading-relaxed">{event.description}</p>
                       <p className="text-[11px] text-muted-foreground/60">
-                        {event.actor} · {event.time}
+                        {event.actorName} · {event.time}
                       </p>
                     </div>
                   </div>

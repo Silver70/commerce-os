@@ -53,13 +53,14 @@ type Role = "super_admin" | "product_manager" | "support_agent"
 type TeamMember = { id: string; name: string; email: string; role: Role; isYou?: boolean }
 type Invitation = { id: string; email: string; role: Role; sentDate: string }
 type ApiKey = { id: string; name: string; prefix: string; lastUsed: string | null }
-type TaxType = "exclusive" | "inclusive"
-type TaxRate = { id: string; name: string; rate: number; country: string; state: string; type: TaxType; active: boolean }
+type TaxRate = { id: string; name: string; rate: number; country: string; state: string; isInclusive: boolean; active: boolean }
 
 type AuditEntry = {
   id: string
   time: string
-  actor: string
+  actorType: "admin" | "system" | "webhook" | "customer"
+  actorId: string | null
+  actorName: string        // resolved display name, included by backend
   entity: string
   action: string
   detail: string
@@ -92,81 +93,81 @@ const INITIAL_API_KEYS: ApiKey[] = [
 ]
 
 const INITIAL_TAX_RATES: TaxRate[] = [
-  { id: "t1", name: "GST",          rate: 6.00,  country: "MV", state: "",   type: "exclusive", active: true  },
-  { id: "t2", name: "US Sales Tax", rate: 7.25,  country: "US", state: "CA", type: "exclusive", active: true  },
-  { id: "t3", name: "UK VAT",       rate: 20.00, country: "GB", state: "",   type: "inclusive", active: true  },
-  { id: "t4", name: "AU GST",       rate: 10.00, country: "AU", state: "",   type: "inclusive", active: false },
+  { id: "t1", name: "GST",          rate: 600,  country: "MV", state: "",   isInclusive: false, active: true  },
+  { id: "t2", name: "US Sales Tax", rate: 725,  country: "US", state: "CA", isInclusive: false, active: true  },
+  { id: "t3", name: "UK VAT",       rate: 2000, country: "GB", state: "",   isInclusive: true,  active: true  },
+  { id: "t4", name: "AU GST",       rate: 1000, country: "AU", state: "",   isInclusive: true,  active: false },
 ]
 
 const AUDIT_LOG: AuditEntry[] = [
   {
-    id: "a1", time: "May 22, 2:34 PM", actor: "Jane Park", entity: "Products",
+    id: "a1",  time: "May 22, 2:34 PM",  actorType: "admin",  actorId: "user_01JANEPARK",   actorName: "Jane Park",  entity: "Products",
     action: 'Updated product "Wave Board Pro"', detail: "price: $139.99 → $149.99",
     json: '{\n  "price": {\n    "old": 13999,\n    "new": 14999\n  }\n}',
     ip: "203.0.113.42", ua: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
   },
   {
-    id: "a2", time: "May 22, 1:30 PM", actor: "Silver", entity: "Orders",
+    id: "a2",  time: "May 22, 1:30 PM",  actorType: "admin",  actorId: "user_01SILVER",      actorName: "Silver",     entity: "Orders",
     action: "Issued refund $49.99", detail: "Order ORD-20260519-0025",
     json: '{\n  "amount": 4999,\n  "reason": "defective_product",\n  "restock": true\n}',
     ip: "203.0.113.10", ua: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
   },
   {
-    id: "a3", time: "May 22, 11:00 AM", actor: "System", entity: "Inventory",
+    id: "a3",  time: "May 22, 11:00 AM", actorType: "system", actorId: null,                 actorName: "System",     entity: "Inventory",
     action: "Stock adjusted RASH-M-BLUE", detail: "Quantity: 10 → 3 (Reason: Damage)",
     json: '{\n  "sku": "RASH-M-BLUE",\n  "quantity": { "old": 10, "new": 3 },\n  "reason": "damage"\n}',
     ip: "—", ua: "Commerce OS / background-job",
   },
   {
-    id: "a4", time: "May 21, 4:15 PM", actor: "Silver", entity: "Discounts",
+    id: "a4",  time: "May 21, 4:15 PM",  actorType: "admin",  actorId: "user_01SILVER",      actorName: "Silver",     entity: "Discounts",
     action: 'Created discount "Staff Discount"', detail: "30% off all orders",
     json: '{\n  "name": "Staff Discount",\n  "type": "percentage",\n  "value": 30\n}',
     ip: "203.0.113.10", ua: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
   },
   {
-    id: "a5", time: "May 21, 2:00 PM", actor: "Jane Park", entity: "Products",
+    id: "a5",  time: "May 21, 2:00 PM",  actorType: "admin",  actorId: "user_01JANEPARK",   actorName: "Jane Park",  entity: "Products",
     action: 'Updated product "Longboard Classic"', detail: "Added product image",
     json: '{\n  "media": {\n    "added": ["img_29a3f.jpg"]\n  }\n}',
     ip: "203.0.113.42", ua: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
   },
   {
-    id: "a6", time: "May 20, 5:30 PM", actor: "Ali Hassan", entity: "Customers",
+    id: "a6",  time: "May 20, 5:30 PM",  actorType: "admin",  actorId: "user_01ALIHASSAN",  actorName: "Ali Hassan", entity: "Customers",
     action: "Updated customer John Smith", detail: "status: active → suspended",
     json: '{\n  "status": {\n    "old": "active",\n    "new": "suspended"\n  }\n}',
     ip: "203.0.113.88", ua: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0) AppleWebKit/605.1.15",
   },
   {
-    id: "a7", time: "May 20, 3:45 PM", actor: "Silver", entity: "Settings",
+    id: "a7",  time: "May 20, 3:45 PM",  actorType: "admin",  actorId: "user_01SILVER",      actorName: "Silver",     entity: "Settings",
     action: "Updated store settings", detail: 'Store name: "Surf Co" → "Acme Surf Shop"',
     json: '{\n  "store_name": {\n    "old": "Surf Co",\n    "new": "Acme Surf Shop"\n  }\n}',
     ip: "203.0.113.10", ua: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
   },
   {
-    id: "a8", time: "May 19, 2:34 PM", actor: "System", entity: "Orders",
+    id: "a8",  time: "May 19, 2:34 PM",  actorType: "webhook", actorId: null,                actorName: "System",     entity: "Orders",
     action: "Order status updated", detail: "ORD-20260519-0025: pending → paid",
     json: '{\n  "status": {\n    "old": "pending",\n    "new": "paid"\n  },\n  "payment_intent": "pi_3R8a9bKZ"\n}',
     ip: "—", ua: "Commerce OS / stripe-webhook",
   },
   {
-    id: "a9", time: "May 19, 11:20 AM", actor: "Jane Park", entity: "Products",
+    id: "a9",  time: "May 19, 11:20 AM", actorType: "admin",  actorId: "user_01JANEPARK",   actorName: "Jane Park",  entity: "Products",
     action: 'Created product "Blue Rashguard"', detail: "SKU: RASH-M-BLUE, Price: $49.99",
     json: '{\n  "name": "Blue Rashguard",\n  "sku": "RASH-M-BLUE",\n  "price": 4999\n}',
     ip: "203.0.113.42", ua: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
   },
   {
-    id: "a10", time: "May 18, 4:00 PM", actor: "Silver", entity: "Discounts",
+    id: "a10", time: "May 18, 4:00 PM",  actorType: "admin",  actorId: "user_01SILVER",      actorName: "Silver",     entity: "Discounts",
     action: 'Updated discount "Summer Sale"', detail: "Usage limit: 80 → 100",
     json: '{\n  "usage_limit": {\n    "old": 80,\n    "new": 100\n  }\n}',
     ip: "203.0.113.10", ua: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
   },
   {
-    id: "a11", time: "May 17, 9:15 AM", actor: "System", entity: "Inventory",
+    id: "a11", time: "May 17, 9:15 AM",  actorType: "system", actorId: null,                 actorName: "System",     entity: "Inventory",
     action: "Stock adjusted FIN-SET-PRO", detail: "Quantity: 5 → 15 (Reason: Restock)",
     json: '{\n  "sku": "FIN-SET-PRO",\n  "quantity": { "old": 5, "new": 15 },\n  "reason": "restock"\n}',
     ip: "—", ua: "Commerce OS / background-job",
   },
   {
-    id: "a12", time: "May 16, 3:30 PM", actor: "Ali Hassan", entity: "Orders",
+    id: "a12", time: "May 16, 3:30 PM",  actorType: "admin",  actorId: "user_01ALIHASSAN",  actorName: "Ali Hassan", entity: "Orders",
     action: "Viewed order ORD-20260515-0010", detail: "Support access",
     json: '{\n  "action": "view",\n  "order_id": "ORD-20260515-0010"\n}',
     ip: "203.0.113.88", ua: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0) AppleWebKit/605.1.15",
@@ -783,20 +784,20 @@ function TaxRateSheet({
   onOpenChange: (v: boolean) => void
   onSave: (data: Omit<TaxRate, "id">, id?: string) => void
 }) {
-  const [name, setName]       = React.useState("")
-  const [rateVal, setRateVal] = React.useState("")
-  const [country, setCountry] = React.useState("")
-  const [state, setState]     = React.useState("")
-  const [type, setType]       = React.useState<TaxType>("exclusive")
-  const [active, setActive]   = React.useState(true)
+  const [name, setName]           = React.useState("")
+  const [rateVal, setRateVal]     = React.useState("")
+  const [country, setCountry]     = React.useState("")
+  const [state, setState]         = React.useState("")
+  const [isInclusive, setIsIncl]  = React.useState(false)
+  const [active, setActive]       = React.useState(true)
 
   React.useEffect(() => {
     if (open) {
       setName(rate?.name ?? "")
-      setRateVal(rate ? String(rate.rate) : "")
+      setRateVal(rate ? String(rate.rate / 100) : "")   // convert basis points → display %
       setCountry(rate?.country ?? "")
       setState(rate?.state ?? "")
-      setType(rate?.type ?? "exclusive")
+      setIsIncl(rate?.isInclusive ?? false)
       setActive(rate?.active ?? true)
     }
   }, [open, rate])
@@ -888,24 +889,24 @@ function TaxRateSheet({
           <div className="space-y-2.5">
             <Label>Tax type</Label>
             <div className="flex flex-col gap-2">
-              {(["exclusive", "inclusive"] as const).map((t) => (
+              {([false, true] as const).map((incl) => (
                 <label
-                  key={t}
+                  key={String(incl)}
                   className="flex cursor-pointer items-center gap-2.5"
-                  onClick={() => setType(t)}
+                  onClick={() => setIsIncl(incl)}
                 >
                   <div
                     className={cn(
                       "flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
-                      type === t ? "border-amber-500 bg-amber-500" : "border-border bg-transparent",
+                      isInclusive === incl ? "border-amber-500 bg-amber-500" : "border-border bg-transparent",
                     )}
                   >
-                    {type === t && <div className="h-1.5 w-1.5 rounded-full bg-white" />}
+                    {isInclusive === incl && <div className="h-1.5 w-1.5 rounded-full bg-white" />}
                   </div>
                   <div>
-                    <span className="text-sm">{t === "exclusive" ? "Exclusive" : "Inclusive"}</span>
+                    <span className="text-sm">{incl ? "Inclusive" : "Exclusive"}</span>
                     <span className="ml-1.5 text-xs text-muted-foreground">
-                      {t === "exclusive" ? "(added on top of price)" : "(included in price)"}
+                      {incl ? "(included in price)" : "(added on top of price)"}
                     </span>
                   </div>
                 </label>
@@ -946,7 +947,7 @@ function TaxRateSheet({
           <Button
             disabled={!canSave}
             className="flex-1 bg-orange-700 text-white shadow-none hover:bg-orange-800 disabled:opacity-50"
-            onClick={() => { onSave({ name: name.trim(), rate: parseFloat(rateVal), country, state, type, active }, rate?.id); onOpenChange(false) }}
+            onClick={() => { onSave({ name: name.trim(), rate: Math.round(parseFloat(rateVal) * 100), country, state, isInclusive, active }, rate?.id); onOpenChange(false) }}
           >
             {isEdit ? "Save changes" : "Add rate"}
           </Button>
@@ -1002,11 +1003,11 @@ function TaxRatesSettings() {
             )}
           >
             <span className="text-sm font-medium">{r.name}</span>
-            <span className="text-sm font-semibold tabular-nums">{r.rate.toFixed(2)}%</span>
+            <span className="text-sm font-semibold tabular-nums">{(r.rate / 100).toFixed(2)}%</span>
             <span className="text-sm text-muted-foreground">
               {countryName(r.country)}{r.state ? ` – ${r.state}` : ""}
             </span>
-            <span className="text-sm text-muted-foreground capitalize">{r.type === "exclusive" ? "Excl." : "Incl."}</span>
+            <span className="text-sm text-muted-foreground">{r.isInclusive ? "Incl." : "Excl."}</span>
             <div className="flex justify-center">
               <Badge
                 variant="outline"
@@ -1053,8 +1054,8 @@ function AuditLogSettings() {
   const [expandedId, setExpandedId]     = React.useState<string | null>(null)
 
   const filtered = AUDIT_LOG.filter((e) => {
-    if (entityFilter !== "all" && e.entity !== entityFilter) return false
-    if (actorFilter !== "all" && e.actor !== actorFilter)   return false
+    if (entityFilter !== "all" && e.entity !== entityFilter)     return false
+    if (actorFilter !== "all" && e.actorName !== actorFilter)    return false
     return true
   })
 
@@ -1137,7 +1138,7 @@ function AuditLogSettings() {
                 onClick={() => setExpandedId(expandedId === entry.id ? null : entry.id)}
               >
                 <span className="text-xs text-muted-foreground leading-relaxed">{entry.time}</span>
-                <span className="text-sm font-medium">{entry.actor}</span>
+                <span className="text-sm font-medium">{entry.actorName}</span>
                 <div className="min-w-0">
                   <p className="text-sm">{entry.action}</p>
                   <p className="text-xs text-muted-foreground">{entry.detail}</p>

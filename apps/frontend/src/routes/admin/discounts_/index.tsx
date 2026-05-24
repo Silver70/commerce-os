@@ -13,9 +13,9 @@ export const Route = createFileRoute("/admin/discounts_/")({
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type DiscountType   = "percentage" | "fixed"
+export type DiscountType   = "percentage" | "fixed_amount"
 export type DiscountStatus = "active" | "scheduled" | "expired"
-export type DiscountScope  = "all" | "category" | "product"
+export type DiscountScope  = "order" | "category" | "product"
 
 export type CouponCode = {
   code: string
@@ -48,7 +48,7 @@ export const DISCOUNTS: Discount[] = [
     name: "Summer Sale",
     type: "percentage",
     value: 20,
-    scope: "all",
+    scope: "order",
     scopeLabel: "All orders",
     coupons: [
       { code: "SUMMER20", maxUses: 50,   perCustomer: 1, used: 23 },
@@ -63,7 +63,7 @@ export const DISCOUNTS: Discount[] = [
   {
     id: "2",
     name: "Rashguard Deal",
-    type: "fixed",
+    type: "fixed_amount",
     value: 10,
     scope: "category",
     scopeLabel: "Category: Apparel",
@@ -79,9 +79,9 @@ export const DISCOUNTS: Discount[] = [
   {
     id: "3",
     name: "New Customer",
-    type: "fixed",
+    type: "fixed_amount",
     value: 5,
-    scope: "all",
+    scope: "order",
     scopeLabel: "All orders",
     coupons: [
       { code: "WELCOME5", maxUses: 50, perCustomer: 1, used: 28 },
@@ -97,7 +97,7 @@ export const DISCOUNTS: Discount[] = [
     name: "Staff Discount",
     type: "percentage",
     value: 30,
-    scope: "all",
+    scope: "order",
     scopeLabel: "All orders",
     coupons: [
       { code: "STAFF30A", maxUses: null, perCustomer: 10, used: 3 },
@@ -134,7 +134,7 @@ export const DISCOUNTS: Discount[] = [
     name: "Black Friday 2025",
     type: "percentage",
     value: 25,
-    scope: "all",
+    scope: "order",
     scopeLabel: "All orders",
     coupons: [
       { code: "BF25",     maxUses: 100, perCustomer: 1, used: 100 },
@@ -152,9 +152,9 @@ export const DISCOUNTS: Discount[] = [
   {
     id: "7",
     name: "Holiday Clearance",
-    type: "fixed",
+    type: "fixed_amount",
     value: 15,
-    scope: "all",
+    scope: "order",
     scopeLabel: "All orders",
     coupons: [
       { code: "HOLS15",   maxUses: 50,  perCustomer: 1, used: 50 },
@@ -171,7 +171,7 @@ export const DISCOUNTS: Discount[] = [
     name: "New Year Flash",
     type: "percentage",
     value: 10,
-    scope: "all",
+    scope: "order",
     scopeLabel: "All orders",
     coupons: [
       { code: "NY2026", maxUses: 100, perCustomer: 1, used: 67 },
@@ -213,7 +213,7 @@ const TABS: Tab[] = [
 ]
 
 function formatValue(d: Discount) {
-  return d.type === "percentage" ? `${d.value}%` : `$${d.value.toFixed(2)}`
+  return d.type === "percentage" ? `${d.value}%` : `$${(d.value / 100).toFixed(2)}`
 }
 
 function formatUsage(d: Discount) {
@@ -325,6 +325,7 @@ function DiscountsPage() {
               <span className="text-sm text-muted-foreground">
                 {d.type === "percentage" ? "%" : "Fixed"}
               </span>
+
 
               {/* Value */}
               <span className="text-sm font-semibold tabular-nums">

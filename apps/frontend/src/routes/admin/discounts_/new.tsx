@@ -29,7 +29,7 @@ export const Route = createFileRoute("/admin/discounts_/new")({
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type AppliesTo = "all" | "category" | "product"
+type AppliesTo = "order" | "category" | "product"
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -247,7 +247,7 @@ function DiscountNewPage() {
   const [name, setName]           = React.useState("")
   const [type, setType]           = React.useState<DiscountType>("percentage")
   const [value, setValue]         = React.useState("")
-  const [appliesTo, setAppliesTo] = React.useState<AppliesTo>("all")
+  const [appliesTo, setAppliesTo] = React.useState<AppliesTo>("order")
   const [category, setCategory]   = React.useState("")
   const [product, setProduct]     = React.useState("")
 
@@ -323,7 +323,7 @@ function DiscountNewPage() {
                 Discount type <span className="text-destructive">*</span>
               </Label>
               <div className="flex flex-col gap-2">
-                {(["percentage", "fixed"] as const).map((t) => (
+                {(["percentage", "fixed_amount"] as const).map((t) => (
                   <label
                     key={t}
                     className="flex cursor-pointer items-center gap-2.5"
@@ -355,7 +355,7 @@ function DiscountNewPage() {
                 Value <span className="text-destructive">*</span>
               </Label>
               <div className="flex items-center gap-2">
-                {type === "fixed" && (
+                {type === "fixed_amount" && (
                   <span className="text-sm text-muted-foreground">$</span>
                 )}
                 <Input
@@ -382,7 +382,7 @@ function DiscountNewPage() {
                 Applies to <span className="text-destructive">*</span>
               </Label>
               <div className="flex flex-col gap-2">
-                {(["all", "category", "product"] as const).map((scope) => (
+                {(["order", "category", "product"] as const).map((scope) => (
                   <label
                     key={scope}
                     className="flex cursor-pointer items-center gap-2.5"
@@ -401,7 +401,7 @@ function DiscountNewPage() {
                       )}
                     </div>
                     <span className="text-sm">
-                      {scope === "all"      && "Entire order"}
+                      {scope === "order"    && "Entire order"}
                       {scope === "category" && "Specific category"}
                       {scope === "product"  && "Specific product"}
                     </span>

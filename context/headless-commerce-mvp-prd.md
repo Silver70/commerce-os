@@ -90,41 +90,44 @@ WorkOS provides three primitives that map directly to this system:
 
 **Key architectural decisions:**
 
-1. **WorkOS handles all authentication.** No password hashing, no session management, no token generation in our code. WorkOS issues JWTs, we verify them.
+1. **WorkOS handles all authentication via the User Management API.** No password hashing, no session management, no token generation in our code. We use the WorkOS User Management API directly — `authenticateWithPassword`, `createUser`, `authenticateWithMagicAuth` — which gives us a fully custom login/signup UI while WorkOS handles identity storage, password hashing, and JWT issuance. We do **not** use the AuthKit hosted-login redirect flow.
 
-2. **WorkOS Organizations = our tenants.** When a new merchant signs up, we create a WorkOS Organization and a corresponding tenant record in our database.
+2. **Custom admin UI, WorkOS identity backend.** The admin dashboard has its own login and signup pages. These call our backend auth endpoints (`POST /api/auth/login`, `POST /api/auth/signup`) which proxy to the WorkOS User Management API. The UX is fully ours; the identity layer is WorkOS.
 
-3. **One user can belong to multiple organizations.** A freelance store manager running three shops logs in once, picks which org to enter, and gets a tenant-scoped session.
+3. **Social OAuth (Google, Microsoft) still requires redirects.** Email/password and signup are fully custom-UI. If social login is added later, those buttons redirect to WorkOS and return via callback — that part of the flow cannot be replaced with a pure API call.
 
-4. **Roles are managed through WorkOS Organization Memberships.** We define three roles (super_admin, product_manager, support_agent) and assign them via WorkOS. Our middleware reads the role from the JWT.
+4. **WorkOS Organizations = our tenants.** When a new merchant signs up, we create a WorkOS Organization and a corresponding tenant record in our database.
 
-5. **Customer auth is separate from admin auth.** Storefront customers authenticate via a lightweight JWT system managed by the commerce engine itself (not WorkOS). WorkOS is for the admin/back-office side. Customers don't need org membership, SSO, or role management — they just need email/password and order history.
+5. **One user can belong to multiple organizations.** A freelance store manager running three shops logs in once, picks which org to enter, and gets a tenant-scoped session.
+
+6. **Roles are managed through WorkOS Organization Memberships.** We define three roles (super_admin, product_manager, support_agent) and assign them via WorkOS. Our middleware reads the role from the JWT.
+
+7. **Customer auth is separate from admin auth.** Storefront customers authenticate via a lightweight JWT system managed by the commerce engine itself (not WorkOS). WorkOS is for the admin/back-office side. Customers don't need org membership, SSO, or role management — they just need email/password and order history.
 
 ### 3.2 Auth Flows
 
 #### Admin Authentication Flow
 
 ```
-Admin navigates to admin dashboard
+Admin navigates to custom login page (our UI)
         │
-        ▼
-Redirected to WorkOS AuthKit hosted login
+        ├─ Email/password form → POST /api/auth/login
+        │       │
+        │       ▼
+        │  Backend calls WorkOS User Management API:
+        │  workos.userManagement.authenticateWithPassword()
+        │       │
+        │       ▼
+        │  WorkOS verifies credentials → returns accessToken + user
+        │       │
+        │       ▼
+        │  Backend issues session (httpOnly cookie with WorkOS access token)
         │
-        ├─ Email/password
-        ├─ Google OAuth
-        ├─ Microsoft OAuth
-        └─ (Future: Enterprise SSO via SAML/OIDC)
-        │
-        ▼
-WorkOS authenticates → returns auth code to callback URL
-        │
-        ▼
-Backend exchanges auth code for WorkOS session
-        │
-        ├─ Receives: user_id, email, organization_id, role
-        │
-        ▼
-Backend issues session (httpOnly cookie with WorkOS session token)
+        └─ (Future: "Sign in with Google/Microsoft" button)
+                │
+                ▼
+           Redirect to WorkOS OAuth → callback flow
+           (social login still requires redirect — cannot use pure API)
         │
         ▼
 If user belongs to multiple orgs → org picker UI
@@ -134,6 +137,28 @@ Active org selected → tenant context established
         │
         ▼
 All subsequent requests carry: user_id + organization_id + role
+```
+
+#### Admin Signup Flow
+
+```
+New admin navigates to custom signup page (our UI)
+        │
+        ▼
+Name + email + password form → POST /api/auth/signup
+        │
+        ▼
+Backend calls WorkOS User Management API:
+workos.userManagement.createUser({ email, password, firstName, lastName })
+        │
+        ▼
+WorkOS creates user → returns user object
+        │
+        ▼
+Backend proceeds to tenant provisioning flow (§3.6)
+        │
+        ▼
+Redirect to org picker or dashboard
 ```
 
 #### Customer Authentication Flow (Storefront)
@@ -1214,6 +1239,66 @@ The full schema is defined in Section 4.2 above. Key design decisions:
 
 All routes prefixed with `/api/admin/`. Require WorkOS JWT (httpOnly cookie) + RBAC check.
 
+**Dashboard**
+```
+GET    /api/admin/dashboard/stats?period=today|7d|30d|90d   # KPI metrics for the dashboard home
+```
+
+**`GET /api/admin/dashboard/stats` — Response shape**
+```typescript
+{
+  period: "today" | "7d" | "30d" | "90d",
+
+  revenue: {
+    current: number,          // total in cents, paid/processing/shipped/delivered orders
+    prior: number,            // same period shifted back (e.g. previous 7 days)
+    delta: number,            // percentage change vs prior period
+    sparkline: number[],      // daily totals in cents, length = period in days
+  },
+  orders: {
+    current: number,          // count of orders placed in period
+    prior: number,
+    delta: number,
+    sparkline: number[],      // daily order counts
+  },
+  aov: {
+    current: number,          // average order value in cents (revenue / orders)
+    prior: number,
+    delta: number,
+    sparkline: number[],
+  },
+  conversion: {
+    current: number,          // cart-to-order rate: converted / (converted + abandoned) × 100
+    prior: number,            // basis: carts created in the period (not active ones)
+    delta: number,
+    sparkline: number[],      // daily conversion rates
+  },
+  returning: {
+    current: number,          // % of orders in period placed by customers with a prior order
+    prior: number,
+    delta: number,
+    sparkline: number[],
+  },
+
+  // Snapshot counts for the "needs attention" panel
+  pendingOrders: number,      // orders with status = pending
+  processingOrders: number,   // orders with status = processing
+  lowStockItems: number,      // inventory_items where (quantity - reserved) <= low_stock_threshold
+}
+```
+
+**Data sources per metric:**
+
+| Metric | Source tables | Notes |
+|--------|--------------|-------|
+| Revenue | `orders` | Sum of `total` where `status IN (paid, processing, shipped, delivered)` and `placed_at` in period |
+| Orders | `orders` | Count where `placed_at` in period |
+| AOV | `orders` | `revenue / orders` — computed, not stored |
+| Conversion | `carts` | `converted / (converted + abandoned)` where `created_at` in period; `active` carts excluded (not yet resolved) |
+| Returning customers | `orders` + `customers` | Of orders in period with non-null `customer_id`, % where that customer has an order placed before the period start |
+| Pending / processing | `orders` | Count by status — no date filter, current snapshot |
+| Low stock | `inventory_items` | `(quantity - reserved) <= low_stock_threshold` |
+
 **Tenant Management**
 ```
 GET    /api/admin/organization              # Current org settings
@@ -1250,11 +1335,52 @@ DELETE /api/admin/categories/:id
 **Orders**
 ```
 GET    /api/admin/orders                           # List with filters
+POST   /api/admin/orders                           # Manually create an order (see §7.6)
 GET    /api/admin/orders/:id                        # Full detail with timeline
 PATCH  /api/admin/orders/:id/status                 # Update status
 POST   /api/admin/orders/:id/notes                  # Add internal note
 POST   /api/admin/orders/:id/refund                 # Issue refund
 POST   /api/admin/orders/:id/shipment               # Create shipment
+```
+
+**`POST /api/admin/orders` — Request body**
+```typescript
+{
+  // Customer: one of the following
+  customer_id?: string;           // existing customer UUID
+  guest_email?: string;           // guest order (if no customer_id)
+  guest_name?: string;
+
+  items: Array<{
+    variant_id: string;
+    quantity: number;
+    // unit_price not overridable — always uses current variant price
+  }>;
+
+  shipping_address: {
+    first_name: string;
+    last_name: string;
+    address_line_1: string;
+    address_line_2?: string;
+    city: string;
+    state?: string;
+    postal_code?: string;
+    country_code: string;         // ISO 3166-1 alpha-2
+    phone?: string;
+  };
+  billing_same_as_shipping: boolean;
+  billing_address?: Address;      // required if billing_same_as_shipping is false
+
+  shipping_method_id: string;
+  coupon_code?: string;
+  notes?: string;
+
+  payment: {
+    type: "paid" | "invoice";     // "paid" = already received; "invoice" = pending
+    method?: "cash" | "bank_transfer" | "card_manual" | "cheque" | "other";
+    // method required when type = "paid"
+  };
+}
 ```
 
 **Inventory**
@@ -1453,7 +1579,75 @@ class StripeAdapter implements PaymentProvider { /* ... */ }
 // Future: class PayPalAdapter implements PaymentProvider { /* ... */ }
 ```
 
-### 7.6 Tenant Isolation Rules (Enforced Everywhere)
+### 7.6 Manual Order Creation (Admin)
+
+Admins can create orders on behalf of customers — for phone orders, walk-in sales, or any sale that doesn't go through the storefront checkout. This is distinct from the storefront checkout flow in three ways:
+
+1. **No stock reservation.** There is no TTL-based reservation step. Stock is decremented immediately and atomically on order creation, since the admin is confirming a real sale in real time.
+2. **Manual payment methods.** No Stripe PaymentIntent is created. The admin records how payment was received (or marks it as invoiced/pending). Supported methods: `cash`, `bank_transfer`, `card_manual`, `cheque`, `other`.
+3. **Actor is the admin.** The order timeline and audit log record the creating admin's WorkOS user ID, not a customer action.
+
+#### Flow
+
+```
+Admin fills in manual order form
+        │
+        ▼
+POST /api/admin/orders
+        │
+        ├─ 1. Resolve customer
+        │     ├─ customer_id provided → verify belongs to this tenant
+        │     └─ guest_email provided → use as order email (no account created)
+        │
+        ├─ 2. Validate items
+        │     ├─ All variant_ids exist and belong to this tenant
+        │     ├─ All variants are active
+        │     └─ Stock available for each item (respects allow_backorder)
+        │
+        ├─ 3. Calculate pricing
+        │     ├─ Apply coupon_code if provided (same rules as storefront)
+        │     ├─ Calculate tax (tenant's tax rates by shipping country)
+        │     └─ Resolve shipping method price
+        │
+        ├─ 4. Decrement inventory immediately (SELECT FOR UPDATE)
+        │     └─ No reservation created — direct quantity decrement
+        │
+        ├─ 5. Create order
+        │     ├─ Snapshot all line items (price, name, SKU, image)
+        │     ├─ Snapshot addresses
+        │     ├─ Generate order_number (tenant-scoped sequence)
+        │     └─ Set status based on payment.type:
+        │           "paid"    → status: paid,    payment_status: captured
+        │           "invoice" → status: pending, payment_status: pending
+        │
+        ├─ 6. Create payment record
+        │     ├─ provider: "manual"
+        │     ├─ status: captured (if paid) or pending (if invoice)
+        │     └─ metadata: { method: "cash" | "bank_transfer" | ... }
+        │
+        ├─ 7. Add timeline entry
+        │     └─ "Order created manually by <admin name>"
+        │
+        └─ 8. Emit order.created event
+              └─ AuditService logs the creation with actor = admin WorkOS user ID
+```
+
+#### Manual Payment in the Data Model
+
+The existing `payments` table supports this without schema changes. When `provider = "manual"`:
+
+- `provider_payment_id` and `provider_charge_id` are NULL (no Stripe IDs)
+- `metadata` stores `{ "method": "cash" | "bank_transfer" | "card_manual" | "cheque" | "other" }`
+- `status` is `captured` immediately for "paid" orders, or `pending` for invoice orders
+
+When an invoiced manual order is later marked as paid, `PATCH /api/admin/orders/:id/status` transitions the order to `paid` and updates the payment record to `captured`.
+
+#### Constraints
+
+- Admins cannot override variant prices — the current variant price is always used. (Price overrides are post-MVP.)
+- Refunds on manual orders update the order/payment status in the database only — no external refund call is made since there is no Stripe charge to reverse.
+
+### 7.7 Tenant Isolation Rules (Enforced Everywhere)
 
 1. **No endpoint exists without tenant context.** If middleware can't resolve an `organization_id`, the request is rejected before it reaches any business logic.
 
@@ -1466,6 +1660,8 @@ class StripeAdapter implements PaymentProvider { /* ... */ }
 5. **Webhooks resolve tenant from internal data, not from request headers.** Stripe webhooks carry a payment intent ID → we look up the payment record → get `organization_id` from our database.
 
 6. **Audit logs always capture `organization_id` + `actor_id`.** If something goes wrong, we can trace exactly who did what in which tenant.
+
+7. **Manual orders skip stock reservation.** Only storefront checkout uses the reservation TTL system. Admin-created orders decrement stock directly (see §7.6).
 
 ---
 
@@ -1779,28 +1975,34 @@ CREATE POLICY tenant_isolation_TABLE_NAME ON TABLE_NAME
 ## Appendix D: WorkOS SDK Integration Reference
 
 ```typescript
-// --- Admin Auth Flow (server-side) ---
+// --- Admin Auth Flow (server-side, custom UI via User Management API) ---
 
 import { WorkOS } from '@workos-inc/node';
 
 const workos = new WorkOS(process.env.WORKOS_API_KEY);
 
-// 1. Redirect to AuthKit login
-app.get('/api/auth/login', (req, res) => {
-  const authorizationUrl = workos.userManagement.getAuthorizationUrl({
-    provider: 'authkit',
-    redirectUri: process.env.WORKOS_REDIRECT_URI,
-    clientId: process.env.WORKOS_CLIENT_ID,
+// 1. Signup — custom form posts to this endpoint
+app.post('/api/auth/signup', async (req, res) => {
+  const { email, password, firstName, lastName } = req.body;
+
+  const user = await workos.userManagement.createUser({
+    email,
+    password,
+    firstName,
+    lastName,
   });
-  res.redirect(authorizationUrl);
+
+  // Proceed to tenant provisioning (create WorkOS org, seed defaults, etc.)
+  // See tenant provisioning flow in §3.6
 });
 
-// 2. Handle callback
-app.get('/api/auth/callback', async (req, res) => {
-  const { code } = req.query;
+// 2. Login — custom form posts to this endpoint
+app.post('/api/auth/login', async (req, res) => {
+  const { email, password } = req.body;
 
-  const authResponse = await workos.userManagement.authenticateWithCode({
-    code,
+  const authResponse = await workos.userManagement.authenticateWithPassword({
+    email,
+    password,
     clientId: process.env.WORKOS_CLIENT_ID,
   });
 
@@ -1810,7 +2012,6 @@ app.get('/api/auth/callback', async (req, res) => {
   // - accessToken: JWT to verify on subsequent requests
   // - refreshToken: for token renewal
 
-  // Set session cookie
   res.cookie('wos-session', authResponse.accessToken, {
     httpOnly: true,
     secure: true,
@@ -1818,31 +2019,41 @@ app.get('/api/auth/callback', async (req, res) => {
     maxAge: 8 * 60 * 60 * 1000, // 8 hours
   });
 
-  // If user has multiple orgs and none selected → redirect to org picker
-  // If single org → redirect to dashboard
+  // If user belongs to multiple orgs → return org list for picker UI
+  // If single org → return org context directly
 });
 
-// 3. Verify on every request (middleware)
+// Note: Social OAuth (Google, Microsoft) still uses redirects if added later:
+// app.get('/api/auth/oauth/:provider', (req, res) => {
+//   const url = workos.userManagement.getAuthorizationUrl({ provider: 'GoogleOAuth', ... });
+//   res.redirect(url);
+// });
+// app.get('/api/auth/callback', async (req, res) => { /* exchange code */ });
+
+// 3. Verify on every request (middleware) — unchanged from hosted flow
 async function adminAuthMiddleware(req, res, next) {
   const token = req.cookies['wos-session'];
   if (!token) return res.status(401).json({ error: 'Not authenticated' });
 
   try {
-    const session = await workos.userManagement.loadSealedSession({
-      sessionData: token,
-      cookiePassword: process.env.WORKOS_COOKIE_PASSWORD,
+    const { user, organizationId } =
+      await workos.userManagement.authenticateWithJwt({
+        token,
+        clientId: process.env.WORKOS_CLIENT_ID,
+      });
+
+    const membership = await workos.userManagement.getOrganizationMembership({
+      organizationMembershipId: /* resolve from user + org */ '',
     });
 
-    // session.user, session.organizationId, session.role
     req.tenantContext = {
-      userId: session.user.id,
-      organizationId: session.organizationId,
-      role: session.role,  // super_admin | product_manager | support_agent
-      email: session.user.email,
+      userId: user.id,
+      organizationId,
+      role: membership.role.slug,  // super_admin | product_manager | support_agent
+      email: user.email,
     };
 
-    // Set PostgreSQL RLS context for this transaction
-    await db.raw(`SET LOCAL app.current_org_id = '${session.organizationId}'`);
+    await db.raw(`SET LOCAL app.current_org_id = '${organizationId}'`);
 
     next();
   } catch (err) {
