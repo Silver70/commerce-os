@@ -5,6 +5,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import type { Request } from 'express';
+import { GqlExecutionContext } from '@nestjs/graphql';
 import { ApiKeyService } from '../services/api-key.service';
 import { CustomerAuthService } from '../services/customer-auth.service';
 
@@ -16,7 +17,10 @@ export class StorefrontAuthGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const request = context.switchToHttp().getRequest<Request>();
+    const request =
+      context.getType<string>() === 'graphql'
+        ? GqlExecutionContext.create(context).getContext<{ req: Request }>().req
+        : context.switchToHttp().getRequest<Request>();
 
     const rawHeader = request.headers['x-api-key'];
     const rawKey = Array.isArray(rawHeader) ? rawHeader[0] : rawHeader;

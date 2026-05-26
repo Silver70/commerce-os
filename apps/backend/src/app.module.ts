@@ -16,6 +16,8 @@ import { R2StorageService } from './shared/storage/r2-storage.service';
 import { AuthModule } from './modules/auth/auth.module';
 import { TenantModule } from './modules/tenant/tenant.module';
 import { AuditModule } from './modules/audit/audit.module';
+import { ProductModule } from './modules/product/product.module';
+import { InventoryModule } from './modules/inventory/inventory.module';
 
 @Module({
   imports: [
@@ -38,13 +40,13 @@ import { AuditModule } from './modules/audit/audit.module';
       autoSchemaFile: true,
       sortSchema: true,
       path: '/graphql',
-      context: ({ req }: { req: Express.Request }) => ({
-        tenantContext: req.tenantContext,
-      }),
+      context: ({ req }: { req: Express.Request }) => ({ req }),
     }),
     AuthModule,
     TenantModule,
     AuditModule,
+    ProductModule,
+    InventoryModule,
   ],
   providers: [MoneyScalar, DateTimeScalar, R2StorageService, HealthResolver],
   exports: [R2StorageService],
