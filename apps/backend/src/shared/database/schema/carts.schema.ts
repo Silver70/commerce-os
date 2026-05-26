@@ -1,0 +1,38 @@
+import {
+  pgTable,
+  uuid,
+  integer,
+  varchar,
+  timestamp,
+  pgEnum,
+} from 'drizzle-orm/pg-core';
+import { organizations } from './organizations.schema';
+
+export const cartStatusEnum = pgEnum('cart_status', [
+  'active',
+  'converted',
+  'abandoned',
+]);
+
+export const carts = pgTable('carts', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  organizationId: uuid('organization_id')
+    .notNull()
+    .references(() => organizations.id, { onDelete: 'cascade' }),
+  customerId: uuid('customer_id'),
+  status: cartStatusEnum('status').notNull().default('active'),
+  couponId: uuid('coupon_id'),
+  couponCode: varchar('coupon_code', { length: 100 }),
+  subtotal: integer('subtotal').notNull().default(0),
+  discountAmount: integer('discount_amount').notNull().default(0),
+  taxAmount: integer('tax_amount').notNull().default(0),
+  shippingAmount: integer('shipping_amount').notNull().default(0),
+  total: integer('total').notNull().default(0),
+  currency: varchar('currency', { length: 3 }).notNull().default('USD'),
+  expiresAt: timestamp('expires_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});
+
+export type Cart = typeof carts.$inferSelect;
+export type NewCart = typeof carts.$inferInsert;

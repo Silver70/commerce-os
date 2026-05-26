@@ -1,0 +1,27 @@
+export const PERMISSIONS = {
+  'products.create': ['super_admin', 'product_manager'],
+  'products.read': ['super_admin', 'product_manager', 'support_agent'],
+  'products.update': ['super_admin', 'product_manager'],
+  'products.delete': ['super_admin', 'product_manager'],
+  'inventory.read': ['super_admin', 'product_manager', 'support_agent'],
+  'inventory.update': ['super_admin', 'product_manager'],
+  'orders.read': ['super_admin', 'product_manager', 'support_agent'],
+  'orders.update': ['super_admin', 'support_agent'],
+  'orders.refund': ['super_admin'],
+  'orders.create': ['super_admin', 'support_agent'],
+  'customers.read': ['super_admin', 'product_manager', 'support_agent'],
+  'customers.update': ['super_admin', 'support_agent'],
+  'discounts.read': ['super_admin', 'product_manager'],
+  'discounts.write': ['super_admin', 'product_manager'],
+  'shipping.read': ['super_admin', 'product_manager'],
+  'shipping.write': ['super_admin'],
+  'tax.read': ['super_admin', 'product_manager'],
+  'tax.write': ['super_admin'],
+  'audit.read': ['super_admin'],
+  'admin.manage': ['super_admin'],
+  'settings.write': ['super_admin'],
+  'api_keys.manage': ['super_admin'],
+  'dashboard.read': ['super_admin', 'product_manager', 'support_agent'],
+} as const;
+
+export type Permission = keyof typeof PERMISSIONS;

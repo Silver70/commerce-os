@@ -1,0 +1,25 @@
+import {
+  pgTable,
+  uuid,
+  varchar,
+  integer,
+  timestamp,
+} from 'drizzle-orm/pg-core';
+import { organizations } from './organizations.schema';
+import { productOptions } from './product-options.schema';
+
+export const productOptionValues = pgTable('product_option_values', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  organizationId: uuid('organization_id')
+    .notNull()
+    .references(() => organizations.id, { onDelete: 'cascade' }),
+  optionId: uuid('option_id')
+    .notNull()
+    .references(() => productOptions.id, { onDelete: 'cascade' }),
+  value: varchar('value', { length: 255 }).notNull(),
+  position: integer('position').notNull().default(0),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+});
+
+export type ProductOptionValue = typeof productOptionValues.$inferSelect;
+export type NewProductOptionValue = typeof productOptionValues.$inferInsert;
