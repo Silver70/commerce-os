@@ -88,6 +88,9 @@ apps/backend/
 │       │   │   └── permissions.ts             # PERMISSIONS matrix (PRD §3.5)
 │       │   ├── controllers/
 │       │   │   └── auth.controller.ts         # POST /api/auth/login, /api/auth/signup
+│       │   ├── dto/
+│       │   │   ├── signup.dto.ts
+│       │   │   └── login.dto.ts
 │       │   ├── services/
 │       │   │   ├── workos-auth.service.ts     # WorkOS SDK: createUser, authenticateWithPassword, verifyJwt
 │       │   │   ├── customer-auth.service.ts   # bcrypt + JWT issuance/verification for storefront customers
@@ -104,6 +107,8 @@ apps/backend/
 │       │
 │       ├── tenant/
 │       │   ├── tenant.module.ts
+│       │   ├── dto/
+│       │   │   └── update-organization.dto.ts
 │       │   ├── services/
 │       │   │   ├── tenant.service.ts                 # CRUD on organizations table
 │       │   │   └── tenant-provisioning.service.ts    # Listens for tenant.created → seeds defaults + API key
@@ -131,6 +136,8 @@ apps/backend/
 │       │
 │       ├── inventory/
 │       │   ├── inventory.module.ts
+│       │   ├── dto/
+│       │   │   └── adjust-inventory.dto.ts
 │       │   ├── services/
 │       │   │   └── inventory.service.ts       # reserve, release, convert, adjust, checkAvailability
 │       │   ├── repositories/
@@ -140,6 +147,9 @@ apps/backend/
 │       │
 │       ├── pricing/
 │       │   ├── pricing.module.ts
+│       │   ├── dto/
+│       │   │   ├── create-discount.dto.ts
+│       │   │   └── create-coupon.dto.ts
 │       │   ├── services/
 │       │   │   └── pricing-engine.service.ts  # applyDiscounts, validateCoupon, calculateTax
 │       │   ├── repositories/
@@ -149,6 +159,9 @@ apps/backend/
 │       │
 │       ├── cart/
 │       │   ├── cart.module.ts
+│       │   ├── dto/
+│       │   │   ├── add-cart-item.dto.ts
+│       │   │   └── checkout.dto.ts
 │       │   ├── services/
 │       │   │   ├── cart.service.ts            # create, addItem, updateItem, removeItem, applyCoupon, recalculate
 │       │   │   └── checkout.service.ts        # Full checkout orchestration (PRD §7.1)
@@ -159,6 +172,10 @@ apps/backend/
 │       │
 │       ├── order/
 │       │   ├── order.module.ts
+│       │   ├── dto/
+│       │   │   ├── create-order.dto.ts
+│       │   │   ├── update-order-status.dto.ts
+│       │   │   └── create-refund.dto.ts
 │       │   ├── services/
 │       │   │   ├── order.service.ts           # State machine (PRD §7.4), transition validation, timeline entries
 │       │   │   └── refund.service.ts          # Refund flow: Stripe refund → update order + restore inventory
@@ -171,6 +188,10 @@ apps/backend/
 │       │
 │       ├── customer/
 │       │   ├── customer.module.ts
+│       │   ├── dto/
+│       │   │   ├── register-customer.dto.ts
+│       │   │   ├── update-customer.dto.ts
+│       │   │   └── create-address.dto.ts
 │       │   ├── services/
 │       │   │   └── customer.service.ts        # Register, profile, addresses, status management
 │       │   ├── repositories/
@@ -192,6 +213,9 @@ apps/backend/
 │       │
 │       ├── shipping/
 │       │   ├── shipping.module.ts
+│       │   ├── dto/
+│       │   │   ├── create-shipping-zone.dto.ts
+│       │   │   └── create-shipping-method.dto.ts
 │       │   ├── services/
 │       │   │   └── shipping.service.ts        # Zone lookup by country, method list, rate calculation
 │       │   └── controllers/
@@ -199,6 +223,8 @@ apps/backend/
 │       │
 │       └── audit/
 │           ├── audit.module.ts
+│           ├── dto/
+│           │   └── audit-log-query.dto.ts
 │           ├── services/
 │           │   └── audit.service.ts           # log(entity, action, actor, changes, orgId)
 │           ├── interceptors/

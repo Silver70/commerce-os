@@ -10,6 +10,7 @@ import { DatabaseModule } from './shared/database/database.module';
 import { EventBusModule } from './shared/events/event-bus.module';
 import { MoneyScalar } from './shared/graphql/scalars/money.scalar';
 import { DateTimeScalar } from './shared/graphql/scalars/date-time.scalar';
+import { HealthResolver } from './shared/graphql/health.resolver';
 import { R2StorageService } from './shared/storage/r2-storage.service';
 
 import { AuthModule } from './modules/auth/auth.module';
@@ -45,7 +46,7 @@ import { AuditModule } from './modules/audit/audit.module';
     TenantModule,
     AuditModule,
   ],
-  providers: [MoneyScalar, DateTimeScalar, R2StorageService],
+  providers: [MoneyScalar, DateTimeScalar, R2StorageService, HealthResolver],
   exports: [R2StorageService],
 })
 export class AppModule {}

@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { WorkOS } from '@workos-inc/node';
 import type { User } from '@workos-inc/node';
@@ -17,6 +17,7 @@ export interface WorkOsLoginResult {
 
 @Injectable()
 export class WorkosAuthService {
+  private readonly logger = new Logger(WorkosAuthService.name);
   private readonly workos: InstanceType<typeof WorkOS>;
 
   constructor(private readonly config: ConfigService) {
@@ -29,13 +30,18 @@ export class WorkosAuthService {
     firstName: string,
     lastName: string,
   ) {
-    return this.workos.userManagement.createUser({
-      email,
-      password,
-      firstName,
-      lastName,
-      emailVerified: false,
-    });
+    try {
+      return await this.workos.userManagement.createUser({
+        email,
+        password,
+        firstName,
+        lastName,
+        emailVerified: false,
+      });
+    } catch (err) {
+      this.logger.error('WorkOS createUser failed', err);
+      throw err;
+    }
   }
 
   async login(
