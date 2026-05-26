@@ -9,7 +9,6 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
-import { IsEmail, IsString, MinLength, IsOptional } from 'class-validator';
 import type { Response } from 'express';
 import { WorkosAuthService } from '../services/workos-auth.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -17,20 +16,8 @@ import { TenantCreatedEvent } from '../../../shared/events/events';
 import { AdminAuthGuard } from '../guards/admin-auth.guard';
 import { CurrentTenant } from '../decorators/current-tenant.decorator';
 import type { TenantContext } from '../../../shared/tenant/tenant-context';
-
-class SignupDto {
-  @IsEmail() declare email: string;
-  @IsString() @MinLength(8) declare password: string;
-  @IsString() declare firstName: string;
-  @IsString() declare lastName: string;
-  @IsString() declare organizationName: string;
-}
-
-class LoginDto {
-  @IsEmail() declare email: string;
-  @IsString() declare password: string;
-  @IsOptional() @IsString() clientId?: string;
-}
+import { SignupDto } from '../dto/signup.dto';
+import { LoginDto } from '../dto/login.dto';
 
 @ApiTags('auth')
 @Controller('auth')

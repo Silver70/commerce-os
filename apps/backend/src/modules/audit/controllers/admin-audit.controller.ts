@@ -1,28 +1,12 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
-import {
-  IsOptional,
-  IsString,
-  IsDateString,
-  IsInt,
-  Min,
-} from 'class-validator';
-import { Type } from 'class-transformer';
 import { AdminAuthGuard } from '../../auth/guards/admin-auth.guard';
 import { RbacGuard } from '../../auth/guards/rbac.guard';
 import { RequirePermission } from '../../auth/decorators/require-permission.decorator';
 import { CurrentTenant } from '../../auth/decorators/current-tenant.decorator';
 import type { TenantContext } from '../../../shared/tenant/tenant-context';
 import { AuditService } from '../services/audit.service';
-
-class AuditLogQueryDto {
-  @IsOptional() @IsString() entityType?: string;
-  @IsOptional() @IsString() actorId?: string;
-  @IsOptional() @IsDateString() from?: string;
-  @IsOptional() @IsDateString() to?: string;
-  @IsOptional() @IsInt() @Min(1) @Type(() => Number) limit?: number;
-  @IsOptional() @IsInt() @Min(0) @Type(() => Number) offset?: number;
-}
+import { AuditLogQueryDto } from '../dto/audit-log-query.dto';
 
 @ApiTags('admin/audit')
 @UseGuards(AdminAuthGuard, RbacGuard)

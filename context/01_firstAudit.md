@@ -2,7 +2,7 @@
 
 **Date:** 2026-05-26  
 **Scope:** `apps/backend/src/` — all 62 TypeScript source files  
-**Stack:** NestJS · Drizzle ORM · Neon PostgreSQL · WorkOS · EventEmitter2 · Apollo GraphQL  
+**Stack:** NestJS · Drizzle ORM · Neon PostgreSQL · WorkOS · EventEmitter2 · Apollo GraphQL
 
 ---
 
@@ -76,13 +76,14 @@ src/
 ```typescript
 // VULNERABLE — no signature check
 const payload = JSON.parse(
-  Buffer.from(token.split('.')[1], 'base64url').toString(),
+  Buffer.from(token.split(".")[1], "base64url").toString(),
 );
 ```
 
 The `verifyToken()` method manually decodes the JWT payload from base64 without ever verifying the cryptographic signature. An attacker can craft an arbitrary JWT with any `sub` / `org_id` and gain admin access to any tenant. This is a complete authentication bypass.
 
 Contrast with `customer-auth.service.ts:84` which does it correctly:
+
 ```typescript
 const payload = jwt.verify(token, this.jwtSecret) as jwt.JwtPayload;
 ```
@@ -95,8 +96,8 @@ const payload = jwt.verify(token, this.jwtSecret) as jwt.JwtPayload;
 
 ```typescript
 this.eventEmitter.emit(
-  'tenant.created',
-  new TenantCreatedEvent('', user.id, dto.email, dto.organizationName),
+  "tenant.created",
+  new TenantCreatedEvent("", user.id, dto.email, dto.organizationName),
 );
 ```
 
@@ -139,16 +140,16 @@ This is the core repository pattern used by all future domain modules. Fixing it
 
 The schema has no explicit indexes beyond primary keys and the few `unique()` constraints. Missing indexes for common production query patterns:
 
-| Table | Column(s) | Query Pattern |
-|---|---|---|
-| `customers` | `(organization_id, email)` | Login, duplicate check |
-| `orders` | `(organization_id, created_at)` | Date-range listing |
-| `orders` | `order_number` | Order lookup |
-| `audit_logs` | `(organization_id, created_at)` | Audit log listing |
-| `carts` | `(organization_id, customer_id)` | Active cart lookup |
-| `stock_reservations` | `expires_at` | Expiry job scan |
-| `coupons` | `(organization_id, code)` | Coupon code redemption |
-| `api_keys` | `key_hash` | Auth on every storefront request |
+| Table                | Column(s)                        | Query Pattern                    |
+| -------------------- | -------------------------------- | -------------------------------- |
+| `customers`          | `(organization_id, email)`       | Login, duplicate check           |
+| `orders`             | `(organization_id, created_at)`  | Date-range listing               |
+| `orders`             | `order_number`                   | Order lookup                     |
+| `audit_logs`         | `(organization_id, created_at)`  | Audit log listing                |
+| `carts`              | `(organization_id, customer_id)` | Active cart lookup               |
+| `stock_reservations` | `expires_at`                     | Expiry job scan                  |
+| `coupons`            | `(organization_id, code)`        | Coupon code redemption           |
+| `api_keys`           | `key_hash`                       | Auth on every storefront request |
 
 The `api_keys.key_hash` missing index is the most urgent — that column is queried on every storefront API call and has no index.
 
@@ -208,19 +209,20 @@ The `tax_rates.rate` column is an `integer`. The `money.util.ts` `applyPercentag
 
 These tables exist in the database schema but have no corresponding NestJS module, controller, or service:
 
-| Domain | Schema Tables | Status |
-|---|---|---|
-| Products | `products`, `product_variants`, `product_options`, `product_option_values`, `variant_option_values`, `product_media`, `categories`, `product_categories` | Schema only |
-| Inventory | `inventory_items`, `stock_reservations` | Schema only |
-| Cart | `carts`, `cart_items` | Schema only |
-| Orders | `orders`, `order_line_items`, `order_timeline` | Schema only |
-| Customers | `customers`, `addresses` | Schema only |
-| Payments | `payments`, `refunds` | Schema only |
-| Shipping | `shipping_zones`, `shipping_methods`, `shipments` | Schema only |
-| Discounts | `discounts`, `coupons` | Schema only |
-| Tax | `tax_rates` | Schema only |
+| Domain    | Schema Tables                                                                                                                                            | Status      |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| Products  | `products`, `product_variants`, `product_options`, `product_option_values`, `variant_option_values`, `product_media`, `categories`, `product_categories` | Schema only |
+| Inventory | `inventory_items`, `stock_reservations`                                                                                                                  | Schema only |
+| Cart      | `carts`, `cart_items`                                                                                                                                    | Schema only |
+| Orders    | `orders`, `order_line_items`, `order_timeline`                                                                                                           | Schema only |
+| Customers | `customers`, `addresses`                                                                                                                                 | Schema only |
+| Payments  | `payments`, `refunds`                                                                                                                                    | Schema only |
+| Shipping  | `shipping_zones`, `shipping_methods`, `shipments`                                                                                                        | Schema only |
+| Discounts | `discounts`, `coupons`                                                                                                                                   | Schema only |
+| Tax       | `tax_rates`                                                                                                                                              | Schema only |
 
 Additionally:
+
 - No GraphQL resolvers exist despite the Apollo module being configured with `MoneyScalar` and `DateTimeScalar`
 - No Stripe webhook endpoint
 - No background job for stock reservation TTL expiry (the schema has `stock_reservations.expires_at` but nothing reads it)
@@ -230,17 +232,17 @@ Additionally:
 
 ## Prioritized Fix List
 
-| Priority | Issue | File | Effort |
-|---|---|---|---|
-| **P0** | JWT signature not verified | `workos-auth.service.ts:38-59` | Small |
-| **P0** | Add index on `api_keys.key_hash` | Schema / migration | Trivial |
-| **P1** | Fix untyped WorkOS SDK casts | `auth.controller.ts`, `admin-auth.guard.ts` | Small |
-| **P1** | Add missing DB indexes (5 tables) | Schema / migration | Small |
-| **P1** | CORS wildcard fallback | `main.ts:21` | Trivial |
-| **P1** | Retype `TenantScopedRepository` | `tenant-scoped.repository.ts` | Medium |
-| **P2** | Fix `TenantCreatedEvent` empty orgId | `auth.controller.ts:59` | Trivial |
-| **P2** | Change `order_timeline.metadata` to `jsonb` | `order-timeline.schema.ts` | Trivial |
-| **P2** | Add refresh token endpoint | New controller method | Small |
-| **P2** | Extract DTOs from controller | `auth.controller.ts` | Small |
-| **P3** | Document tax rate units | `tax-rates.schema.ts` | Trivial |
-| **P3** | Per-route throttle configuration | `app.module.ts` | Small |
+| Priority | Issue                                       | File                                        | Effort  |
+| -------- | ------------------------------------------- | ------------------------------------------- | ------- |
+| **P0**   | JWT signature not verified                  | `workos-auth.service.ts:38-59`              | Small   |
+| **P0**   | Add index on `api_keys.key_hash`            | Schema / migration                          | Trivial |
+| **P1**   | Fix untyped WorkOS SDK casts                | `auth.controller.ts`, `admin-auth.guard.ts` | Small   |
+| **P1**   | Add missing DB indexes (5 tables)           | Schema / migration                          | Small   |
+| **P1**   | CORS wildcard fallback                      | `main.ts:21`                                | Trivial |
+| **P1**   | Retype `TenantScopedRepository`             | `tenant-scoped.repository.ts`               | Medium  |
+| **P2**   | Fix `TenantCreatedEvent` empty orgId        | `auth.controller.ts:59`                     | Trivial |
+| **P2**   | Change `order_timeline.metadata` to `jsonb` | `order-timeline.schema.ts`                  | Trivial |
+| **P2**   | Add refresh token endpoint                  | New controller method                       | Small   |
+| **P2**   | Extract DTOs from controller                | `auth.controller.ts`                        | Small   |
+| **P3**   | Document tax rate units                     | `tax-rates.schema.ts`                       | Trivial |
+| **P3**   | Per-route throttle configuration            | `app.module.ts`                             | Small   |

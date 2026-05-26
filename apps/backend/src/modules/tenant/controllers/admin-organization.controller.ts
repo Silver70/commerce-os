@@ -1,19 +1,12 @@
 import { Controller, Get, Patch, Body, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
-import { IsOptional, IsString } from 'class-validator';
 import { AdminAuthGuard } from '../../auth/guards/admin-auth.guard';
 import { RbacGuard } from '../../auth/guards/rbac.guard';
 import { RequirePermission } from '../../auth/decorators/require-permission.decorator';
 import { CurrentTenant } from '../../auth/decorators/current-tenant.decorator';
 import type { TenantContext } from '../../../shared/tenant/tenant-context';
 import { TenantService } from '../services/tenant.service';
-
-class UpdateOrganizationDto {
-  @IsOptional() @IsString() name?: string;
-  @IsOptional() @IsString() currency?: string;
-  @IsOptional() @IsString() timezone?: string;
-  @IsOptional() @IsString() logoUrl?: string;
-}
+import { UpdateOrganizationDto } from '../dto/update-organization.dto';
 
 @ApiTags('admin/organization')
 @UseGuards(AdminAuthGuard, RbacGuard)
