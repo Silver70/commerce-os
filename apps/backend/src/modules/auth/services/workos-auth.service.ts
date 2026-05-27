@@ -44,17 +44,11 @@ export class WorkosAuthService {
     }
   }
 
-  async login(
-    email: string,
-    password: string,
-    clientId?: string,
-  ): Promise<WorkOsLoginResult> {
-    const clientIdResolved =
-      clientId ?? this.config.getOrThrow<string>('WORKOS_CLIENT_ID');
+  async login(email: string, password: string): Promise<WorkOsLoginResult> {
     const result = await this.workos.userManagement.authenticateWithPassword({
       email,
       password,
-      clientId: clientIdResolved,
+      clientId: this.config.getOrThrow<string>('WORKOS_CLIENT_ID'),
     });
     return result;
   }
@@ -103,9 +97,21 @@ export class WorkosAuthService {
     });
   }
 
+  async verifyEmail(userId: string, code: string): Promise<void> {
+    await this.workos.userManagement.verifyEmail({ userId, code });
+  }
+
+  async resendVerificationEmail(userId: string): Promise<void> {
+    await this.workos.userManagement.sendVerificationEmail({ userId });
+  }
+
   async listOrganizations(userId: string) {
     const memberships =
       await this.workos.userManagement.listOrganizationMemberships({ userId });
     return memberships.data;
+  }
+
+  async getOrganization(orgId: string) {
+    return this.workos.organizations.getOrganization(orgId);
   }
 }

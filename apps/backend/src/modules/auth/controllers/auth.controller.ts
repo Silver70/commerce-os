@@ -18,6 +18,8 @@ import { CurrentTenant } from '../decorators/current-tenant.decorator';
 import type { TenantContext } from '../../../shared/tenant/tenant-context';
 import { SignupDto } from '../dto/signup.dto';
 import { LoginDto } from '../dto/login.dto';
+import { VerifyEmailDto } from '../dto/verify-email.dto';
+import { ResendVerificationDto } from '../dto/resend-verification.dto';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -52,11 +54,7 @@ export class AuthController {
     @Body() dto: LoginDto,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const result = await this.workosAuth.login(
-      dto.email,
-      dto.password,
-      dto.clientId,
-    );
+    const result = await this.workosAuth.login(dto.email, dto.password);
 
     res.cookie('wos-session', result.accessToken, {
       httpOnly: true,
@@ -65,7 +63,26 @@ export class AuthController {
       maxAge: 15 * 60 * 1000,
     });
 
-    return { user: result.user };
+    return { user: result.user, accessToken: result.accessToken };
+  }
+
+  @Post('verify-email')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Verify email address with code from verification email',
+  })
+  async verifyEmail(@Body() dto: VerifyEmailDto) {
+    await this.workosAuth.verifyEmail(dto.userId, dto.code);
+
+    return { message: 'Email verified successfully.' };
+  }
+
+  @Post('resend-verification')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Resend email verification link' })
+  async resendVerification(@Body() dto: ResendVerificationDto) {
+    await this.workosAuth.resendVerificationEmail(dto.userId);
+    return { message: 'Verification email sent.' };
   }
 
   @Post('logout')

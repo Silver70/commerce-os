@@ -1,10 +1,20 @@
-import { Controller, Get, Patch, Param, Body, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Param,
+  Body,
+  UseGuards,
+} from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
   ApiResponse,
   ApiBearerAuth,
 } from '@nestjs/swagger';
+import { IsInt, IsOptional, Min } from 'class-validator';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import { AdminAuthGuard } from '../../auth/guards/admin-auth.guard';
 import { RbacGuard } from '../../auth/guards/rbac.guard';
 import { RequirePermission } from '../../auth/decorators/require-permission.decorator';
@@ -12,6 +22,14 @@ import { CurrentTenant } from '../../auth/decorators/current-tenant.decorator';
 import { InventoryService } from '../services/inventory.service';
 import { AdjustInventoryDto } from '../dto/adjust-inventory.dto';
 import type { TenantContext } from '../../../shared/tenant/tenant-context';
+
+class InitInventoryDto {
+  @ApiPropertyOptional({ description: 'Initial stock quantity (default 0)' })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  declare initialQuantity?: number;
+}
 
 @ApiTags('Inventory')
 @ApiBearerAuth()
@@ -35,6 +53,21 @@ export class AdminInventoryController {
   })
   async getLowStock(@CurrentTenant() tenant: TenantContext) {
     return this.inventoryService.getLowStockItems(tenant.organizationId);
+  }
+
+  @Post(':variantId')
+  @RequirePermission('inventory.update')
+  @ApiOperation({ summary: 'Initialize inventory tracking for a variant' })
+  async init(
+    @Param('variantId') variantId: string,
+    @Body() dto: InitInventoryDto,
+    @CurrentTenant() tenant: TenantContext,
+  ) {
+    return this.inventoryService.createForVariant(
+      variantId,
+      tenant.organizationId,
+      dto.initialQuantity ?? 0,
+    );
   }
 
   @Get(':variantId')

@@ -11,7 +11,7 @@ import {
   ProductUpdatedEvent,
   ProductDeletedEvent,
 } from '../../../shared/events/events';
-import type { ProductRepository } from '../repositories/product.repository';
+import { ProductRepository } from '../repositories/product.repository';
 import type {
   ProductDetail,
   PaginatedProducts,

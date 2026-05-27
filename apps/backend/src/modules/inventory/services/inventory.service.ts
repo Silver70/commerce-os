@@ -6,8 +6,8 @@ import {
 import { Cron } from '@nestjs/schedule';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InventoryLowEvent } from '../../../shared/events/events';
-import type { InventoryRepository } from '../repositories/inventory.repository';
-import type { AuditService } from '../../audit/services/audit.service';
+import { InventoryRepository } from '../repositories/inventory.repository';
+import { AuditService } from '../../audit/services/audit.service';
 import type { InventoryItem } from '../../../shared/database/schema';
 
 const RESERVATION_TTL_MINUTES = 15;

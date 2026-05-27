@@ -4,10 +4,8 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { generateUniqueSlug } from '../../../shared/utils/slug.util';
-import type {
-  CategoryRepository,
-  CategoryTreeNode,
-} from '../repositories/category.repository';
+import { CategoryRepository } from '../repositories/category.repository';
+import type { CategoryTreeNode } from '../repositories/category.repository';
 import type { Category } from '../../../shared/database/schema';
 import type { CreateCategoryDto } from '../dto/create-category.dto';
 import type { UpdateCategoryDto } from '../dto/update-category.dto';
