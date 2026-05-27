@@ -18,6 +18,8 @@ import { TenantModule } from './modules/tenant/tenant.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { ProductModule } from './modules/product/product.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
+import { PricingModule } from './modules/pricing/pricing.module';
+import { CartModule } from './modules/cart/cart.module';
 
 @Module({
   imports: [
@@ -47,6 +49,8 @@ import { InventoryModule } from './modules/inventory/inventory.module';
     AuditModule,
     ProductModule,
     InventoryModule,
+    PricingModule,
+    CartModule,
   ],
   providers: [MoneyScalar, DateTimeScalar, R2StorageService, HealthResolver],
   exports: [R2StorageService],

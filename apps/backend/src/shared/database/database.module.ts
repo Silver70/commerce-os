@@ -20,7 +20,7 @@ function httpsFetch(
       ? new URL(input)
       : input instanceof URL
         ? input
-        : new URL((input as Request).url);
+        : new URL(input.url);
 
   return new Promise((resolve, reject) => {
     const req = https.request(

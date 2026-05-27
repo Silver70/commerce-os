@@ -2,18 +2,31 @@ import {
   Controller,
   Post,
   Get,
+  Delete,
   Body,
+  Param,
   Res,
   HttpCode,
   HttpStatus,
   UseGuards,
+  ParseUUIDPipe,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiBearerAuth,
+  ApiResponse,
+} from '@nestjs/swagger';
+import { IsString, IsNotEmpty, MaxLength } from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { WorkosAuthService } from '../services/workos-auth.service';
+import { ApiKeyService } from '../services/api-key.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { TenantCreatedEvent } from '../../../shared/events/events';
 import { AdminAuthGuard } from '../guards/admin-auth.guard';
+import { RbacGuard } from '../guards/rbac.guard';
+import { RequirePermission } from '../decorators/require-permission.decorator';
 import { CurrentTenant } from '../decorators/current-tenant.decorator';
 import type { TenantContext } from '../../../shared/tenant/tenant-context';
 import { SignupDto } from '../dto/signup.dto';
@@ -21,11 +34,20 @@ import { LoginDto } from '../dto/login.dto';
 import { VerifyEmailDto } from '../dto/verify-email.dto';
 import { ResendVerificationDto } from '../dto/resend-verification.dto';
 
+class CreateApiKeyDto {
+  @ApiProperty({ description: 'Display name for this API key' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(255)
+  declare name: string;
+}
+
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
   constructor(
     private readonly workosAuth: WorkosAuthService,
+    private readonly apiKeyService: ApiKeyService,
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
@@ -104,5 +126,51 @@ export class AuthController {
       role: tenant.role,
       memberships,
     };
+  }
+
+  // ─── API Key management ────────────────────────────────────────────────────
+
+  @Get('admin/api-keys')
+  @UseGuards(AdminAuthGuard, RbacGuard)
+  @RequirePermission('settings.write')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List API keys for the organization' })
+  @ApiResponse({ status: 200 })
+  async listApiKeys(@CurrentTenant() tenant: TenantContext) {
+    return this.apiKeyService.listByOrg(tenant.organizationId);
+  }
+
+  @Post('admin/api-keys')
+  @UseGuards(AdminAuthGuard, RbacGuard)
+  @RequirePermission('settings.write')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary:
+      'Generate a new API key — raw key is returned once and never stored',
+  })
+  @ApiResponse({ status: 201 })
+  async generateApiKey(
+    @Body() dto: CreateApiKeyDto,
+    @CurrentTenant() tenant: TenantContext,
+  ) {
+    return this.apiKeyService.generate(
+      tenant.organizationId,
+      dto.name,
+      tenant.userId,
+    );
+  }
+
+  @Delete('admin/api-keys/:id')
+  @UseGuards(AdminAuthGuard, RbacGuard)
+  @RequirePermission('settings.write')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Revoke an API key' })
+  @ApiResponse({ status: 204 })
+  async revokeApiKey(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentTenant() tenant: TenantContext,
+  ): Promise<void> {
+    await this.apiKeyService.revoke(id, tenant.organizationId);
   }
 }
