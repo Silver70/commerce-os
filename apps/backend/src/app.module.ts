@@ -4,6 +4,7 @@ import { GraphQLModule } from '@nestjs/graphql';
 import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { ScheduleModule } from '@nestjs/schedule';
+import type { ExecutionContext } from '@nestjs/common';
 
 import { validationSchema } from './config/configuration';
 import { DatabaseModule } from './shared/database/database.module';
@@ -24,6 +25,7 @@ import { ShippingModule } from './modules/shipping/shipping.module';
 import { CustomerModule } from './modules/customer/customer.module';
 import { PaymentModule } from './modules/payment/payment.module';
 import { OrderModule } from './modules/order/order.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -36,9 +38,33 @@ import { OrderModule } from './modules/order/order.module';
     ScheduleModule.forRoot(),
     ThrottlerModule.forRoot([
       {
-        name: 'default',
+        name: 'storefront',
         ttl: 60000,
         limit: 100,
+        skipIf: (ctx: ExecutionContext) => {
+          const req = ctx.switchToHttp().getRequest<{ path?: string }>();
+          return req?.path?.startsWith('/api/admin') ?? false;
+        },
+        getTracker: (req: Record<string, unknown>) => {
+          const headers = req.headers as Record<string, unknown>;
+          const apiKey = headers?.['x-api-key'];
+          if (typeof apiKey === 'string') return apiKey.slice(0, 8);
+          return typeof req.ip === 'string' ? req.ip : 'unknown';
+        },
+      },
+      {
+        name: 'admin',
+        ttl: 60000,
+        limit: 300,
+        skipIf: (ctx: ExecutionContext) => {
+          const req = ctx.switchToHttp().getRequest<{ path?: string }>();
+          return !(req?.path?.startsWith('/api/admin') ?? false);
+        },
+        getTracker: (req: Record<string, unknown>) => {
+          const ctx = req.tenantContext as Record<string, unknown> | undefined;
+          if (typeof ctx?.userId === 'string') return ctx.userId;
+          return typeof req.ip === 'string' ? req.ip : 'unknown';
+        },
       },
     ]),
     GraphQLModule.forRoot<ApolloDriverConfig>({
@@ -59,6 +85,7 @@ import { OrderModule } from './modules/order/order.module';
     CustomerModule,
     PaymentModule,
     OrderModule,
+    DashboardModule,
   ],
   providers: [MoneyScalar, DateTimeScalar, R2StorageService, HealthResolver],
   exports: [R2StorageService],
