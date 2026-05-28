@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { OrderModule } from '../order/order.module';
 import { InventoryModule } from '../inventory/inventory.module';
 import { AuditModule } from '../audit/audit.module';
@@ -9,7 +9,7 @@ import { PaymentEventHandler } from './services/payment-event.handler';
 import { StripeWebhookController } from './controllers/stripe-webhook.controller';
 
 @Module({
-  imports: [OrderModule, InventoryModule, AuditModule],
+  imports: [forwardRef(() => OrderModule), InventoryModule, AuditModule],
   controllers: [StripeWebhookController],
   providers: [
     {
