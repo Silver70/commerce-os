@@ -20,6 +20,7 @@ import { Route as AuthSignupRouteImport } from './routes/auth/signup'
 import { Route as AuthLoginRouteImport } from './routes/auth/login'
 import { Route as AdminShippingRouteImport } from './routes/admin/shipping'
 import { Route as AdminSettingsRouteImport } from './routes/admin/settings'
+import { Route as AdminInventoryRouteImport } from './routes/admin/inventory'
 import { Route as AdminDashboardRouteImport } from './routes/admin/dashboard'
 import { Route as AdminProductsIndexRouteImport } from './routes/admin/products_/index'
 import { Route as AdminOrdersIndexRouteImport } from './routes/admin/orders_/index'
@@ -86,6 +87,11 @@ const AdminShippingRoute = AdminShippingRouteImport.update({
 const AdminSettingsRoute = AdminSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
+const AdminInventoryRoute = AdminInventoryRouteImport.update({
+  id: '/inventory',
+  path: '/inventory',
   getParentRoute: () => AdminRouteRoute,
 } as any)
 const AdminDashboardRoute = AdminDashboardRouteImport.update({
@@ -157,6 +163,7 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRouteRouteWithChildren
   '/onboarding': typeof OnboardingRouteRouteWithChildren
   '/admin/dashboard': typeof AdminDashboardRoute
+  '/admin/inventory': typeof AdminInventoryRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/shipping': typeof AdminShippingRoute
   '/auth/login': typeof AuthLoginRoute
@@ -182,6 +189,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRouteRouteWithChildren
   '/onboarding': typeof OnboardingRouteRouteWithChildren
   '/admin/dashboard': typeof AdminDashboardRoute
+  '/admin/inventory': typeof AdminInventoryRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/shipping': typeof AdminShippingRoute
   '/auth/login': typeof AuthLoginRoute
@@ -208,6 +216,7 @@ export interface FileRoutesById {
   '/auth': typeof AuthRouteRouteWithChildren
   '/onboarding': typeof OnboardingRouteRouteWithChildren
   '/admin/dashboard': typeof AdminDashboardRoute
+  '/admin/inventory': typeof AdminInventoryRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/shipping': typeof AdminShippingRoute
   '/auth/login': typeof AuthLoginRoute
@@ -235,6 +244,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/onboarding'
     | '/admin/dashboard'
+    | '/admin/inventory'
     | '/admin/settings'
     | '/admin/shipping'
     | '/auth/login'
@@ -260,6 +270,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/onboarding'
     | '/admin/dashboard'
+    | '/admin/inventory'
     | '/admin/settings'
     | '/admin/shipping'
     | '/auth/login'
@@ -285,6 +296,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/onboarding'
     | '/admin/dashboard'
+    | '/admin/inventory'
     | '/admin/settings'
     | '/admin/shipping'
     | '/auth/login'
@@ -391,6 +403,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminSettingsRouteImport
       parentRoute: typeof AdminRouteRoute
     }
+    '/admin/inventory': {
+      id: '/admin/inventory'
+      path: '/inventory'
+      fullPath: '/admin/inventory'
+      preLoaderRoute: typeof AdminInventoryRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
     '/admin/dashboard': {
       id: '/admin/dashboard'
       path: '/dashboard'
@@ -480,6 +499,7 @@ declare module '@tanstack/react-router' {
 
 interface AdminRouteRouteChildren {
   AdminDashboardRoute: typeof AdminDashboardRoute
+  AdminInventoryRoute: typeof AdminInventoryRoute
   AdminSettingsRoute: typeof AdminSettingsRoute
   AdminShippingRoute: typeof AdminShippingRoute
   AdminCustomersCustomerIdRoute: typeof AdminCustomersCustomerIdRoute
@@ -497,6 +517,7 @@ interface AdminRouteRouteChildren {
 
 const AdminRouteRouteChildren: AdminRouteRouteChildren = {
   AdminDashboardRoute: AdminDashboardRoute,
+  AdminInventoryRoute: AdminInventoryRoute,
   AdminSettingsRoute: AdminSettingsRoute,
   AdminShippingRoute: AdminShippingRoute,
   AdminCustomersCustomerIdRoute: AdminCustomersCustomerIdRoute,

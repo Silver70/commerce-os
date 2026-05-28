@@ -1,4 +1,4 @@
-@import 'tailwindcss' source('../');
+@import "tailwindcss" source("../");
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
@@ -34,10 +34,9 @@
   }
 }
 
-
 @theme inline {
   --font-heading: var(--font-sans);
-  --font-sans: 'Geist Variable', sans-serif;
+  --font-sans: "Geist Variable", sans-serif;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -103,7 +102,7 @@
   --chart-4: 45 100% 78%;
   --chart-5: 13 80% 33%;
   --radius: 0.625rem;
-  --sidebar: #F9F9FB;
+  --sidebar: #fffcfc;
   --sidebar-foreground: oklch(0.145 0 0);
   --sidebar-primary: oklch(0.205 0 0);
   --sidebar-primary-foreground: oklch(0.985 0 0);
