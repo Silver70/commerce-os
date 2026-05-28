@@ -20,6 +20,10 @@ import { ProductModule } from './modules/product/product.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
 import { PricingModule } from './modules/pricing/pricing.module';
 import { CartModule } from './modules/cart/cart.module';
+import { ShippingModule } from './modules/shipping/shipping.module';
+import { CustomerModule } from './modules/customer/customer.module';
+import { PaymentModule } from './modules/payment/payment.module';
+import { OrderModule } from './modules/order/order.module';
 
 @Module({
   imports: [
@@ -51,6 +55,10 @@ import { CartModule } from './modules/cart/cart.module';
     InventoryModule,
     PricingModule,
     CartModule,
+    ShippingModule,
+    CustomerModule,
+    PaymentModule,
+    OrderModule,
   ],
   providers: [MoneyScalar, DateTimeScalar, R2StorageService, HealthResolver],
   exports: [R2StorageService],

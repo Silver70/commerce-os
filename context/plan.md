@@ -752,6 +752,7 @@ Each metric computed per PRD §6.3 table (data sources per metric). Use Drizzle 
 | Raw body | Stripe webhook controller uses `@RawBody()` / custom middleware — not JSON parsed |
 | Transactions | Drizzle `db.transaction()` wraps checkout + reservation atomically |
 | Pagination | All list endpoints use cursor-based pagination (never offset) |
+| GraphQL field types | **Always** pass an explicit type function to every `@Field()` decorator — `@Field(() => String)`, `@Field(() => Boolean)`, `@Field(() => Date)`, etc. Never use bare `@Field()`. NestJS GraphQL cannot infer the type from TypeScript metadata for nullable union types (`string \| null`, `Date \| null`) and will crash at startup with `UndefinedTypeError`. This applies to both `@ObjectType()` and `@InputType()` classes. |
 
 ---
 

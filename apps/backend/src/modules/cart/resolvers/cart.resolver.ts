@@ -10,7 +10,10 @@ import {
 import { UseGuards } from '@nestjs/common';
 import { StorefrontAuthGuard } from '../../auth/guards/storefront-auth.guard';
 import { CartService } from '../services/cart.service';
+import { CheckoutService } from '../services/checkout.service';
 import { CartType, CartItemType } from '../models/cart.model';
+import { CheckoutResultType } from '../models/checkout.model';
+import { CheckoutInput } from '../models/checkout-input.model';
 import type { CartWithItems } from '../repositories/cart.repository';
 import type { TenantContext } from '../../../shared/tenant/tenant-context';
 import type { Request } from 'express';
@@ -22,7 +25,10 @@ interface GqlContext {
 @Resolver(() => CartType)
 @UseGuards(StorefrontAuthGuard)
 export class CartResolver {
-  constructor(private readonly cartService: CartService) {}
+  constructor(
+    private readonly cartService: CartService,
+    private readonly checkoutService: CheckoutService,
+  ) {}
 
   @Query(() => CartType, { nullable: true, description: 'Get a cart by ID' })
   async cart(
@@ -128,6 +134,18 @@ export class CartResolver {
       tenant.organizationId,
     );
     return toCartType(result);
+  }
+
+  @Mutation(() => CheckoutResultType, {
+    description: 'Convert a cart to an order and create a Stripe PaymentIntent',
+  })
+  async checkout(
+    @Context() ctx: GqlContext,
+    @Args('cartId', { type: () => ID }) cartId: string,
+    @Args('input') input: CheckoutInput,
+  ): Promise<CheckoutResultType> {
+    const tenant = ctx.req.tenantContext ?? { organizationId: '' };
+    return this.checkoutService.checkout(cartId, input, tenant);
   }
 }
 

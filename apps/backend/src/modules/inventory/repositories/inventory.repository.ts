@@ -253,6 +253,19 @@ export class InventoryRepository {
       .where(eq(stockReservations.id, reservationId));
   }
 
+  async associateReservationsWithOrder(
+    reservationIds: string[],
+    orderId: string,
+  ): Promise<void> {
+    if (reservationIds.length === 0) return;
+    for (const resId of reservationIds) {
+      await this.db
+        .update(stockReservations)
+        .set({ orderId, updatedAt: new Date() })
+        .where(eq(stockReservations.id, resId));
+    }
+  }
+
   async findStaleActiveReservations(): Promise<StockReservation[]> {
     return this.db
       .select()

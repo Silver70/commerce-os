@@ -73,7 +73,7 @@ export class ProductResolver {
     );
 
     const edges: ProductEdge[] = result.items.map((p) => ({
-      node: toProductType(p as ProductDetail),
+      node: toProductType(p),
       cursor: encodeCursor({ id: p.id }),
     }));
 

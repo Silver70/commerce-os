@@ -85,6 +85,10 @@ export class CustomerAuthService {
     }
   }
 
+  issueAccessToken(customerId: string, orgId: string): string {
+    return this.issueToken(customerId, orgId, ACCESS_TTL);
+  }
+
   private issueToken(customerId: string, orgId: string, expiresIn: string) {
     return jwt.sign(
       { sub: customerId, organizationId: orgId },

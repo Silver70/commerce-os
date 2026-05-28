@@ -188,6 +188,16 @@ export class InventoryService {
     return this.inventoryRepo.findLowStock(orgId);
   }
 
+  async associateReservationsWithOrder(
+    reservationIds: string[],
+    orderId: string,
+  ): Promise<void> {
+    await this.inventoryRepo.associateReservationsWithOrder(
+      reservationIds,
+      orderId,
+    );
+  }
+
   @Cron('*/5 * * * *')
   async expireStaleReservations(): Promise<void> {
     const stale = await this.inventoryRepo.findStaleActiveReservations();

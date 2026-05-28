@@ -35,7 +35,7 @@ export interface ProductDetail extends Product {
 }
 
 export interface PaginatedProducts {
-  items: Product[];
+  items: ProductDetail[];
   nextCursor: string | null;
   totalCount: number;
 }
@@ -127,13 +127,115 @@ export class ProductRepository {
       .orderBy(products.createdAt);
 
     const hasNext = rows.length > limit;
-    const items = hasNext ? rows.slice(0, limit) : rows;
+    const pageRows = hasNext ? rows.slice(0, limit) : rows;
     const nextCursor =
-      hasNext && items.length > 0
-        ? encodeCursor({ id: items[items.length - 1].id })
+      hasNext && pageRows.length > 0
+        ? encodeCursor({ id: pageRows[pageRows.length - 1].id })
         : null;
 
+    const items = await this.findDetailBatch(
+      pageRows.map((r) => r.id),
+      orgId,
+      pageRows,
+    );
+
     return { items, nextCursor, totalCount: items.length };
+  }
+
+  private async findDetailBatch(
+    ids: string[],
+    orgId: string,
+    baseRows: Product[],
+  ): Promise<ProductDetail[]> {
+    if (ids.length === 0) return [];
+
+    // Stage 1: all first-level relations in parallel
+    const [variants, options, media, categoryRows] = await Promise.all([
+      this.db
+        .select()
+        .from(productVariants)
+        .where(
+          and(
+            inArray(productVariants.productId, ids),
+            eq(productVariants.organizationId, orgId),
+          ),
+        ),
+      this.db
+        .select()
+        .from(productOptions)
+        .where(
+          and(
+            inArray(productOptions.productId, ids),
+            eq(productOptions.organizationId, orgId),
+          ),
+        ),
+      this.db
+        .select()
+        .from(productMedia)
+        .where(
+          and(
+            inArray(productMedia.productId, ids),
+            eq(productMedia.organizationId, orgId),
+          ),
+        )
+        .orderBy(productMedia.position),
+      this.db
+        .select({
+          productId: productCategories.productId,
+          categoryId: productCategories.categoryId,
+        })
+        .from(productCategories)
+        .where(inArray(productCategories.productId, ids)),
+    ]);
+
+    // Stage 2: junction tables depend on stage-1 IDs
+    const optionIds = options.map((o) => o.id);
+    const variantIds = variants.map((v) => v.id);
+
+    const [optionValues, variantOptVals] = await Promise.all([
+      optionIds.length > 0
+        ? this.db
+            .select()
+            .from(productOptionValues)
+            .where(inArray(productOptionValues.optionId, optionIds))
+        : Promise.resolve([] as (typeof productOptionValues.$inferSelect)[]),
+      variantIds.length > 0
+        ? this.db
+            .select()
+            .from(variantOptionValues)
+            .where(inArray(variantOptionValues.variantId, variantIds))
+        : Promise.resolve([] as (typeof variantOptionValues.$inferSelect)[]),
+    ]);
+
+    const optValById = new Map(optionValues.map((v) => [v.id, v]));
+
+    return baseRows.map((product) => {
+      const pVariants = variants.filter((v) => v.productId === product.id);
+      const pOptions = options.filter((o) => o.productId === product.id);
+
+      const variantsWithValues = pVariants.map((v) => ({
+        ...v,
+        optionValues: variantOptVals
+          .filter((vov) => vov.variantId === v.id)
+          .map((vov) => optValById.get(vov.optionValueId))
+          .filter((ov): ov is ProductOptionValue => ov !== undefined),
+      }));
+
+      const optionsWithValues = pOptions.map((o) => ({
+        ...o,
+        values: optionValues.filter((v) => v.optionId === o.id),
+      }));
+
+      return {
+        ...product,
+        variants: variantsWithValues,
+        options: optionsWithValues,
+        media: media.filter((m) => m.productId === product.id),
+        categoryIds: categoryRows
+          .filter((r) => r.productId === product.id)
+          .map((r) => r.categoryId),
+      };
+    });
   }
 
   async findDetail(id: string, orgId: string): Promise<ProductDetail | null> {
