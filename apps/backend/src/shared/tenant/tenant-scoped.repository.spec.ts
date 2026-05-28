@@ -30,9 +30,22 @@ function makeMockDb(rows: unknown[] = []) {
   const select = jest.fn().mockReturnValue({ from });
   const insert = jest.fn().mockReturnValue({ values });
   const update = jest.fn().mockReturnValue({ set });
-  const deleteQ = jest.fn().mockReturnValue({ where: jest.fn().mockResolvedValue(undefined) });
+  const deleteQ = jest
+    .fn()
+    .mockReturnValue({ where: jest.fn().mockResolvedValue(undefined) });
 
-  return { select, insert, update, delete: deleteQ, where, set, values, from, returning, limit };
+  return {
+    select,
+    insert,
+    update,
+    delete: deleteQ,
+    where,
+    set,
+    values,
+    from,
+    returning,
+    limit,
+  };
 }
 
 describe('TenantScopedRepository', () => {
@@ -75,7 +88,9 @@ describe('TenantScopedRepository', () => {
   });
 
   it('softDelete sets deletedAt with org_id check', async () => {
-    const db = makeMockDb([{ id: '1', organizationId: orgA, deletedAt: new Date() }]);
+    const db = makeMockDb([
+      { id: '1', organizationId: orgA, deletedAt: new Date() },
+    ]);
     const repo = new TestRepository(db as never, testTable, makeCtx(orgA));
     const result = await repo.softDelete('1');
     expect(db.update).toHaveBeenCalledWith(testTable);

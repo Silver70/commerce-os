@@ -110,7 +110,9 @@ describe('PricingEngineService', () => {
         findActiveOrderDiscounts: jest.fn().mockResolvedValue([discount]),
       });
 
-      const items = [makeItem({ quantity: 2, unitPrice: 1000, totalPrice: 2000 })];
+      const items = [
+        makeItem({ quantity: 2, unitPrice: 1000, totalPrice: 2000 }),
+      ];
       const result = await service.applyDiscounts(items, null, orgId);
 
       // 10% of 2000 = 200
@@ -130,11 +132,13 @@ describe('PricingEngineService', () => {
         findActiveProductDiscounts: jest.fn().mockResolvedValue([discount]),
       });
 
-      const items = [makeItem({ quantity: 1, unitPrice: 1000, totalPrice: 1000 })];
+      const items = [
+        makeItem({ quantity: 1, unitPrice: 1000, totalPrice: 1000 }),
+      ];
       const result = await service.applyDiscounts(items, null, orgId);
 
-      expect(result.items[0]!.discountAmount).toBe(300);
-      expect(result.items[0]!.discountedLineTotal).toBe(700);
+      expect(result.items[0].discountAmount).toBe(300);
+      expect(result.items[0].discountedLineTotal).toBe(700);
       expect(result.totalDiscountAmount).toBe(300);
     });
 
@@ -149,11 +153,13 @@ describe('PricingEngineService', () => {
         findActiveProductDiscounts: jest.fn().mockResolvedValue([discount]),
       });
 
-      const items = [makeItem({ quantity: 1, unitPrice: 500, totalPrice: 500 })];
+      const items = [
+        makeItem({ quantity: 1, unitPrice: 500, totalPrice: 500 }),
+      ];
       const result = await service.applyDiscounts(items, null, orgId);
 
-      expect(result.items[0]!.discountedLineTotal).toBe(0);
-      expect(result.items[0]!.discountAmount).toBe(500);
+      expect(result.items[0].discountedLineTotal).toBe(0);
+      expect(result.items[0].discountAmount).toBe(500);
     });
 
     it('applies percentage coupon after order discounts', async () => {
@@ -162,7 +168,9 @@ describe('PricingEngineService', () => {
         findCouponByCode: jest.fn().mockResolvedValue(coupon),
       });
 
-      const items = [makeItem({ quantity: 1, unitPrice: 1000, totalPrice: 1000 })];
+      const items = [
+        makeItem({ quantity: 1, unitPrice: 1000, totalPrice: 1000 }),
+      ];
       const result = await service.applyDiscounts(items, 'SAVE10', orgId);
 
       // 20% of 1000 = 200
@@ -210,7 +218,9 @@ describe('PricingEngineService', () => {
         findCouponByCode: jest.fn().mockResolvedValue(coupon),
       });
 
-      const items = [makeItem({ quantity: 1, unitPrice: 1000, totalPrice: 1000 })];
+      const items = [
+        makeItem({ quantity: 1, unitPrice: 1000, totalPrice: 1000 }),
+      ];
       await expect(
         service.applyDiscounts(items, 'SAVE10', orgId),
       ).rejects.toThrow(BadRequestException);
@@ -243,7 +253,7 @@ describe('PricingEngineService', () => {
         }),
         execute: jest.fn(),
       };
-      const { service } = buildService({}, db as never);
+      const { service } = buildService({}, db);
       const result = await service.calculateTax(pricedItems, address, orgId);
       expect(result.taxAmount).toBe(0);
     });
@@ -266,7 +276,7 @@ describe('PricingEngineService', () => {
         }),
         execute: jest.fn(),
       };
-      const { service } = buildService({}, db as never);
+      const { service } = buildService({}, db);
       const result = await service.calculateTax(pricedItems, address, orgId);
       // 7.25% of 10000 = 725
       expect(result.taxAmount).toBe(725);
@@ -292,7 +302,7 @@ describe('PricingEngineService', () => {
         }),
         execute: jest.fn(),
       };
-      const { service } = buildService({}, db as never);
+      const { service } = buildService({}, db);
       // 10% inclusive: tax = 10000 - 10000/(1.10) = 10000 - 9090.9 ≈ 909
       const result = await service.calculateTax(pricedItems, address, orgId);
       expect(result.isInclusive).toBe(true);

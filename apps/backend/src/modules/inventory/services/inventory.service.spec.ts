@@ -6,7 +6,9 @@ import type { InventoryItem } from '../../../shared/database/schema';
 
 const orgId = 'org-1';
 
-function makeInventoryItem(overrides: Partial<InventoryItem> = {}): InventoryItem {
+function makeInventoryItem(
+  overrides: Partial<InventoryItem> = {},
+): InventoryItem {
   return {
     id: 'inv-1',
     organizationId: orgId,
@@ -64,7 +66,11 @@ function buildService(
     emit: jest.fn(),
   };
 
-  const service = new InventoryService(repo, auditService, eventEmitter as never);
+  const service = new InventoryService(
+    repo,
+    auditService,
+    eventEmitter as never,
+  );
   return { service, repo, auditService, eventEmitter };
 }
 
@@ -198,9 +204,9 @@ describe('InventoryService', () => {
       const { service } = buildService({
         findByVariantId: jest.fn().mockResolvedValue(null),
       });
-      await expect(service.adjust('v1', 5, 'restock', 'admin-1', orgId)).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        service.adjust('v1', 5, 'restock', 'admin-1', orgId),
+      ).rejects.toThrow(NotFoundException);
     });
 
     it('emits low_stock event when available stock falls below threshold', async () => {
