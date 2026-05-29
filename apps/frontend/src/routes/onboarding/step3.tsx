@@ -1,5 +1,5 @@
-import * as React from 'react'
-import { createFileRoute, Link } from '@tanstack/react-router'
+import * as React from "react";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   CheckCircle2Icon,
   CopyIcon,
@@ -10,14 +10,14 @@ import {
   LayoutDashboardIcon,
   ChevronRightIcon,
   LoaderCircleIcon,
-} from 'lucide-react'
-import { Logo } from '~/components/Logo'
-import { Button } from '~/components/ui/button'
-import { createApiKeyServerFn } from '~/server/auth'
+} from "lucide-react";
+import { Logo } from "~/components/Logo";
+import { Button } from "~/components/ui/button";
+import { createApiKeyServerFn } from "~/server/auth";
 
-export const Route = createFileRoute('/onboarding/step3')({
+export const Route = createFileRoute("/onboarding/step3")({
   component: OnboardingStep3,
-})
+});
 
 function StepDots({ current }: { current: number }) {
   return (
@@ -27,59 +27,62 @@ function StepDots({ current }: { current: number }) {
           key={n}
           className={`rounded-full transition-all duration-300 ${
             n === current
-              ? 'w-5 h-2 bg-foreground'
+              ? "w-5 h-2 bg-foreground"
               : n < current
-                ? 'w-2 h-2 bg-muted-foreground/50'
-                : 'w-2 h-2 bg-muted'
+                ? "w-2 h-2 bg-muted-foreground/50"
+                : "w-2 h-2 bg-muted"
           }`}
         />
       ))}
     </div>
-  )
+  );
 }
 
 type KeyState =
-  | { status: 'loading' }
-  | { status: 'ready'; key: string }
-  | { status: 'error'; message: string }
+  | { status: "loading" }
+  | { status: "ready"; key: string }
+  | { status: "error"; message: string };
 
 function OnboardingStep3() {
-  const [revealed, setRevealed] = React.useState(false)
-  const [copied, setCopied] = React.useState(false)
-  const [keyState, setKeyState] = React.useState<KeyState>({ status: 'loading' })
+  const [revealed, setRevealed] = React.useState(false);
+  const [copied, setCopied] = React.useState(false);
+  const [keyState, setKeyState] = React.useState<KeyState>({
+    status: "loading",
+  });
 
   React.useEffect(() => {
-    let cancelled = false
+    let cancelled = false;
 
-    createApiKeyServerFn({ data: { name: 'Default Storefront Key' } })
+    createApiKeyServerFn({ data: { name: "Default Storefront Key" } })
       .then((result) => {
         if (!cancelled) {
-          setKeyState({ status: 'ready', key: result.key })
+          setKeyState({ status: "ready", key: result.key });
         }
       })
       .catch((err: unknown) => {
         if (!cancelled) {
-          const message = err instanceof Error ? err.message : 'Failed to generate API key'
-          setKeyState({ status: 'error', message })
+          const message =
+            err instanceof Error ? err.message : "Failed to generate API key";
+          setKeyState({ status: "error", message });
         }
-      })
+      });
 
     return () => {
-      cancelled = true
-    }
-  }, [])
+      cancelled = true;
+    };
+  }, []);
 
   function handleCopy() {
-    if (keyState.status !== 'ready') return
-    void navigator.clipboard.writeText(keyState.key)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+    if (keyState.status !== "ready") return;
+    void navigator.clipboard.writeText(keyState.key);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   }
 
-  const displayKey = keyState.status === 'ready' ? keyState.key : ''
+  const displayKey = keyState.status === "ready" ? keyState.key : "";
   const maskedKey = displayKey
-    ? `${displayKey.slice(0, 14)}${'•'.repeat(24)}`
-    : '•'.repeat(38)
+    ? `${displayKey.slice(0, 14)}${"•".repeat(24)}`
+    : "•".repeat(38);
 
   return (
     <div className="flex flex-col flex-1 justify-center px-8 sm:px-16 py-12">
@@ -113,12 +116,12 @@ function OnboardingStep3() {
               API key for storefronts
             </p>
 
-            {keyState.status === 'error' ? (
+            {keyState.status === "error" ? (
               <p className="text-sm text-destructive">{keyState.message}</p>
             ) : (
               <>
                 <div className="flex items-center gap-1 rounded-lg border border-input bg-muted/50 pl-3 pr-1 py-1">
-                  {keyState.status === 'loading' ? (
+                  {keyState.status === "loading" ? (
                     <span className="flex flex-1 items-center gap-2 text-xs text-muted-foreground">
                       <LoaderCircleIcon className="size-3 animate-spin" />
                       Generating key…
@@ -133,8 +136,8 @@ function OnboardingStep3() {
                     size="icon-sm"
                     type="button"
                     onClick={() => setRevealed((v) => !v)}
-                    aria-label={revealed ? 'Hide API key' : 'Reveal API key'}
-                    disabled={keyState.status !== 'ready'}
+                    aria-label={revealed ? "Hide API key" : "Reveal API key"}
+                    disabled={keyState.status !== "ready"}
                   >
                     {revealed ? <EyeOffIcon /> : <EyeIcon />}
                   </Button>
@@ -144,7 +147,7 @@ function OnboardingStep3() {
                     type="button"
                     onClick={handleCopy}
                     aria-label="Copy API key"
-                    disabled={keyState.status !== 'ready'}
+                    disabled={keyState.status !== "ready"}
                   >
                     <CopyIcon />
                   </Button>
@@ -216,5 +219,5 @@ function OnboardingStep3() {
         </div>
       </div>
     </div>
-  )
+  );
 }

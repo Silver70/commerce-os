@@ -12,16 +12,27 @@ The admin dashboard frontend was built with hardcoded mock data while the backen
 | --- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 1   | `auth/signup.tsx`       | Collects "Name" (single field) + confirm-password. Backend `SignupDto` requires `firstName`, `lastName`, `organizationName`. Missing org name entirely. |
 | 2   | `onboarding/step2.tsx`  | Country multi-select stores full names ("United States"). Backend shipping zones expect ISO 3166-1 alpha-2 codes ("US").                                |
-| 3   | `onboarding/step3.tsx`  | API key is a hardcoded constant `MOCK_API_KEY`. Must be generated from `POST /api/auth/admin/api-keys`.                                                 |
+| 3   | `onboarding/step3.tsx`  | API key is a hardcoded constant `MOCK_API_KEY`. Must be generated from `POST /api/admin/stores/:storeId/api-keys` (keys are store-scoped).              |
 | 4   | `src/utils/users.tsx`   | Backend URL hardcoded as `http://localhost:3000` (the frontend port). Backend runs on **port 4000**.                                                    |
 | 5   | All admin routes        | No authentication guard. Any unauthenticated user can access `/admin/*`.                                                                                |
 | 6   | No email-verify route   | Backend sends a verification email after signup and requires `POST /api/auth/verify-email`. No matching frontend route exists.                          |
 | 7   | Inline types everywhere | Route files define local `Product`, `Order`, etc. interfaces that diverge from backend response shapes. Must be centralized.                            |
 | 8   | No pagination wiring    | Backend returns `{ items, nextCursor, totalCount }`. Frontend DataTable has no cursor-pagination logic.                                                 |
 
+> **Multi-store addenda to the table above:** (9) the admin shell has no active-store switcher; (10) `src/lib/api-client.ts` sends only the session cookie and must also forward an `X-Store-Id` header; (11) `onboarding/step1.tsx` writes `currency`/`timezone` to the organization, but those are now store-level.
+
 ---
 
 ## Architecture
+
+### Multi-Store Model (read first)
+
+The backend now lets one organization run **multiple stores** (see [`context/RefactorPlan.md`](./RefactorPlan.md)). Customers are shared org-wide, but catalog, inventory, orders, pricing, shipping, and API keys are **per store**. For the admin dashboard:
+
+- The admin works against **one active store at a time**, chosen via a store switcher in the shell.
+- Every admin API call carries the active `store_id` as an `X-Store-Id` header, sourced from a `wos-active-store` cookie so `createServerFn` (SSR server) can read it the same way it reads `wos-session`. It's injected centrally in the API client, so individual module screens don't change.
+- `currency`/`timezone` are **store** settings, not organization settings.
+- Storefront keys are issued per store and already identify their store to the backend.
 
 ### Data Fetching Pattern (strict)
 
@@ -49,6 +60,7 @@ apps/frontend/src/
     api.ts               ← all backend types (1 source of truth, no `any`)
   lib/
     api-client.ts        ← configured redaxios instance (baseURL from env, credentials: include)
+    active-store.ts      ← reads wos-active-store cookie → X-Store-Id header (server-side)
     money.ts             ← formatMoney(cents, currency) utility
     errors.ts            ← typed API error parsing
   server/                ← createServerFn grouped by domain
@@ -102,7 +114,7 @@ type AdminUser = {
 };
 type AdminRole = "super_admin" | "product_manager" | "support_agent";
 
-// Organizations
+// Organizations — currency/timezone here are only *defaults* for new stores
 type Organization = {
   id: string;
   name: string;
@@ -110,6 +122,18 @@ type Organization = {
   currency: string;
   timezone: string;
   logoUrl: string | null;
+};
+
+// Stores — the active store scopes all catalog/order/inventory/pricing data.
+// currency/timezone are authoritative here (not on Organization).
+type Store = {
+  id: string;
+  organizationId: string;
+  name: string;
+  slug: string;
+  currency: string;
+  timezone: string;
+  isActive: boolean;
 };
 
 // Products
@@ -194,6 +218,20 @@ export const apiClient = axios.create({
 });
 ```
 
+Admin requests must also carry the **active store**. Because all calls run through `createServerFn` on the SSR server, add a small server-side helper that reads the `wos-active-store` cookie and forwards it as an `X-Store-Id` header:
+
+```typescript
+// src/lib/active-store.ts (server-side)
+import { getCookie } from "@tanstack/react-start/server";
+
+export function adminStoreHeader(): Record<string, string> {
+  const storeId = getCookie("wos-active-store");
+  return storeId ? { "X-Store-Id": storeId } : {};
+}
+```
+
+Every admin server function spreads `adminStoreHeader()` into its request headers. Storefront calls are unaffected (the API key already identifies the store); org-level admin calls (store list/create, members) omit it.
+
 ### 1.4 Error Utility — `src/lib/errors.ts`
 
 Parse backend 400/401/403/404/409 errors into typed `ApiError`:
@@ -247,7 +285,7 @@ Wire `auth/login.tsx`:
 
 - Zod schema: `{ email: z.string().email(), password: z.string().min(8) }`
 - On submit: call `loginServerFn` → `POST /api/auth/login`
-- On success: sets `wos-session` cookie (httpOnly, handled by browser), then redirect to `/admin/dashboard`
+- On success: sets `wos-session` cookie (httpOnly, handled by browser), then sets the `wos-active-store` cookie to the user's default store (from `GET /api/auth/me` or the first entry in `GET /api/admin/stores`), then redirect to `/admin/dashboard`
 - On 401: show "Invalid credentials" inline error
 - Wire Google SSO button to WorkOS OAuth redirect (WorkOS handles the OAuth flow; backend will need a `/api/auth/google` or WorkOS-hosted login URL). For now, the button should navigate to the WorkOS-hosted login page. Confirm the exact WorkOS redirect URL with backend before implementing.
 
@@ -277,7 +315,7 @@ Add logout action to admin sidebar:
 
 ## Phase 3 — Onboarding
 
-The full onboarding flow requires an **authenticated session** (the user must sign up + verify + log in first, then land on `/onboarding/step1`).
+The full onboarding flow requires an **authenticated session** (the user must sign up + verify + log in first, then land on `/onboarding/step1`). Signup provisioning already created a **default store**; onboarding configures that store (its details, shipping, and storefront key).
 
 ### State Sharing Across Steps
 
@@ -287,15 +325,17 @@ Alternatively use `sessionStorage` with a key `onboarding_state`. Either approac
 
 ### 3.1 Step 1 — Store Details
 
-Data collected: `name` (org name override), `currency`, `timezone`. **Remove the slug input** — slug is set at signup and is not editable via `PATCH /api/admin/organization`.
+Data collected: `name`, `currency`, `timezone` — these configure the **default store** created during signup provisioning (not the organization). **Remove the slug input** — store slug is derived server-side.
 
 On continue:
 
 1. Validate with Zod
-2. Call `updateOrgServerFn` → `PATCH /api/admin/organization` with `{ name, currency, timezone }`
+2. Read the default store from `GET /api/admin/stores`, then call `updateStoreServerFn` → `PATCH /api/admin/stores/:storeId` with `{ name, currency, timezone }`. Ensure the `wos-active-store` cookie points at this store.
 3. Navigate to step2
 
 ### 3.2 Step 2 — Shipping Setup
+
+Shipping zones are now **store-scoped**; they're created under the active store automatically via the `X-Store-Id` header (§1.3) — no endpoint change beyond that.
 
 Fix country names → ISO codes mapping. Example:
 
@@ -316,13 +356,23 @@ On continue:
 
 Replace `MOCK_API_KEY` constant with a real call on mount:
 
-- Call `createApiKeyServerFn` → `POST /api/auth/admin/api-keys` with `{ name: 'Default Storefront Key' }`
+- Call `createApiKeyServerFn` → `POST /api/admin/stores/:storeId/api-keys` with `{ name: 'Default Storefront Key' }` (the key belongs to the active store)
 - Response: `{ id, name, key, lastUsedAt }` — `key` is the raw key shown once
 - Display the real key, keep reveal/copy/warn UI as-is
 
 ---
 
 ## Phase 4 — Admin Module Integration
+
+### 4.0 Store Switcher (admin shell)
+
+Add an active-store selector to the admin shell (sidebar/header):
+
+- Populate from `GET /api/admin/stores` (org-level call — needs no `X-Store-Id`).
+- On select: set the `wos-active-store` cookie via a `setActiveStoreServerFn`, then `queryClient.invalidateQueries()` so all store-scoped data refetches for the newly active store.
+- The cookie persists the choice across reloads.
+
+Every screen below is otherwise unchanged — it rides the `X-Store-Id` header injected in §1.3, so switching stores transparently re-scopes it.
 
 ### 4.1 Dashboard
 
@@ -427,9 +477,11 @@ Same pattern for **coupons** (`/api/admin/coupons`).
 
 ### 4.9 Settings
 
-**Organization settings**: `GET /api/admin/organization` → display. `PATCH /api/admin/organization` on save.
+**Organization settings**: `GET /api/admin/organization` → display. `PATCH /api/admin/organization` on save (name only — `currency`/`timezone` moved to the store).
 
-**API Keys**: `GET /api/auth/admin/api-keys` → list. `POST /api/auth/admin/api-keys` → create (shows raw key once). `DELETE /api/auth/admin/api-keys/:id` → revoke.
+**Stores**: `GET /api/admin/stores` → list all stores in the org. `POST /api/admin/stores` → create a store. `GET/PATCH /api/admin/stores/:id` → view/edit a store's `name`, `currency`, `timezone`, `isActive`. This is the per-store settings surface and feeds the §4.0 switcher.
+
+**API Keys** (per active store): `GET /api/admin/stores/:storeId/api-keys` → list. `POST /api/admin/stores/:storeId/api-keys` → create (shows raw key once). `DELETE /api/admin/stores/:storeId/api-keys/:id` → revoke.
 
 **Audit log**: `GET /api/admin/audit-logs` with `AuditLogQueryDto` params. Replace mock entries.
 
@@ -437,35 +489,361 @@ Same pattern for **coupons** (`/api/admin/coupons`).
 
 ---
 
-## Phase 5 — Zod Schemas
+---
 
-Every form that submits to the backend needs a Zod schema defined in the same file as the route (or in `src/lib/schemas/`). Rules:
+### Shared rules for Phases 5–10
 
-- Mirror backend validation exactly (min lengths, required fields, enum values)
-- Use `z.coerce.number()` for price inputs (user types `"9.99"`, we send `999` cents: `Math.round(parseFloat(input) * 100)`)
-- Use `z.enum([...])` for all status/type fields
+These apply to every phase below:
+
+- Every form gets a Zod schema that mirrors the backend DTO exactly. Define it at the top of the route file.
+- Price/money inputs: user types dollars (`"9.99"`), send cents: `Math.round(parseFloat(raw) * 100)`. Use `z.coerce.number()`.
+- Tax/rate inputs: user types `"6"` for 6%, send basis points: `value * 100`.
+- Every `useMutation` calls `queryClient.invalidateQueries(...)` on success and sets local error state on failure.
+- No `any`. No `as unknown`. TypeScript must verify the call shape.
+
+---
+
+## Phase 5 — Products (Create + Edit)
+
+**Files touched:** `src/server/products.ts`, `src/queries/products.ts`, `routes/admin/products_/new.tsx`, `routes/admin/products_/$productId.tsx`
+
+### Missing server functions to add
+
+```
+getProductByIdServerFn(id) → GET /api/admin/products/:id
+createProductServerFn(body) → POST /api/admin/products
+updateProductServerFn(id, body) → PATCH /api/admin/products/:id
+createVariantServerFn(productId, body) → POST /api/admin/products/:id/variants
+updateVariantServerFn(productId, variantId, body) → PATCH /api/admin/products/:id/variants/:vid
+deleteVariantServerFn(productId, variantId) → DELETE /api/admin/products/:id/variants/:vid
+uploadMediaServerFn(productId, formData) → POST /api/admin/products/:id/media (multipart)
+deleteMediaServerFn(productId, mediaId) → DELETE /api/admin/products/:id/media/:mid
+getCategoriesServerFn() → GET /api/admin/categories
+```
+
+Add `productQueryOptions(id)` and `categoriesQueryOptions()` to `src/queries/products.ts`.
+
+### `routes/admin/products_/new.tsx`
+
+Remove `SEED_VARIANTS`, `ALL_CATEGORIES`, `FAKE_IMAGES`. Load real categories via `useQuery(categoriesQueryOptions())`.
+
+Zod schema:
+
+```typescript
+const createProductSchema = z.object({
+  name: z.string().min(1),
+  description: z.string().optional(),
+  status: z.enum(["draft", "active", "archived"]),
+  vendor: z.string().optional(),
+  tags: z.array(z.string()),
+  seoTitle: z.string().optional(),
+  seoDescription: z.string().optional(),
+  categoryIds: z.array(z.string()),
+  options: z.array(z.object({ name: z.string(), values: z.array(z.string()) })),
+  variants: z.array(
+    z.object({
+      sku: z.string().min(1),
+      name: z.string().optional(),
+      price: z.number().int().min(0), // already cents from variant editor
+      compareAtPrice: z.number().int().min(0).optional(),
+      isActive: z.boolean(),
+      optionValueIds: z.array(z.string()),
+    }),
+  ),
+});
+```
+
+On "Publish" / "Save draft":
+
+1. `createProductSchema.parse(formState)` → show inline validation errors on failure.
+2. `createProductMutation.mutate(payload)`.
+3. On success: upload any queued media files via `uploadMediaServerFn` (chain after product `id` is returned), then navigate to `/admin/products/$productId` + invalidate `productsQueryOptions`.
+
+### `routes/admin/products_/$productId.tsx`
+
+Remove `SEED_PRODUCT`. Add loader:
+
+```typescript
+loader: ({ context, params }) =>
+  context.queryClient.ensureQueryData(productQueryOptions(params.productId));
+```
+
+Add an `isEditing` toggle (single boolean state). View mode = current read-only UI. Edit mode = inputs in-place. "Edit" button → `isEditing = true`. "Cancel" → `isEditing = false`. "Save changes" → `updateProductMutation`.
+
+`updateProductMutation` → `updateProductServerFn(id, diff)` → invalidate `productQueryOptions(id)` + `productsQueryOptions()`.
+
+Variant mutations within the page: create/edit/delete variants using the three new server functions above. Delete product: confirm dialog → `deleteProductServerFn(id)` (exists) → navigate to `/admin/products`.
+
+Media: upload via file input → `uploadMediaServerFn`, delete via `deleteMediaServerFn`, both invalidate `productQueryOptions(id)`.
+
+---
+
+## Phase 6 — Order Detail Mutations
+
+**Files touched:** `src/queries/orders.ts`, `routes/admin/orders_/$orderId.tsx`
+
+### Changes to `src/queries/orders.ts`
+
+Add `orderQueryOptions(id)` wrapping `getOrderByIdServerFn` (already in `src/server/orders.ts`).
+
+### `routes/admin/orders_/$orderId.tsx`
+
+Remove `SEED_ORDER`. Add loader using `orderQueryOptions(params.orderId)`.
+
+All four server functions already exist. Wire them to `useMutation`:
+
+**Status update** — only expose valid next statuses per the state machine (`pending → paid → processing → shipped → delivered`; any post-`pending` → `refunded`):
+
+```typescript
+const statusMutation = useMutation({
+  mutationFn: (status: OrderStatus) =>
+    updateOrderStatusServerFn({ orderId, status }),
+  onSuccess: () => queryClient.invalidateQueries(orderQueryOptions(orderId)),
+});
+```
+
+**Add note** — textarea + submit in timeline section:
+
+```typescript
+const noteMutation = useMutation({
+  mutationFn: (note: string) => addOrderNoteServerFn({ orderId, note }),
+  onSuccess: () => queryClient.invalidateQueries(orderQueryOptions(orderId)),
+});
+```
+
+**Refund** — sheet form, dollars → cents:
+
+```typescript
+const refundSchema = z.object({
+  amount: z.coerce.number().positive(),
+  reason: z.string().optional(),
+});
+// convert: Math.round(amount * 100) before passing to refundOrderServerFn
+```
+
+**Shipment** — sheet form:
+
+```typescript
+const shipmentSchema = z.object({
+  carrier: z.string().optional(),
+  trackingNumber: z.string().optional(),
+  trackingUrl: z.string().url().optional().or(z.literal("")),
+});
+```
+
+Each mutation's `onError` surfaces the backend message inline.
+
+---
+
+## Phase 7 — Customer Detail Page
+
+**Files touched:** `src/server/customers.ts`, `src/queries/customers.ts`, new file `routes/admin/customers_/$customerId.tsx`
+
+### Missing server function
+
+```
+getCustomerByIdServerFn(id) → GET /api/admin/customers/:id
+```
+
+Add `customerQueryOptions(id)` to `src/queries/customers.ts`.
+
+### New route: `routes/admin/customers_/$customerId.tsx`
+
+```typescript
+export const Route = createFileRoute("/admin/customers_/$customerId")({
+  loader: ({ context, params }) =>
+    context.queryClient.ensureQueryData(
+      customerQueryOptions(params.customerId),
+    ),
+  component: CustomerDetailPage,
+});
+```
+
+Page sections (mirror original mock design):
+
+- **Header**: name, email, avatar, status badge, "Disable / Re-enable" button.
+- **Stats bar**: total orders, total spent, account since, last login.
+- **Order history table**: `ordersQueryOptions({ customerId })` — add `customerId` filter to `getOrdersServerFn` if not already present.
+- **Addresses**: read-only list from the customer detail response.
+
+Status toggle mutation:
+
+```typescript
+const statusMutation = useMutation({
+  mutationFn: (status: "active" | "disabled") =>
+    updateCustomerStatusServerFn({ customerId, status }),
+  onSuccess: () => {
+    queryClient.invalidateQueries(customerQueryOptions(customerId));
+    queryClient.invalidateQueries(customersQueryOptions());
+  },
+});
+```
+
+---
+
+## Phase 8 — Discounts & Coupons (Create + Edit)
+
+**Files touched:** `src/server/discounts.ts`, `src/queries/discounts.ts`, `routes/admin/discounts_/new.tsx`, `routes/admin/discounts_/$discountId.tsx`
+
+### Missing server functions
+
+```
+getDiscountByIdServerFn(id) → GET /api/admin/discounts/:id
+createDiscountServerFn(body) → POST /api/admin/discounts
+updateDiscountServerFn(id, body) → PATCH /api/admin/discounts/:id
+getCouponsServerFn() → GET /api/admin/coupons
+getCouponByIdServerFn(id) → GET /api/admin/coupons/:id
+createCouponServerFn(body) → POST /api/admin/coupons
+updateCouponServerFn(id, body) → PATCH /api/admin/coupons/:id
+deleteCouponServerFn(id) → DELETE /api/admin/coupons/:id
+```
+
+Add `discountQueryOptions(id)`, `couponsQueryOptions()`, `couponQueryOptions(id)` to `src/queries/discounts.ts`.
+
+### `routes/admin/discounts_/new.tsx`
+
+Zod schema:
+
+```typescript
+const createDiscountSchema = z.object({
+  name: z.string().min(1),
+  type: z.enum(["percentage", "fixed_amount"]),
+  value: z.coerce.number().positive(),
+  scope: z.enum(["product", "category", "order"]),
+  scopeId: z.string().optional(),
+  minOrderAmount: z.coerce.number().min(0).optional(),
+  isActive: z.boolean(),
+  startsAt: z.string().optional(),
+  endsAt: z.string().optional(),
+});
+```
+
+Value conversion before send: `fixed_amount` → `Math.round(dollars * 100)` cents. `percentage` → send as-is.
+
+On submit: `createDiscountServerFn(payload)` → navigate to `/admin/discounts` + invalidate `discountsQueryOptions`.
+
+### `routes/admin/discounts_/$discountId.tsx`
+
+Load via `discountQueryOptions(params.discountId)`. Edit mode toggle (same view/edit pattern as products). `updateDiscountMutation` → invalidate `discountQueryOptions(id)` + `discountsQueryOptions()`. Delete → confirm dialog → `deleteDiscountServerFn(id)` → navigate to `/admin/discounts`.
+
+If the page has a coupons sub-section, wire create/delete coupon mutations here using the coupon server functions above.
+
+---
+
+## Phase 9 — Shipping (Replace Mock + Full CRUD)
+
+**Files touched:** `src/server/shipping.ts`, new `src/queries/shipping.ts`, `routes/admin/shipping.tsx`
+
+### Missing server functions
+
+```
+getShippingZonesServerFn() → GET /api/admin/shipping/zones
+getShippingMethodsServerFn(zoneId?) → GET /api/admin/shipping/methods?zoneId=
+updateShippingZoneServerFn(id, body) → PATCH /api/admin/shipping/zones/:id
+deleteShippingZoneServerFn(id) → DELETE /api/admin/shipping/zones/:id
+updateShippingMethodServerFn(id, body) → PATCH /api/admin/shipping/methods/:id
+deleteShippingMethodServerFn(id) → DELETE /api/admin/shipping/methods/:id
+```
+
+Create `src/queries/shipping.ts`:
+
+```
+shippingZonesQueryOptions()
+shippingMethodsQueryOptions(zoneId?: string)
+```
+
+### `routes/admin/shipping.tsx`
+
+Remove `SEED_ZONES` and `SEED_METHODS`. Add loader using `shippingZonesQueryOptions()`.
+
+- Zone list: `useSuspenseQuery(shippingZonesQueryOptions())`.
+- Method list per zone: `useQuery(shippingMethodsQueryOptions(selectedZoneId))`.
+- Zone create sheet (exists): `createShippingZoneServerFn` (already exists) → invalidate zones.
+- Zone edit: `updateShippingZoneServerFn`.
+- Zone delete: confirm popover → `deleteShippingZoneServerFn`.
+- Method create sheet (exists): `createShippingMethodServerFn` (already exists), price dollars → cents → invalidate methods.
+- Method edit: `updateShippingMethodServerFn`.
+- Method delete: `deleteShippingMethodServerFn`.
+
+Zod for method form:
+
+```typescript
+const shippingMethodSchema = z.object({
+  name: z.string().min(1),
+  rateType: z.enum(["flat_rate", "free", "calculated"]),
+  price: z.coerce.number().min(0), // dollars → cents
+  minOrderAmount: z.coerce.number().min(0).optional(),
+  estimatedDaysMin: z.coerce.number().int().min(0).optional(),
+  estimatedDaysMax: z.coerce.number().int().min(0).optional(),
+  isActive: z.boolean(),
+});
+```
+
+---
+
+## Phase 10 — Settings (Complete Remaining Mutations)
+
+**Files touched:** `routes/admin/settings.tsx`
+
+All server functions already exist. Verify and complete `onSubmit` / `onClick` handlers for:
+
+**Organization name** (General tab):
+
+- `updateOrgMutation` → `updateOrgServerFn({ name })` → invalidate `organizationQueryOptions`.
+- Zod: `z.object({ name: z.string().min(1) })`.
+
+**API Keys** (API Keys tab):
+
+- Create: input for key name → `createApiKeyFromSettingsServerFn({ name })` → show the raw `key` in a one-time reveal dialog (never shown again) → invalidate `apiKeysQueryOptions`.
+- Delete: confirm popover per row → `deleteApiKeyServerFn(keyId)` → invalidate.
+
+**Tax Rates** (Tax tab):
+
+- Create/edit sheet → `createTaxRateServerFn` / `updateTaxRateServerFn`. Convert user-entered percent to basis points (`rate * 100`) before sending.
+- Delete: confirm → `deleteTaxRateServerFn`.
+
+Zod for tax rate:
+
+```typescript
+const taxRateSchema = z.object({
+  name: z.string().min(1),
+  countryCode: z.string().length(2),
+  stateCode: z.string().optional(),
+  rate: z.coerce.number().min(0).max(100), // user enters %, sent as rate * 100
+  isInclusive: z.boolean(),
+  isActive: z.boolean(),
+});
+```
+
+**Store settings** tab (if present): `updateStoreServerFn(storeId, { name, currency, timezone })` → invalidate `storesQueryOptions`.
 
 ---
 
 ## Verification Checklist
 
-After implementation, verify end-to-end:
+Complete after all phases:
 
-1. **Auth**: Signup → email verify → login → admin dashboard visible → logout → login again
-2. **Products**: Create product with variant (price in $, stored as cents) → visible in list → edit → delete
-3. **Orders**: Create manual order → update status through state machine → add note → create shipment → refund
-4. **Inventory**: Open inventory page → adjust stock → verify new quantity persists on refresh
-5. **Settings**: Update org name → refresh → verify change persists. Generate API key → copy → revoke
-6. **Dashboard**: Verify stats change with period selector
-7. **Type safety**: `npm run check-types` in `apps/frontend` passes with 0 errors
+1. **Auth**: Signup → email verify → login → dashboard visible → logout → login again
+2. **Products (Phase 5)**: Create product with variant → visible in list → edit name/price → add media → delete product
+3. **Orders (Phase 6)**: View order detail → update status → add note → create shipment → issue refund → confirm timeline updates
+4. **Customers (Phase 7)**: Open customer detail → toggle status to disabled → re-enable → order history visible
+5. **Discounts (Phase 8)**: Create discount → appears in list → edit value → delete. Create coupon → delete.
+6. **Shipping (Phase 9)**: Create zone → add method → edit method price → delete method → delete zone
+7. **Settings (Phase 10)**: Update org name → refresh → persists. Create tax rate 6% (sends 600 basis points) → edit → delete. Generate API key → copy → revoke.
+8. **Inventory**: Adjust stock → verify persists on refresh (already done in Phase 4)
+9. **Dashboard**: Stats change with period selector (already done in Phase 4)
+10. **Type safety**: `npm run check-types` passes with 0 errors
 
 ---
 
 ## Resolved Design Decisions
 
-| Question                     | Decision                                                   |
-| ---------------------------- | ---------------------------------------------------------- |
-| Org slug in onboarding step1 | Remove — slug is not editable after signup                 |
-| Email verification UX        | Code-based — build `/auth/verify-email` with 6-digit input |
-| Google SSO button            | Keep — wire to WorkOS OAuth redirect when ready            |
-| Team management in settings  | Non-functional for this pass                               |
+| Question                     | Decision                                                                   |
+| ---------------------------- | -------------------------------------------------------------------------- |
+| Org slug in onboarding step1 | Remove — slug is not editable after signup                                 |
+| Email verification UX        | Code-based — build `/auth/verify-email` with 6-digit input                 |
+| Google SSO button            | Keep — wire to WorkOS OAuth redirect when ready                            |
+| Team management in settings  | Non-functional for this pass                                               |
+| Multi-store scope            | Shared customers; catalog/orders/inventory/pricing/shipping are per store  |
+| Active-store transport       | `wos-active-store` cookie → `X-Store-Id` header, injected centrally        |
+| Onboarding step 1 target     | Configures the default **store** (currency/timezone), not the organization |

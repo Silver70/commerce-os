@@ -1,5 +1,6 @@
 import * as React from "react"
 import { createFileRoute } from "@tanstack/react-router"
+import { useSuspenseQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { AlertTriangleIcon, MinusIcon, PlusIcon, SlidersHorizontalIcon } from "lucide-react"
 
 import { Badge } from "~/components/ui/badge"
@@ -22,64 +23,23 @@ import {
   SheetTitle,
 } from "~/components/ui/sheet"
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs"
+import { inventoryQueryOptions } from "~/queries/inventory"
+import { adjustInventoryServerFn } from "~/server/inventory"
+import type { InventoryItem, StockStatus } from "~/types/api"
 
 export const Route = createFileRoute("/admin/inventory")({
+  loader: ({ context }) =>
+    context.queryClient.ensureQueryData(inventoryQueryOptions()),
   component: InventoryPage,
 })
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-type InventoryItem = {
-  id: string
-  sku: string
-  productName: string
-  variantName: string
-  available: number
-  reserved: number
-  lowStockThreshold: number
-}
-
-type StockStatus = "ok" | "low" | "out"
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function stockStatus(item: InventoryItem): StockStatus {
   if (item.available === 0) return "out"
   if (item.available <= item.lowStockThreshold) return "low"
   return "ok"
 }
-
-// ─── Fake Data ────────────────────────────────────────────────────────────────
-
-const INVENTORY: InventoryItem[] = [
-  { id: "1",  sku: "ACC-0012-BLK", productName: "Classic Leather Wallet",      variantName: "Black",    available: 142, reserved: 3, lowStockThreshold: 10 },
-  { id: "2",  sku: "ACC-0012-BRN", productName: "Classic Leather Wallet",      variantName: "Brown",    available: 89,  reserved: 1, lowStockThreshold: 10 },
-  { id: "3",  sku: "APL-0001-S",   productName: "Merino Wool Crewneck",        variantName: "Small",    available: 24,  reserved: 0, lowStockThreshold: 10 },
-  { id: "4",  sku: "APL-0001-M",   productName: "Merino Wool Crewneck",        variantName: "Medium",   available: 31,  reserved: 2, lowStockThreshold: 10 },
-  { id: "5",  sku: "APL-0001-L",   productName: "Merino Wool Crewneck",        variantName: "Large",    available: 8,   reserved: 0, lowStockThreshold: 10 },
-  { id: "6",  sku: "APL-0001-XL",  productName: "Merino Wool Crewneck",        variantName: "X-Large",  available: 4,   reserved: 0, lowStockThreshold: 10 },
-  { id: "7",  sku: "SPT-0210-ONE", productName: "Foam Yoga Mat",               variantName: "One Size", available: 52,  reserved: 4, lowStockThreshold: 15 },
-  { id: "8",  sku: "ELC-0312-BLK", productName: "USB-C Hub 7-in-1",            variantName: "Black",    available: 180, reserved: 8, lowStockThreshold: 20 },
-  { id: "9",  sku: "HOM-0212-SM",  productName: "Bamboo Cutting Board Set",    variantName: "Small",    available: 73,  reserved: 0, lowStockThreshold: 15 },
-  { id: "10", sku: "HOM-0212-LG",  productName: "Bamboo Cutting Board Set",    variantName: "Large",    available: 0,   reserved: 0, lowStockThreshold: 15 },
-  { id: "11", sku: "ACC-0045-NAT", productName: "Canvas Tote Bag",             variantName: "Natural",  available: 198, reserved: 5, lowStockThreshold: 20 },
-  { id: "12", sku: "ACC-0045-BLK", productName: "Canvas Tote Bag",             variantName: "Black",    available: 187, reserved: 3, lowStockThreshold: 20 },
-  { id: "13", sku: "ELC-0678-BLK", productName: "Portable Bluetooth Speaker",  variantName: "Black",    available: 41,  reserved: 2, lowStockThreshold: 10 },
-  { id: "14", sku: "ELC-0678-WHT", productName: "Portable Bluetooth Speaker",  variantName: "White",    available: 3,   reserved: 0, lowStockThreshold: 10 },
-  { id: "15", sku: "FTW-0501-8",   productName: "Classic White Sneakers",      variantName: "UK 8",     available: 15,  reserved: 1, lowStockThreshold: 8  },
-  { id: "16", sku: "FTW-0501-9",   productName: "Classic White Sneakers",      variantName: "UK 9",     available: 28,  reserved: 2, lowStockThreshold: 8  },
-  { id: "17", sku: "FTW-0501-10",  productName: "Classic White Sneakers",      variantName: "UK 10",    available: 0,   reserved: 0, lowStockThreshold: 8  },
-  { id: "18", sku: "FTW-0501-11",  productName: "Classic White Sneakers",      variantName: "UK 11",    available: 6,   reserved: 0, lowStockThreshold: 8  },
-  { id: "19", sku: "BTY-0071-30",  productName: "Vitamin C Brightening Cream", variantName: "30 ml",    available: 62,  reserved: 0, lowStockThreshold: 15 },
-  { id: "20", sku: "HOM-0419-WHT", productName: "Linen Throw Pillow Covers",   variantName: "White",    available: 94,  reserved: 2, lowStockThreshold: 20 },
-  { id: "21", sku: "HOM-0419-GRY", productName: "Linen Throw Pillow Covers",   variantName: "Grey",     available: 93,  reserved: 1, lowStockThreshold: 20 },
-  { id: "22", sku: "SPT-0420-S",   productName: "Running Shorts Pro",          variantName: "Small",    available: 72,  reserved: 3, lowStockThreshold: 15 },
-  { id: "23", sku: "SPT-0420-M",   productName: "Running Shorts Pro",          variantName: "Medium",   available: 0,   reserved: 0, lowStockThreshold: 15 },
-  { id: "24", sku: "SPT-0420-L",   productName: "Running Shorts Pro",          variantName: "Large",    available: 65,  reserved: 2, lowStockThreshold: 15 },
-]
-
-const LOW_STOCK_COUNT  = INVENTORY.filter((i) => stockStatus(i) === "low").length
-const OUT_STOCK_COUNT  = INVENTORY.filter((i) => stockStatus(i) === "out").length
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function AvailableCell({ item }: { item: InventoryItem }) {
   const status = stockStatus(item)
@@ -103,27 +63,47 @@ function AvailableCell({ item }: { item: InventoryItem }) {
 }
 
 const ADJUSTMENT_REASONS = [
-  { value: "restock",    label: "Restock"        },
-  { value: "damage",     label: "Damage / Loss"  },
-  { value: "correction", label: "Correction"     },
-  { value: "return",     label: "Customer Return"},
-  { value: "other",      label: "Other"          },
+  { value: "restock",    label: "Restock"         },
+  { value: "damage",     label: "Damage / Loss"   },
+  { value: "correction", label: "Correction"      },
+  { value: "return",     label: "Customer Return" },
+  { value: "other",      label: "Other"           },
 ]
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 function InventoryPage() {
-  const [activeTab, setActiveTab]     = React.useState<"all" | "low" | "out">("all")
-  const [adjustItem, setAdjustItem]   = React.useState<InventoryItem | null>(null)
-  const [adjustQty, setAdjustQty]     = React.useState(0)
+  const queryClient = useQueryClient()
+  const { data: allPage } = useSuspenseQuery(inventoryQueryOptions())
+  const { data: lowPage } = useSuspenseQuery(inventoryQueryOptions({ lowStock: true }))
+
+  const [activeTab, setActiveTab]       = React.useState<"all" | "low" | "out">("all")
+  const [adjustItem, setAdjustItem]     = React.useState<InventoryItem | null>(null)
+  const [adjustQty, setAdjustQty]       = React.useState(0)
   const [adjustReason, setAdjustReason] = React.useState("")
-  const [adjustNotes, setAdjustNotes] = React.useState("")
+  const [adjustNotes, setAdjustNotes]   = React.useState("")
+
+  const allItems = allPage.items
+  const lowItems = lowPage.items
+  const outItems = allItems.filter((i) => stockStatus(i) === "out")
+
+  const lowStockCount = lowItems.length
+  const outStockCount = outItems.length
 
   const filteredData = React.useMemo(() => {
-    if (activeTab === "low") return INVENTORY.filter((i) => stockStatus(i) === "low")
-    if (activeTab === "out") return INVENTORY.filter((i) => stockStatus(i) === "out")
-    return INVENTORY
-  }, [activeTab])
+    if (activeTab === "low") return lowItems
+    if (activeTab === "out") return outItems
+    return allItems
+  }, [activeTab, allItems, lowItems, outItems])
+
+  const adjustMutation = useMutation({
+    mutationFn: (vars: { variantId: string; delta: number; reason: string; notes?: string }) =>
+      adjustInventoryServerFn({ data: vars }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["inventory"] })
+      setAdjustItem(null)
+    },
+  })
 
   const openAdjust = React.useCallback((item: InventoryItem) => {
     setAdjustItem(item)
@@ -148,7 +128,7 @@ function InventoryPage() {
         render: (row) => (
           <div>
             <p className="text-sm font-medium">{row.productName}</p>
-            <p className="mt-0.5 text-xs text-muted-foreground">{row.variantName}</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">{row.variantName ?? "—"}</p>
           </div>
         ),
       },
@@ -205,23 +185,23 @@ function InventoryPage() {
           <TabsTrigger value="all">All SKUs</TabsTrigger>
           <TabsTrigger value="low" className="gap-1.5">
             Low Stock
-            {LOW_STOCK_COUNT > 0 && (
+            {lowStockCount > 0 && (
               <Badge
                 variant="outline"
                 className="h-4 px-1.5 py-0 text-[10px] font-medium border-amber-200 bg-amber-50 text-amber-700 dark:bg-amber-950/20 dark:border-amber-900/50 dark:text-amber-400"
               >
-                {LOW_STOCK_COUNT}
+                {lowStockCount}
               </Badge>
             )}
           </TabsTrigger>
           <TabsTrigger value="out" className="gap-1.5">
             Out of Stock
-            {OUT_STOCK_COUNT > 0 && (
+            {outStockCount > 0 && (
               <Badge
                 variant="outline"
                 className="h-4 px-1.5 py-0 text-[10px] font-medium border-destructive/20 bg-destructive/10 text-destructive"
               >
-                {OUT_STOCK_COUNT}
+                {outStockCount}
               </Badge>
             )}
           </TabsTrigger>
@@ -232,7 +212,7 @@ function InventoryPage() {
         data={filteredData}
         columns={columns}
         rowKey={(row) => row.id}
-        pageSize={10}
+        pageSize={25}
         emptyMessage="No inventory items match this filter."
       />
 
@@ -243,7 +223,8 @@ function InventoryPage() {
             <SheetTitle>Adjust Stock</SheetTitle>
             {adjustItem && (
               <SheetDescription>
-                {adjustItem.sku} — {adjustItem.productName}, {adjustItem.variantName}
+                {adjustItem.sku} — {adjustItem.productName}
+                {adjustItem.variantName ? `, ${adjustItem.variantName}` : ""}
               </SheetDescription>
             )}
           </SheetHeader>
@@ -255,7 +236,7 @@ function InventoryPage() {
                 <div className="px-3 py-3">
                   <p className="text-xs text-muted-foreground">On hand</p>
                   <p className="mt-1 text-xl font-semibold tabular-nums">
-                    {adjustItem.available + adjustItem.reserved}
+                    {adjustItem.onHand}
                   </p>
                 </div>
                 <div className="px-3 py-3">
@@ -342,6 +323,12 @@ function InventoryPage() {
                 />
               </div>
 
+              {adjustMutation.isError && (
+                <p className="text-sm text-destructive">
+                  {adjustMutation.error.message}
+                </p>
+              )}
+
               {/* Actions */}
               <div className="flex gap-3 pt-1">
                 <Button
@@ -353,9 +340,17 @@ function InventoryPage() {
                 </Button>
                 <Button
                   className="flex-1 bg-orange-700 text-white shadow-none hover:bg-orange-800"
-                  disabled={adjustQty === 0 || !adjustReason}
+                  disabled={adjustQty === 0 || !adjustReason || adjustMutation.isPending}
+                  onClick={() =>
+                    adjustMutation.mutate({
+                      variantId: adjustItem.variantId,
+                      delta: adjustQty,
+                      reason: adjustReason,
+                      notes: adjustNotes || undefined,
+                    })
+                  }
                 >
-                  Save adjustment
+                  {adjustMutation.isPending ? "Saving…" : "Save adjustment"}
                 </Button>
               </div>
             </div>

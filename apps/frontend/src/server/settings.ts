@@ -1,9 +1,17 @@
 import { createServerFn } from "@tanstack/react-start";
-import { getRequestHeader } from "@tanstack/react-start/server";
+import { getCookie, getRequestHeader } from "@tanstack/react-start/server";
 import { z } from "zod";
+import { adminStoreHeader } from "~/lib/active-store";
 import { apiClient } from "~/lib/api-client";
 import { getErrorMessage } from "~/lib/errors";
-import type { Organization } from "~/types/api";
+import type {
+  ApiKey,
+  ApiKeyWithSecret,
+  AuditEntry,
+  Organization,
+  PaginatedResponse,
+  TaxRate,
+} from "~/types/api";
 
 function incomingCookie(): string {
   return getRequestHeader("cookie") ?? "";
@@ -26,11 +34,11 @@ export const getOrganizationServerFn = createServerFn({
 
 // ─── Update Organization ──────────────────────────────────────────────────────
 
+// Org PATCH only updates name; currency/timezone are store-level (§4.9)
 export const updateOrgServerFn = createServerFn({ method: "POST" })
   .inputValidator(
     z.object({
-      currency: z.string().length(3, "Currency must be a 3-letter code"),
-      timezone: z.string().min(1, "Timezone is required"),
+      name: z.string().min(2, "Organization name must be at least 2 characters"),
     }),
   )
   .handler(async ({ data }) => {
@@ -38,6 +46,151 @@ export const updateOrgServerFn = createServerFn({ method: "POST" })
       const res = await apiClient.patch<Organization>(
         "/api/admin/organization",
         data,
+        { headers: { cookie: incomingCookie() } },
+      );
+      return res.data;
+    } catch (err) {
+      throw new Error(getErrorMessage(err));
+    }
+  });
+
+// ─── API Keys ─────────────────────────────────────────────────────────────────
+
+export const getApiKeysServerFn = createServerFn({ method: "GET" }).handler(
+  async (): Promise<ApiKey[]> => {
+    const storeId = getCookie("wos-active-store");
+    if (!storeId) return [];
+    try {
+      const res = await apiClient.get<ApiKey[]>(
+        `/api/admin/stores/${storeId}/api-keys`,
+        { headers: { cookie: incomingCookie(), "X-Store-Id": storeId } },
+      );
+      return res.data;
+    } catch (err) {
+      throw new Error(getErrorMessage(err));
+    }
+  },
+);
+
+export const createApiKeyFromSettingsServerFn = createServerFn({ method: "POST" })
+  .inputValidator(z.object({ name: z.string().min(1, "Key name is required") }))
+  .handler(async ({ data }): Promise<ApiKeyWithSecret> => {
+    const storeId = getCookie("wos-active-store");
+    if (!storeId) throw new Error("No active store selected");
+    try {
+      const res = await apiClient.post<ApiKeyWithSecret>(
+        `/api/admin/stores/${storeId}/api-keys`,
+        data,
+        { headers: { cookie: incomingCookie(), "X-Store-Id": storeId } },
+      );
+      return res.data;
+    } catch (err) {
+      throw new Error(getErrorMessage(err));
+    }
+  });
+
+export const deleteApiKeyServerFn = createServerFn({ method: "POST" })
+  .inputValidator(z.object({ keyId: z.string().min(1) }))
+  .handler(async ({ data }) => {
+    const storeId = getCookie("wos-active-store");
+    if (!storeId) throw new Error("No active store selected");
+    try {
+      await apiClient.delete(
+        `/api/admin/stores/${storeId}/api-keys/${data.keyId}`,
+        { headers: { cookie: incomingCookie(), "X-Store-Id": storeId } },
+      );
+    } catch (err) {
+      throw new Error(getErrorMessage(err));
+    }
+  });
+
+// ─── Tax Rates ────────────────────────────────────────────────────────────────
+
+export const getTaxRatesServerFn = createServerFn({ method: "GET" }).handler(
+  async (): Promise<TaxRate[]> => {
+    try {
+      const res = await apiClient.get<TaxRate[]>("/api/admin/tax-rates", {
+        headers: { cookie: incomingCookie(), ...adminStoreHeader() },
+      });
+      return res.data;
+    } catch (err) {
+      throw new Error(getErrorMessage(err));
+    }
+  },
+);
+
+export const createTaxRateServerFn = createServerFn({ method: "POST" })
+  .inputValidator(
+    z.object({
+      name: z.string().min(1, "Name is required"),
+      rate: z.number().int().nonnegative("Rate must be non-negative basis points"),
+      country: z.string().length(2, "Must be ISO 3166-1 alpha-2"),
+      state: z.string().optional(),
+      isInclusive: z.boolean(),
+      isActive: z.boolean(),
+    }),
+  )
+  .handler(async ({ data }): Promise<TaxRate> => {
+    try {
+      const res = await apiClient.post<TaxRate>("/api/admin/tax-rates", data, {
+        headers: { cookie: incomingCookie(), ...adminStoreHeader() },
+      });
+      return res.data;
+    } catch (err) {
+      throw new Error(getErrorMessage(err));
+    }
+  });
+
+export const updateTaxRateServerFn = createServerFn({ method: "POST" })
+  .inputValidator(
+    z.object({
+      id: z.string().min(1),
+      name: z.string().min(1).optional(),
+      rate: z.number().int().nonnegative().optional(),
+      isInclusive: z.boolean().optional(),
+      isActive: z.boolean().optional(),
+    }),
+  )
+  .handler(async ({ data }): Promise<TaxRate> => {
+    try {
+      const { id, ...body } = data;
+      const res = await apiClient.patch<TaxRate>(`/api/admin/tax-rates/${id}`, body, {
+        headers: { cookie: incomingCookie(), ...adminStoreHeader() },
+      });
+      return res.data;
+    } catch (err) {
+      throw new Error(getErrorMessage(err));
+    }
+  });
+
+export const deleteTaxRateServerFn = createServerFn({ method: "POST" })
+  .inputValidator(z.object({ id: z.string().min(1) }))
+  .handler(async ({ data }) => {
+    try {
+      await apiClient.delete(`/api/admin/tax-rates/${data.id}`, {
+        headers: { cookie: incomingCookie(), ...adminStoreHeader() },
+      });
+    } catch (err) {
+      throw new Error(getErrorMessage(err));
+    }
+  });
+
+// ─── Audit Log ────────────────────────────────────────────────────────────────
+
+export const getAuditLogsServerFn = createServerFn({ method: "GET" })
+  .inputValidator(
+    z.object({
+      cursor: z.string().optional(),
+      limit: z.number().int().positive().optional(),
+    }),
+  )
+  .handler(async ({ data }): Promise<PaginatedResponse<AuditEntry>> => {
+    const params = new URLSearchParams();
+    if (data.cursor) params.set("cursor", data.cursor);
+    if (data.limit) params.set("limit", String(data.limit));
+    try {
+      const res = await apiClient.get<PaginatedResponse<AuditEntry>>(
+        `/api/admin/audit-logs?${params.toString()}`,
         { headers: { cookie: incomingCookie() } },
       );
       return res.data;

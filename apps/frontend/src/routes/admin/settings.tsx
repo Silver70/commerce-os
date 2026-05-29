@@ -1,8 +1,8 @@
 import * as React from "react"
 import { createFileRoute } from "@tanstack/react-router"
+import { useSuspenseQuery, useMutation, useQueryClient, useQuery } from "@tanstack/react-query"
 import {
   CheckIcon,
-  ChevronDownIcon,
   CopyIcon,
   KeyIcon,
   MoreHorizontalIcon,
@@ -42,154 +42,59 @@ import {
   SheetHeader,
   SheetTitle,
 } from "~/components/ui/sheet"
+import {
+  organizationQueryOptions,
+  storesQueryOptions,
+  apiKeysQueryOptions,
+  taxRatesQueryOptions,
+  auditLogsQueryOptions,
+} from "~/queries/settings"
+import {
+  updateOrgServerFn,
+  createApiKeyFromSettingsServerFn,
+  deleteApiKeyServerFn,
+  createTaxRateServerFn,
+  updateTaxRateServerFn,
+  deleteTaxRateServerFn,
+} from "~/server/settings"
+import { updateStoreServerFn } from "~/server/stores"
+import type { AdminRole, AuditEntry, TaxRate } from "~/types/api"
 
 export const Route = createFileRoute("/admin/settings")({
+  loader: ({ context }) =>
+    Promise.all([
+      context.queryClient.ensureQueryData(storesQueryOptions()),
+      context.queryClient.ensureQueryData(organizationQueryOptions()),
+    ]),
   component: SettingsPage,
 })
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// ─── Constants ────────────────────────────────────────────────────────────────
 
-type Role = "super_admin" | "product_manager" | "support_agent"
-type TeamMember = { id: string; name: string; email: string; role: Role; isYou?: boolean }
-type Invitation = { id: string; email: string; role: Role; sentDate: string }
-type ApiKey = { id: string; name: string; prefix: string; lastUsed: string | null }
-type TaxRate = { id: string; name: string; rate: number; country: string; state: string; isInclusive: boolean; active: boolean }
-
-type AuditEntry = {
-  id: string
-  time: string
-  actorType: "admin" | "system" | "webhook" | "customer"
-  actorId: string | null
-  actorName: string        // resolved display name, included by backend
-  entity: string
-  action: string
-  detail: string
-  json: string
-  ip: string
-  ua: string
-}
-
-// ─── Fake Data ────────────────────────────────────────────────────────────────
-
-const ROLE_LABELS: Record<Role, string> = {
-  super_admin:      "Super Admin",
-  product_manager:  "Product Manager",
-  support_agent:    "Support Agent",
-}
-
-const INITIAL_MEMBERS: TeamMember[] = [
-  { id: "u1", name: "Silver",     email: "jsameeu@gmail.com", role: "super_admin",     isYou: true },
-  { id: "u2", name: "Jane Park",  email: "jane@surf.com",     role: "product_manager" },
-  { id: "u3", name: "Ali Hassan", email: "ali@surf.com",      role: "support_agent"   },
+const CURRENCIES: { value: string; label: string }[] = [
+  { value: "USD", label: "USD – US Dollar" },
+  { value: "EUR", label: "EUR – Euro" },
+  { value: "GBP", label: "GBP – British Pound" },
+  { value: "AUD", label: "AUD – Australian Dollar" },
+  { value: "SGD", label: "SGD – Singapore Dollar" },
+  { value: "AED", label: "AED – UAE Dirham" },
+  { value: "JPY", label: "JPY – Japanese Yen" },
+  { value: "INR", label: "INR – Indian Rupee" },
+  { value: "MVR", label: "MVR – Maldivian Rufiyaa" },
 ]
 
-const INITIAL_INVITATIONS: Invitation[] = [
-  { id: "i1", email: "mark@email.com", role: "product_manager", sentDate: "May 10, 2026" },
-]
-
-const INITIAL_API_KEYS: ApiKey[] = [
-  { id: "k1", name: "Next.js Store", prefix: "sk_live_a8f3", lastUsed: "2 min ago" },
-  { id: "k2", name: "Mobile App",    prefix: "sk_live_b2e1", lastUsed: null          },
-]
-
-const INITIAL_TAX_RATES: TaxRate[] = [
-  { id: "t1", name: "GST",          rate: 600,  country: "MV", state: "",   isInclusive: false, active: true  },
-  { id: "t2", name: "US Sales Tax", rate: 725,  country: "US", state: "CA", isInclusive: false, active: true  },
-  { id: "t3", name: "UK VAT",       rate: 2000, country: "GB", state: "",   isInclusive: true,  active: true  },
-  { id: "t4", name: "AU GST",       rate: 1000, country: "AU", state: "",   isInclusive: true,  active: false },
-]
-
-const AUDIT_LOG: AuditEntry[] = [
-  {
-    id: "a1",  time: "May 22, 2:34 PM",  actorType: "admin",  actorId: "user_01JANEPARK",   actorName: "Jane Park",  entity: "Products",
-    action: 'Updated product "Wave Board Pro"', detail: "price: $139.99 → $149.99",
-    json: '{\n  "price": {\n    "old": 13999,\n    "new": 14999\n  }\n}',
-    ip: "203.0.113.42", ua: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
-  },
-  {
-    id: "a2",  time: "May 22, 1:30 PM",  actorType: "admin",  actorId: "user_01SILVER",      actorName: "Silver",     entity: "Orders",
-    action: "Issued refund $49.99", detail: "Order ORD-20260519-0025",
-    json: '{\n  "amount": 4999,\n  "reason": "defective_product",\n  "restock": true\n}',
-    ip: "203.0.113.10", ua: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-  },
-  {
-    id: "a3",  time: "May 22, 11:00 AM", actorType: "system", actorId: null,                 actorName: "System",     entity: "Inventory",
-    action: "Stock adjusted RASH-M-BLUE", detail: "Quantity: 10 → 3 (Reason: Damage)",
-    json: '{\n  "sku": "RASH-M-BLUE",\n  "quantity": { "old": 10, "new": 3 },\n  "reason": "damage"\n}',
-    ip: "—", ua: "Commerce OS / background-job",
-  },
-  {
-    id: "a4",  time: "May 21, 4:15 PM",  actorType: "admin",  actorId: "user_01SILVER",      actorName: "Silver",     entity: "Discounts",
-    action: 'Created discount "Staff Discount"', detail: "30% off all orders",
-    json: '{\n  "name": "Staff Discount",\n  "type": "percentage",\n  "value": 30\n}',
-    ip: "203.0.113.10", ua: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-  },
-  {
-    id: "a5",  time: "May 21, 2:00 PM",  actorType: "admin",  actorId: "user_01JANEPARK",   actorName: "Jane Park",  entity: "Products",
-    action: 'Updated product "Longboard Classic"', detail: "Added product image",
-    json: '{\n  "media": {\n    "added": ["img_29a3f.jpg"]\n  }\n}',
-    ip: "203.0.113.42", ua: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
-  },
-  {
-    id: "a6",  time: "May 20, 5:30 PM",  actorType: "admin",  actorId: "user_01ALIHASSAN",  actorName: "Ali Hassan", entity: "Customers",
-    action: "Updated customer John Smith", detail: "status: active → suspended",
-    json: '{\n  "status": {\n    "old": "active",\n    "new": "suspended"\n  }\n}',
-    ip: "203.0.113.88", ua: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0) AppleWebKit/605.1.15",
-  },
-  {
-    id: "a7",  time: "May 20, 3:45 PM",  actorType: "admin",  actorId: "user_01SILVER",      actorName: "Silver",     entity: "Settings",
-    action: "Updated store settings", detail: 'Store name: "Surf Co" → "Acme Surf Shop"',
-    json: '{\n  "store_name": {\n    "old": "Surf Co",\n    "new": "Acme Surf Shop"\n  }\n}',
-    ip: "203.0.113.10", ua: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-  },
-  {
-    id: "a8",  time: "May 19, 2:34 PM",  actorType: "webhook", actorId: null,                actorName: "System",     entity: "Orders",
-    action: "Order status updated", detail: "ORD-20260519-0025: pending → paid",
-    json: '{\n  "status": {\n    "old": "pending",\n    "new": "paid"\n  },\n  "payment_intent": "pi_3R8a9bKZ"\n}',
-    ip: "—", ua: "Commerce OS / stripe-webhook",
-  },
-  {
-    id: "a9",  time: "May 19, 11:20 AM", actorType: "admin",  actorId: "user_01JANEPARK",   actorName: "Jane Park",  entity: "Products",
-    action: 'Created product "Blue Rashguard"', detail: "SKU: RASH-M-BLUE, Price: $49.99",
-    json: '{\n  "name": "Blue Rashguard",\n  "sku": "RASH-M-BLUE",\n  "price": 4999\n}',
-    ip: "203.0.113.42", ua: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
-  },
-  {
-    id: "a10", time: "May 18, 4:00 PM",  actorType: "admin",  actorId: "user_01SILVER",      actorName: "Silver",     entity: "Discounts",
-    action: 'Updated discount "Summer Sale"', detail: "Usage limit: 80 → 100",
-    json: '{\n  "usage_limit": {\n    "old": 80,\n    "new": 100\n  }\n}',
-    ip: "203.0.113.10", ua: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-  },
-  {
-    id: "a11", time: "May 17, 9:15 AM",  actorType: "system", actorId: null,                 actorName: "System",     entity: "Inventory",
-    action: "Stock adjusted FIN-SET-PRO", detail: "Quantity: 5 → 15 (Reason: Restock)",
-    json: '{\n  "sku": "FIN-SET-PRO",\n  "quantity": { "old": 5, "new": 15 },\n  "reason": "restock"\n}',
-    ip: "—", ua: "Commerce OS / background-job",
-  },
-  {
-    id: "a12", time: "May 16, 3:30 PM",  actorType: "admin",  actorId: "user_01ALIHASSAN",  actorName: "Ali Hassan", entity: "Orders",
-    action: "Viewed order ORD-20260515-0010", detail: "Support access",
-    json: '{\n  "action": "view",\n  "order_id": "ORD-20260515-0010"\n}',
-    ip: "203.0.113.88", ua: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0) AppleWebKit/605.1.15",
-  },
-]
-
-const AUDIT_ENTITIES = ["Products", "Orders", "Customers", "Inventory", "Discounts", "Settings"]
-const AUDIT_ACTORS   = ["Silver", "Jane Park", "Ali Hassan", "System"]
-
-const CURRENCIES = [
-  "USD - US Dollar", "EUR - Euro", "GBP - British Pound",
-  "AUD - Australian Dollar", "SGD - Singapore Dollar",
-  "AED - UAE Dirham", "JPY - Japanese Yen",
-  "INR - Indian Rupee", "MVR - Maldivian Rufiyaa",
-]
-
-const TIMEZONES = [
-  "UTC-8 – US Pacific", "UTC-5 – US Eastern", "UTC+0 – UTC / London",
-  "UTC+1 – Central European", "UTC+3 – East Africa / Arabian",
-  "UTC+5 – Maldives (Indian/Maldives)", "UTC+5:30 – India",
-  "UTC+8 – Singapore / Malaysia / China", "UTC+9 – Japan / Korea",
-  "UTC+10 – Eastern Australia", "UTC+12 – New Zealand",
+const TIMEZONES: { value: string; label: string }[] = [
+  { value: "America/Los_Angeles", label: "UTC-8 – US Pacific" },
+  { value: "America/New_York",    label: "UTC-5 – US Eastern" },
+  { value: "UTC",                 label: "UTC+0 – UTC / London" },
+  { value: "Europe/Berlin",       label: "UTC+1 – Central European" },
+  { value: "Africa/Nairobi",      label: "UTC+3 – East Africa / Arabian" },
+  { value: "Indian/Maldives",     label: "UTC+5 – Maldives" },
+  { value: "Asia/Kolkata",        label: "UTC+5:30 – India" },
+  { value: "Asia/Singapore",      label: "UTC+8 – Singapore / Malaysia / China" },
+  { value: "Asia/Tokyo",          label: "UTC+9 – Japan / Korea" },
+  { value: "Australia/Sydney",    label: "UTC+10 – Eastern Australia" },
+  { value: "Pacific/Auckland",    label: "UTC+12 – New Zealand" },
 ]
 
 const TAX_COUNTRIES = [
@@ -205,56 +110,65 @@ const TAX_COUNTRIES = [
 
 const US_STATES = ["CA", "NY", "TX", "FL", "WA", "IL", "PA", "OH", "GA", "NC"]
 
-let nextId = 200
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function generateKey() {
-  const chars = "abcdefghijklmnopqrstuvwxyz0123456789"
-  const suffix = Array.from({ length: 32 }, () =>
-    chars[Math.floor(Math.random() * chars.length)],
-  ).join("")
-  return `sk_live_${suffix}`
+const ROLE_LABELS: Record<AdminRole, string> = {
+  super_admin:     "Super Admin",
+  product_manager: "Product Manager",
+  support_agent:   "Support Agent",
 }
 
-function RoleBadge({ role }: { role: Role }) {
-  const styles: Record<Role, string> = {
-    super_admin:     "border-violet-200 bg-violet-50 text-violet-700 dark:bg-violet-950/20 dark:border-violet-900/50 dark:text-violet-400",
-    product_manager: "border-blue-200 bg-blue-50 text-blue-700 dark:bg-blue-950/20 dark:border-blue-900/50 dark:text-blue-400",
-    support_agent:   "border-border bg-muted/40 text-muted-foreground",
-  }
-  return (
-    <Badge variant="outline" className={`px-2 py-0 text-[11px] font-medium ${styles[role]}`}>
-      {ROLE_LABELS[role]}
-    </Badge>
-  )
+function getActiveStoreId(): string | null {
+  if (typeof document === "undefined") return null
+  const match = document.cookie.match(/(?:^|;\s*)wos-active-store=([^;]*)/)
+  return match ? match[1] : null
 }
 
 // ─── General Settings ─────────────────────────────────────────────────────────
 
 function GeneralSettings() {
-  const [storeName, setStoreName] = React.useState("Acme Surf Shop")
-  const [currency, setCurrency]   = React.useState("USD - US Dollar")
-  const [timezone, setTimezone]   = React.useState("UTC+5 – Maldives (Indian/Maldives)")
-  const [saved, setSaved]         = React.useState(false)
+  const queryClient = useQueryClient()
+  const { data: stores } = useSuspenseQuery(storesQueryOptions())
+  const activeId = getActiveStoreId()
+  const store = stores.find((s) => s.id === activeId) ?? stores[0]
 
-  function handleSave() {
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
-  }
+  const [storeName, setStoreName] = React.useState(store?.name ?? "")
+  const [currency, setCurrency]   = React.useState(store?.currency ?? "USD")
+  const [timezone, setTimezone]   = React.useState(store?.timezone ?? "UTC")
+
+  React.useEffect(() => {
+    if (store) {
+      setStoreName(store.name)
+      setCurrency(store.currency)
+      setTimezone(store.timezone)
+    }
+  }, [store?.id])
+
+  const saveMutation = useMutation({
+    mutationFn: () =>
+      updateStoreServerFn({
+        data: { storeId: store!.id, name: storeName.trim(), currency, timezone },
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["settings", "stores"] })
+    },
+  })
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold">General</h2>
         <Button
-          onClick={handleSave}
+          onClick={() => saveMutation.mutate()}
+          disabled={saveMutation.isPending || !store}
           className="gap-2 bg-orange-700 px-5 text-white shadow-none hover:bg-orange-800"
         >
-          {saved ? <CheckIcon className="h-4 w-4" /> : null}
-          {saved ? "Saved" : "Save"}
+          {saveMutation.isSuccess ? <CheckIcon className="h-4 w-4" /> : null}
+          {saveMutation.isPending ? "Saving…" : saveMutation.isSuccess ? "Saved" : "Save"}
         </Button>
       </div>
+
+      {saveMutation.isError && (
+        <p className="text-sm text-destructive">{saveMutation.error.message}</p>
+      )}
 
       <Card>
         <CardHeader className="border-b pb-4">
@@ -281,7 +195,7 @@ function GeneralSettings() {
             <div className="flex items-center gap-0 max-w-sm">
               <Input
                 id="g-slug"
-                value="acme-surf"
+                value={store?.slug ?? ""}
                 readOnly
                 className="rounded-r-none bg-muted/30 text-muted-foreground"
               />
@@ -289,7 +203,7 @@ function GeneralSettings() {
                 .mycommerce.com
               </span>
             </div>
-            <p className="text-xs text-muted-foreground">Read-only during MVP.</p>
+            <p className="text-xs text-muted-foreground">Read-only — slug is set at store creation.</p>
           </div>
 
           <Separator />
@@ -304,7 +218,7 @@ function GeneralSettings() {
               </SelectTrigger>
               <SelectContent>
                 {CURRENCIES.map((c) => (
-                  <SelectItem key={c} value={c}>{c}</SelectItem>
+                  <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -320,7 +234,7 @@ function GeneralSettings() {
               </SelectTrigger>
               <SelectContent>
                 {TIMEZONES.map((t) => (
-                  <SelectItem key={t} value={t}>{t}</SelectItem>
+                  <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -332,7 +246,22 @@ function GeneralSettings() {
   )
 }
 
-// ─── Team Settings ────────────────────────────────────────────────────────────
+// ─── Team Settings (mock — WorkOS team management is out of scope) ─────────────
+
+type MockTeamMember = { id: string; name: string; email: string; role: AdminRole; isYou?: boolean }
+type MockInvitation = { id: string; email: string; role: AdminRole; sentDate: string }
+
+const INITIAL_MEMBERS: MockTeamMember[] = [
+  { id: "u1", name: "Silver",     email: "jsameeu@gmail.com", role: "super_admin",     isYou: true },
+  { id: "u2", name: "Jane Park",  email: "jane@surf.com",     role: "product_manager" },
+  { id: "u3", name: "Ali Hassan", email: "ali@surf.com",      role: "support_agent"   },
+]
+
+const INITIAL_INVITATIONS: MockInvitation[] = [
+  { id: "i1", email: "mark@email.com", role: "product_manager", sentDate: "May 10, 2026" },
+]
+
+let nextMockId = 200
 
 function InviteSheet({
   open,
@@ -341,10 +270,10 @@ function InviteSheet({
 }: {
   open: boolean
   onOpenChange: (v: boolean) => void
-  onInvite: (email: string, role: Role) => void
+  onInvite: (email: string, role: AdminRole) => void
 }) {
   const [email, setEmail] = React.useState("")
-  const [role, setRole]   = React.useState<Role>("product_manager")
+  const [role, setRole]   = React.useState<AdminRole>("product_manager")
 
   React.useEffect(() => {
     if (open) { setEmail(""); setRole("product_manager") }
@@ -376,7 +305,7 @@ function InviteSheet({
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="inv-role">Role</Label>
-            <Select value={role} onValueChange={(v) => setRole(v as Role)}>
+            <Select value={role} onValueChange={(v) => setRole(v as AdminRole)}>
               <SelectTrigger id="inv-role">
                 <SelectValue />
               </SelectTrigger>
@@ -386,11 +315,6 @@ function InviteSheet({
                 <SelectItem value="support_agent">Support Agent</SelectItem>
               </SelectContent>
             </Select>
-            <p className="text-xs text-muted-foreground">
-              {role === "super_admin"     && "Full access to all settings and data."}
-              {role === "product_manager" && "Can manage products, inventory, and discounts."}
-              {role === "support_agent"   && "Can view orders and customers. Read-only."}
-            </p>
           </div>
         </div>
         <SheetFooter className="border-t">
@@ -410,34 +334,38 @@ function InviteSheet({
   )
 }
 
+function RoleBadge({ role }: { role: AdminRole }) {
+  const styles: Record<AdminRole, string> = {
+    super_admin:     "border-violet-200 bg-violet-50 text-violet-700 dark:bg-violet-950/20 dark:border-violet-900/50 dark:text-violet-400",
+    product_manager: "border-blue-200 bg-blue-50 text-blue-700 dark:bg-blue-950/20 dark:border-blue-900/50 dark:text-blue-400",
+    support_agent:   "border-border bg-muted/40 text-muted-foreground",
+  }
+  return (
+    <Badge variant="outline" className={`px-2 py-0 text-[11px] font-medium ${styles[role]}`}>
+      {ROLE_LABELS[role]}
+    </Badge>
+  )
+}
+
 function TeamSettings() {
-  const [members, setMembers]         = React.useState<TeamMember[]>(INITIAL_MEMBERS)
-  const [invitations, setInvitations] = React.useState<Invitation[]>(INITIAL_INVITATIONS)
+  const [members, setMembers]         = React.useState<MockTeamMember[]>(INITIAL_MEMBERS)
+  const [invitations, setInvitations] = React.useState<MockInvitation[]>(INITIAL_INVITATIONS)
   const [inviteOpen, setInviteOpen]   = React.useState(false)
 
-  function handleInvite(email: string, role: Role) {
+  function handleInvite(email: string, role: AdminRole) {
     setInvitations((prev) => [
       ...prev,
-      { id: `i${nextId++}`, email, role, sentDate: "May 22, 2026" },
+      { id: `i${nextMockId++}`, email, role, sentDate: "May 22, 2026" },
     ])
-  }
-
-  function removeMember(id: string) {
-    setMembers((prev) => prev.filter((m) => m.id !== id))
-  }
-
-  function changeRole(id: string, role: Role) {
-    setMembers((prev) => prev.map((m) => (m.id === id ? { ...m, role } : m)))
-  }
-
-  function revokeInvitation(id: string) {
-    setInvitations((prev) => prev.filter((i) => i.id !== id))
   }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold">Team</h2>
+        <div>
+          <h2 className="text-xl font-semibold">Team</h2>
+          <p className="mt-0.5 text-xs text-muted-foreground">Team management via WorkOS — full integration coming in a future release.</p>
+        </div>
         <Button
           className="gap-2 bg-orange-700 px-5 text-white shadow-none hover:bg-orange-800"
           onClick={() => setInviteOpen(true)}
@@ -447,7 +375,6 @@ function TeamSettings() {
         </Button>
       </div>
 
-      {/* Members table */}
       <Card className="overflow-hidden gap-0 py-0">
         <div className="grid grid-cols-[1fr_180px_160px_40px] items-center border-b bg-muted/20 px-5 py-2.5 text-xs font-medium text-muted-foreground">
           <span>Name</span>
@@ -485,15 +412,21 @@ function TeamSettings() {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-44">
-                    <DropdownMenuItem
-                      onClick={() => changeRole(m.id, m.role === "product_manager" ? "support_agent" : "product_manager")}
-                    >
+                    <DropdownMenuItem onClick={() =>
+                      setMembers((prev) =>
+                        prev.map((mem) =>
+                          mem.id === m.id
+                            ? { ...mem, role: mem.role === "product_manager" ? "support_agent" : "product_manager" }
+                            : mem,
+                        ),
+                      )
+                    }>
                       Change role
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
                       className="text-destructive focus:text-destructive"
-                      onClick={() => removeMember(m.id)}
+                      onClick={() => setMembers((prev) => prev.filter((mem) => mem.id !== m.id))}
                     >
                       Remove from team
                     </DropdownMenuItem>
@@ -505,7 +438,6 @@ function TeamSettings() {
         ))}
       </Card>
 
-      {/* Pending invitations */}
       {invitations.length > 0 && (
         <div className="space-y-3">
           <p className="text-sm font-medium text-muted-foreground">Pending invitations</p>
@@ -536,7 +468,7 @@ function TeamSettings() {
                     variant="ghost"
                     size="sm"
                     className="h-7 px-2.5 text-xs text-destructive hover:text-destructive"
-                    onClick={() => revokeInvitation(inv.id)}
+                    onClick={() => setInvitations((prev) => prev.filter((i) => i.id !== inv.id))}
                   >
                     Revoke
                   </Button>
@@ -557,36 +489,42 @@ function TeamSettings() {
 function GenerateKeySheet({
   open,
   onOpenChange,
-  onSave,
 }: {
   open: boolean
   onOpenChange: (v: boolean) => void
-  onSave: (name: string, key: string) => void
 }) {
+  const queryClient = useQueryClient()
   const [step, setStep]     = React.useState<1 | 2>(1)
   const [name, setName]     = React.useState("")
   const [genKey, setGenKey] = React.useState("")
   const [copied, setCopied] = React.useState(false)
+  const [error, setError]   = React.useState("")
 
   React.useEffect(() => {
-    if (open) { setStep(1); setName(""); setGenKey(""); setCopied(false) }
+    if (open) { setStep(1); setName(""); setGenKey(""); setCopied(false); setError("") }
   }, [open])
 
-  function handleGenerate() {
-    const key = generateKey()
-    setGenKey(key)
-    setStep(2)
-  }
+  const generateMutation = useMutation({
+    mutationFn: () => createApiKeyFromSettingsServerFn({ data: { name: name.trim() } }),
+    onSuccess: (data) => {
+      setGenKey(data.key)
+      setStep(2)
+      void queryClient.invalidateQueries({ queryKey: ["settings", "api-keys"] })
+    },
+    onError: (err) => setError(err.message),
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: (keyId: string) => deleteApiKeyServerFn({ data: { keyId } }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["settings", "api-keys"] })
+    },
+  })
 
   function handleCopy() {
     navigator.clipboard.writeText(genKey).catch(() => {})
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
-  }
-
-  function handleDone() {
-    onSave(name.trim(), genKey)
-    onOpenChange(false)
   }
 
   return (
@@ -614,36 +552,31 @@ function GenerateKeySheet({
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                 />
-                <p className="text-xs text-muted-foreground">
-                  Used to identify this key in the table.
-                </p>
               </div>
+              {error && <p className="text-sm text-destructive">{error}</p>}
             </div>
             <SheetFooter className="border-t">
               <SheetClose asChild>
                 <Button variant="outline" className="flex-1">Cancel</Button>
               </SheetClose>
               <Button
-                disabled={!name.trim()}
+                disabled={!name.trim() || generateMutation.isPending}
                 className="flex-1 bg-orange-700 text-white shadow-none hover:bg-orange-800 disabled:opacity-50"
-                onClick={handleGenerate}
+                onClick={() => generateMutation.mutate()}
               >
-                Generate key
+                {generateMutation.isPending ? "Generating…" : "Generate key"}
               </Button>
             </SheetFooter>
           </>
         ) : (
           <>
             <div className="flex-1 px-4 py-5 space-y-5">
-              {/* Warning */}
               <div className="flex gap-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 dark:border-amber-900/50 dark:bg-amber-950/20">
                 <ShieldIcon className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
                 <p className="text-xs text-amber-700 dark:text-amber-400">
                   This key is shown <strong>only once</strong>. Copy it now — you will not be able to retrieve it later.
                 </p>
               </div>
-
-              {/* Key display */}
               <div className="space-y-1.5">
                 <Label>Your new API key</Label>
                 <div className="flex items-center gap-2">
@@ -656,11 +589,9 @@ function GenerateKeySheet({
                     className="h-9 w-9 shrink-0"
                     onClick={handleCopy}
                   >
-                    {copied ? (
-                      <CheckIcon className="h-3.5 w-3.5 text-emerald-500" />
-                    ) : (
-                      <CopyIcon className="h-3.5 w-3.5" />
-                    )}
+                    {copied
+                      ? <CheckIcon className="h-3.5 w-3.5 text-emerald-500" />
+                      : <CopyIcon className="h-3.5 w-3.5" />}
                   </Button>
                 </div>
               </div>
@@ -668,7 +599,7 @@ function GenerateKeySheet({
             <SheetFooter className="border-t">
               <Button
                 className="w-full bg-orange-700 text-white shadow-none hover:bg-orange-800"
-                onClick={handleDone}
+                onClick={() => onOpenChange(false)}
               >
                 I've saved my key — done
               </Button>
@@ -681,19 +612,14 @@ function GenerateKeySheet({
 }
 
 function ApiKeysSettings() {
-  const [keys, setKeys]         = React.useState<ApiKey[]>(INITIAL_API_KEYS)
-  const [genOpen, setGenOpen]   = React.useState(false)
+  const queryClient = useQueryClient()
+  const { data: keys = [] } = useQuery(apiKeysQueryOptions())
+  const [genOpen, setGenOpen] = React.useState(false)
 
-  function handleSave(name: string, key: string) {
-    setKeys((prev) => [
-      ...prev,
-      { id: `k${nextId++}`, name, prefix: key.slice(0, 12) + "…", lastUsed: null },
-    ])
-  }
-
-  function revokeKey(id: string) {
-    setKeys((prev) => prev.filter((k) => k.id !== id))
-  }
+  const deleteMutation = useMutation({
+    mutationFn: (keyId: string) => deleteApiKeyServerFn({ data: { keyId } }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["settings", "api-keys"] }),
+  })
 
   return (
     <div className="space-y-6">
@@ -731,8 +657,10 @@ function ApiKeysSettings() {
             >
               <span className="text-sm font-medium">{k.name}</span>
               <code className="font-mono text-sm text-muted-foreground">{k.prefix}…</code>
-              <span className={cn("text-sm", k.lastUsed ? "text-muted-foreground" : "italic text-muted-foreground/60")}>
-                {k.lastUsed ?? "Never"}
+              <span className={cn("text-sm", k.lastUsedAt ? "text-muted-foreground" : "italic text-muted-foreground/60")}>
+                {k.lastUsedAt
+                  ? new Date(k.lastUsedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+                  : "Never"}
               </span>
               <div className="flex justify-end">
                 <DropdownMenu>
@@ -742,11 +670,11 @@ function ApiKeysSettings() {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-36">
-                    <DropdownMenuItem>Rename</DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
                       className="text-destructive focus:text-destructive"
-                      onClick={() => revokeKey(k.id)}
+                      disabled={deleteMutation.isPending}
+                      onClick={() => deleteMutation.mutate(k.id)}
                     >
                       Revoke
                     </DropdownMenuItem>
@@ -758,7 +686,6 @@ function ApiKeysSettings() {
         )}
       </Card>
 
-      {/* Warning */}
       <div className="flex gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-900/50 dark:bg-amber-950/20">
         <ShieldIcon className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
         <p className="text-sm text-amber-700 dark:text-amber-400">
@@ -766,7 +693,7 @@ function ApiKeysSettings() {
         </p>
       </div>
 
-      <GenerateKeySheet open={genOpen} onOpenChange={setGenOpen} onSave={handleSave} />
+      <GenerateKeySheet open={genOpen} onOpenChange={setGenOpen} />
     </div>
   )
 }
@@ -777,61 +704,67 @@ function TaxRateSheet({
   rate,
   open,
   onOpenChange,
-  onSave,
 }: {
   rate: TaxRate | null
   open: boolean
   onOpenChange: (v: boolean) => void
-  onSave: (data: Omit<TaxRate, "id">, id?: string) => void
 }) {
+  const queryClient = useQueryClient()
   const [name, setName]           = React.useState("")
   const [rateVal, setRateVal]     = React.useState("")
   const [country, setCountry]     = React.useState("")
   const [state, setState]         = React.useState("")
   const [isInclusive, setIsIncl]  = React.useState(false)
-  const [active, setActive]       = React.useState(true)
+  const [isActive, setIsActive]   = React.useState(true)
 
   React.useEffect(() => {
     if (open) {
       setName(rate?.name ?? "")
-      setRateVal(rate ? String(rate.rate / 100) : "")   // convert basis points → display %
+      setRateVal(rate ? String(rate.rate / 100) : "")
       setCountry(rate?.country ?? "")
       setState(rate?.state ?? "")
       setIsIncl(rate?.isInclusive ?? false)
-      setActive(rate?.active ?? true)
+      setIsActive(rate?.isActive ?? true)
     }
   }, [open, rate])
 
   const isEdit = !!rate
   const canSave = name.trim().length > 0 && rateVal.trim().length > 0 && country.length > 0
 
+  const mutation = useMutation({
+    mutationFn: () => {
+      const basisPoints = Math.round(parseFloat(rateVal) * 100)
+      if (isEdit) {
+        return updateTaxRateServerFn({
+          data: { id: rate.id, name: name.trim(), rate: basisPoints, isInclusive, isActive },
+        })
+      }
+      return createTaxRateServerFn({
+        data: { name: name.trim(), rate: basisPoints, country, state: state || undefined, isInclusive, isActive },
+      })
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["settings", "tax-rates"] })
+      onOpenChange(false)
+    },
+  })
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="flex w-full flex-col sm:max-w-md">
         <SheetHeader className="border-b">
           <SheetTitle>{isEdit ? "Edit tax rate" : "Add tax rate"}</SheetTitle>
-          <SheetDescription>
-            Tax rates are applied to orders in matching regions.
-          </SheetDescription>
+          <SheetDescription>Tax rates are applied to orders in matching regions.</SheetDescription>
         </SheetHeader>
         <div className="flex-1 overflow-y-auto px-4 py-5 space-y-5">
 
           <div className="space-y-1.5">
-            <Label htmlFor="tx-name">
-              Name <span className="text-destructive">*</span>
-            </Label>
-            <Input
-              id="tx-name"
-              placeholder="e.g. GST"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
+            <Label htmlFor="tx-name">Name <span className="text-destructive">*</span></Label>
+            <Input id="tx-name" placeholder="e.g. GST" value={name} onChange={(e) => setName(e.target.value)} />
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="tx-rate">
-              Rate <span className="text-destructive">*</span>
-            </Label>
+            <Label htmlFor="tx-rate">Rate <span className="text-destructive">*</span></Label>
             <div className="flex items-center gap-2">
               <Input
                 id="tx-rate"
@@ -851,18 +784,14 @@ function TaxRateSheet({
           <Separator />
 
           <div className="space-y-1.5">
-            <Label htmlFor="tx-country">
-              Country <span className="text-destructive">*</span>
-            </Label>
+            <Label htmlFor="tx-country">Country <span className="text-destructive">*</span></Label>
             <Select value={country} onValueChange={(v) => { setCountry(v); setState("") }}>
               <SelectTrigger id="tx-country">
                 <SelectValue placeholder="Select country…" />
               </SelectTrigger>
               <SelectContent>
                 {TAX_COUNTRIES.map((c) => (
-                  <SelectItem key={c.code} value={c.code}>
-                    {c.name} ({c.code})
-                  </SelectItem>
+                  <SelectItem key={c.code} value={c.code}>{c.name} ({c.code})</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -920,36 +849,40 @@ function TaxRateSheet({
             <div>
               <p className="text-sm font-medium">Active</p>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                {active ? "Applied to matching orders." : "Not currently applied."}
+                {isActive ? "Applied to matching orders." : "Not currently applied."}
               </p>
             </div>
             <button
               type="button"
-              onClick={() => setActive((v) => !v)}
+              onClick={() => setIsActive((v) => !v)}
               className={cn(
                 "relative mt-0.5 h-5 w-9 shrink-0 rounded-full border-2 transition-colors",
-                active ? "border-amber-500 bg-amber-500" : "border-border bg-transparent",
+                isActive ? "border-amber-500 bg-amber-500" : "border-border bg-transparent",
               )}
             >
               <span
                 className={cn(
                   "absolute top-0.5 h-3 w-3 rounded-full transition-transform duration-200",
-                  active ? "left-0.5 translate-x-4 bg-white" : "left-0.5 translate-x-0 bg-muted-foreground/40",
+                  isActive ? "left-0.5 translate-x-4 bg-white" : "left-0.5 translate-x-0 bg-muted-foreground/40",
                 )}
               />
             </button>
           </label>
+
+          {mutation.isError && (
+            <p className="text-sm text-destructive">{mutation.error.message}</p>
+          )}
         </div>
         <SheetFooter className="border-t">
           <SheetClose asChild>
             <Button variant="outline" className="flex-1">Cancel</Button>
           </SheetClose>
           <Button
-            disabled={!canSave}
+            disabled={!canSave || mutation.isPending}
             className="flex-1 bg-orange-700 text-white shadow-none hover:bg-orange-800 disabled:opacity-50"
-            onClick={() => { onSave({ name: name.trim(), rate: Math.round(parseFloat(rateVal) * 100), country, state, isInclusive, active }, rate?.id); onOpenChange(false) }}
+            onClick={() => mutation.mutate()}
           >
-            {isEdit ? "Save changes" : "Add rate"}
+            {mutation.isPending ? "Saving…" : isEdit ? "Save changes" : "Add rate"}
           </Button>
         </SheetFooter>
       </SheetContent>
@@ -958,16 +891,14 @@ function TaxRateSheet({
 }
 
 function TaxRatesSettings() {
-  const [rates, setRates]         = React.useState<TaxRate[]>(INITIAL_TAX_RATES)
-  const [sheet, setSheet]         = React.useState<{ open: boolean; rate: TaxRate | null }>({ open: false, rate: null })
+  const queryClient = useQueryClient()
+  const { data: rates = [] } = useQuery(taxRatesQueryOptions())
+  const [sheet, setSheet] = React.useState<{ open: boolean; rate: TaxRate | null }>({ open: false, rate: null })
 
-  function handleSave(data: Omit<TaxRate, "id">, id?: string) {
-    if (id) {
-      setRates((prev) => prev.map((r) => (r.id === id ? { ...r, ...data } : r)))
-    } else {
-      setRates((prev) => [...prev, { id: `t${nextId++}`, ...data }])
-    }
-  }
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteTaxRateServerFn({ data: { id } }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["settings", "tax-rates"] }),
+  })
 
   const countryName = (code: string) =>
     TAX_COUNTRIES.find((c) => c.code === code)?.name ?? code
@@ -994,52 +925,55 @@ function TaxRatesSettings() {
           <span className="text-center">Status</span>
           <span />
         </div>
-        {rates.map((r, i) => (
-          <div
-            key={r.id}
-            className={cn(
-              "grid grid-cols-[1fr_70px_150px_90px_80px_64px] items-center px-5 py-4 transition-colors hover:bg-muted/20",
-              i < rates.length - 1 && "border-b border-border/50",
-            )}
-          >
-            <span className="text-sm font-medium">{r.name}</span>
-            <span className="text-sm font-semibold tabular-nums">{(r.rate / 100).toFixed(2)}%</span>
-            <span className="text-sm text-muted-foreground">
-              {countryName(r.country)}{r.state ? ` – ${r.state}` : ""}
-            </span>
-            <span className="text-sm text-muted-foreground">{r.isInclusive ? "Incl." : "Excl."}</span>
-            <div className="flex justify-center">
-              <Badge
-                variant="outline"
-                className={cn(
-                  "px-2 py-0 text-[11px] font-medium capitalize",
-                  r.active
-                    ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/20 dark:border-emerald-900/50 dark:text-emerald-400"
-                    : "border-border bg-muted/40 text-muted-foreground",
-                )}
-              >
-                {r.active ? "Active" : "Off"}
-              </Badge>
+        {rates.length === 0 ? (
+          <p className="py-12 text-center text-sm text-muted-foreground">No tax rates configured.</p>
+        ) : (
+          rates.map((r, i) => (
+            <div
+              key={r.id}
+              className={cn(
+                "grid grid-cols-[1fr_70px_150px_90px_80px_64px] items-center px-5 py-4 transition-colors hover:bg-muted/20",
+                i < rates.length - 1 && "border-b border-border/50",
+              )}
+            >
+              <span className="text-sm font-medium">{r.name}</span>
+              <span className="text-sm font-semibold tabular-nums">{(r.rate / 100).toFixed(2)}%</span>
+              <span className="text-sm text-muted-foreground">
+                {countryName(r.country)}{r.state ? ` – ${r.state}` : ""}
+              </span>
+              <span className="text-sm text-muted-foreground">{r.isInclusive ? "Incl." : "Excl."}</span>
+              <div className="flex justify-center">
+                <Badge
+                  variant="outline"
+                  className={cn(
+                    "px-2 py-0 text-[11px] font-medium capitalize",
+                    r.isActive
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/20 dark:border-emerald-900/50 dark:text-emerald-400"
+                      : "border-border bg-muted/40 text-muted-foreground",
+                  )}
+                >
+                  {r.isActive ? "Active" : "Off"}
+                </Badge>
+              </div>
+              <div className="flex justify-end">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
+                  onClick={() => setSheet({ open: true, rate: r })}
+                >
+                  Edit
+                </Button>
+              </div>
             </div>
-            <div className="flex justify-end">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
-                onClick={() => setSheet({ open: true, rate: r })}
-              >
-                Edit
-              </Button>
-            </div>
-          </div>
-        ))}
+          ))
+        )}
       </Card>
 
       <TaxRateSheet
         rate={sheet.rate}
         open={sheet.open}
         onOpenChange={(v) => setSheet((s) => ({ ...s, open: v }))}
-        onSave={handleSave}
       />
     </div>
   )
@@ -1048,14 +982,16 @@ function TaxRatesSettings() {
 // ─── Audit Log ────────────────────────────────────────────────────────────────
 
 function AuditLogSettings() {
-  const [entityFilter, setEntityFilter] = React.useState("all")
-  const [actorFilter, setActorFilter]   = React.useState("all")
-  const [dateFilter, setDateFilter]     = React.useState("all")
-  const [expandedId, setExpandedId]     = React.useState<string | null>(null)
+  const { data: page } = useQuery(auditLogsQueryOptions())
+  const entries: AuditEntry[] = page?.items ?? []
 
-  const filtered = AUDIT_LOG.filter((e) => {
-    if (entityFilter !== "all" && e.entity !== entityFilter)     return false
-    if (actorFilter !== "all" && e.actorName !== actorFilter)    return false
+  const [resourceFilter, setResourceFilter] = React.useState("all")
+  const [expandedId, setExpandedId]         = React.useState<string | null>(null)
+
+  const resources = Array.from(new Set(entries.map((e) => e.resource))).sort()
+
+  const filtered = entries.filter((e) => {
+    if (resourceFilter !== "all" && e.resource !== resourceFilter) return false
     return true
   })
 
@@ -1063,59 +999,33 @@ function AuditLogSettings() {
     <div className="space-y-6">
       <h2 className="text-xl font-semibold">Audit Log</h2>
 
-      {/* Filters */}
       <div className="flex flex-wrap items-center gap-3">
-        <Select value={entityFilter} onValueChange={setEntityFilter}>
+        <Select value={resourceFilter} onValueChange={setResourceFilter}>
           <SelectTrigger className="h-8 w-40 text-sm">
-            <SelectValue placeholder="All entities" />
+            <SelectValue placeholder="All resources" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All entities</SelectItem>
-            {AUDIT_ENTITIES.map((e) => (
-              <SelectItem key={e} value={e}>{e}</SelectItem>
+            <SelectItem value="all">All resources</SelectItem>
+            {resources.map((r) => (
+              <SelectItem key={r} value={r}>{r}</SelectItem>
             ))}
           </SelectContent>
         </Select>
 
-        <Select value={actorFilter} onValueChange={setActorFilter}>
-          <SelectTrigger className="h-8 w-40 text-sm">
-            <SelectValue placeholder="All actors" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All actors</SelectItem>
-            {AUDIT_ACTORS.map((a) => (
-              <SelectItem key={a} value={a}>{a}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select value={dateFilter} onValueChange={setDateFilter}>
-          <SelectTrigger className="h-8 w-36 text-sm">
-            <SelectValue placeholder="All time" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All time</SelectItem>
-            <SelectItem value="7d">Last 7 days</SelectItem>
-            <SelectItem value="30d">Last 30 days</SelectItem>
-            <SelectItem value="90d">Last 90 days</SelectItem>
-          </SelectContent>
-        </Select>
-
-        {(entityFilter !== "all" || actorFilter !== "all" || dateFilter !== "all") && (
+        {resourceFilter !== "all" && (
           <Button
             variant="ghost"
             size="sm"
             className="h-8 text-xs text-muted-foreground"
-            onClick={() => { setEntityFilter("all"); setActorFilter("all"); setDateFilter("all") }}
+            onClick={() => setResourceFilter("all")}
           >
             Clear filters
           </Button>
         )}
       </div>
 
-      {/* Log table */}
       <Card className="overflow-hidden gap-0 py-0">
-        <div className="grid grid-cols-[110px_120px_1fr] items-center border-b bg-muted/20 px-5 py-2.5 text-xs font-medium text-muted-foreground">
+        <div className="grid grid-cols-[160px_180px_1fr] items-center border-b bg-muted/20 px-5 py-2.5 text-xs font-medium text-muted-foreground">
           <span>Time</span>
           <span>Actor</span>
           <span>Action</span>
@@ -1131,17 +1041,21 @@ function AuditLogSettings() {
               <button
                 type="button"
                 className={cn(
-                  "grid w-full grid-cols-[110px_120px_1fr] items-start px-5 py-3.5 text-left transition-colors hover:bg-muted/20",
+                  "grid w-full grid-cols-[160px_180px_1fr] items-start px-5 py-3.5 text-left transition-colors hover:bg-muted/20",
                   expandedId === entry.id && "bg-muted/10",
                   i < filtered.length - 1 && expandedId !== entry.id && "border-b border-border/50",
                 )}
                 onClick={() => setExpandedId(expandedId === entry.id ? null : entry.id)}
               >
-                <span className="text-xs text-muted-foreground leading-relaxed">{entry.time}</span>
-                <span className="text-sm font-medium">{entry.actorName}</span>
+                <span className="text-xs text-muted-foreground leading-relaxed">
+                  {new Date(entry.createdAt).toLocaleString("en-US", {
+                    month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
+                  })}
+                </span>
+                <span className="text-sm font-medium">{entry.actorEmail}</span>
                 <div className="min-w-0">
                   <p className="text-sm">{entry.action}</p>
-                  <p className="text-xs text-muted-foreground">{entry.detail}</p>
+                  <p className="text-xs text-muted-foreground">{entry.resource}{entry.resourceId ? ` · ${entry.resourceId}` : ""}</p>
                 </div>
               </button>
 
@@ -1152,16 +1066,11 @@ function AuditLogSettings() {
                 )}>
                   <div className="flex items-center gap-2">
                     <Badge variant="outline" className="px-2 py-0 text-[11px] font-medium">
-                      {entry.entity}
+                      {entry.resource}
                     </Badge>
-                    <span className="text-xs text-muted-foreground">{entry.time}</span>
-                  </div>
-                  <pre className="overflow-x-auto rounded-lg bg-muted/50 px-4 py-3 font-mono text-xs leading-relaxed">
-                    {entry.json}
-                  </pre>
-                  <div className="grid grid-cols-2 gap-x-6 text-xs text-muted-foreground">
-                    <div><span className="font-medium text-foreground">IP:</span> {entry.ip}</div>
-                    <div className="truncate"><span className="font-medium text-foreground">UA:</span> {entry.ua}</div>
+                    {entry.ipAddress && (
+                      <span className="text-xs text-muted-foreground">IP: {entry.ipAddress}</span>
+                    )}
                   </div>
                 </div>
               )}
@@ -1196,7 +1105,6 @@ function SettingsPage() {
       </div>
 
       <div className="flex gap-8">
-        {/* Secondary nav */}
         <nav className="w-44 shrink-0 space-y-0.5">
           {SETTINGS_NAV.map((item) => (
             <button
@@ -1214,7 +1122,6 @@ function SettingsPage() {
           ))}
         </nav>
 
-        {/* Content */}
         <div className="min-w-0 flex-1">
           {section === "general"   && <GeneralSettings />}
           {section === "team"      && <TeamSettings />}

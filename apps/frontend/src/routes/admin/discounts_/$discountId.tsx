@@ -1,36 +1,36 @@
-import * as React from "react"
-import { createFileRoute, Link } from "@tanstack/react-router"
+import * as React from "react";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   ArrowLeftIcon,
   ChevronRightIcon,
   PlusIcon,
   RefreshCwIcon,
   Trash2Icon,
-} from "lucide-react"
+} from "lucide-react";
 
-import { cn } from "~/lib/utils"
-import { Button } from "~/components/ui/button"
-import { Input } from "~/components/ui/input"
-import { Label } from "~/components/ui/label"
-import { Separator } from "~/components/ui/separator"
-import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card"
+import { cn } from "~/lib/utils";
+import { Button } from "~/components/ui/button";
+import { Input } from "~/components/ui/input";
+import { Label } from "~/components/ui/label";
+import { Separator } from "~/components/ui/separator";
+import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "~/components/ui/select"
-import { DISCOUNTS, DiscountStatusBadge } from "~/routes/admin/discounts_/index"
-import type { DiscountType, CouponCode } from "~/routes/admin/discounts_/index"
+} from "~/components/ui/select";
+import { DiscountStatusBadge } from "~/routes/admin/discounts_/index";
+import type { Discount, DiscountType, CouponCode } from "~/types/api";
 
 export const Route = createFileRoute("/admin/discounts_/$discountId")({
   component: DiscountEditPage,
-})
+});
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type AppliesTo = "order" | "category" | "product"
+type AppliesTo = "order" | "category" | "product";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -40,7 +40,7 @@ const CATEGORIES = [
   "Accessories",
   "Wetsuits",
   "Footwear",
-]
+];
 
 const PRODUCTS = [
   "Wave Board Pro",
@@ -49,16 +49,17 @@ const PRODUCTS = [
   "Board Shorts",
   "Canvas Tote Bag",
   "Fin Set Pro",
-]
+];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function autoGenerateCode() {
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-  const part = Array.from({ length: 4 }, () =>
-    chars[Math.floor(Math.random() * chars.length)],
-  ).join("")
-  return `DISC-${part}`
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  const part = Array.from(
+    { length: 4 },
+    () => chars[Math.floor(Math.random() * chars.length)],
+  ).join("");
+  return `DISC-${part}`;
 }
 
 // ─── Coupon Codes Card ────────────────────────────────────────────────────────
@@ -67,20 +68,23 @@ function CouponCodesCard({
   codes,
   onChange,
 }: {
-  codes: CouponCode[]
-  onChange: (codes: CouponCode[]) => void
+  codes: CouponCode[];
+  onChange: (codes: CouponCode[]) => void;
 }) {
-  const [newCode, setNewCode]       = React.useState("")
-  const [newMax, setNewMax]         = React.useState("")
-  const [newPerCust, setNewPerCust] = React.useState("1")
-  const [codeError, setCodeError]   = React.useState("")
+  const [newCode, setNewCode] = React.useState("");
+  const [newMax, setNewMax] = React.useState("");
+  const [newPerCust, setNewPerCust] = React.useState("1");
+  const [codeError, setCodeError] = React.useState("");
 
   function handleAdd() {
-    const trimmed = newCode.trim().toUpperCase()
-    if (!trimmed) { setCodeError("Code is required."); return }
+    const trimmed = newCode.trim().toUpperCase();
+    if (!trimmed) {
+      setCodeError("Code is required.");
+      return;
+    }
     if (codes.some((c) => c.code === trimmed)) {
-      setCodeError("Code already exists.")
-      return
+      setCodeError("Code already exists.");
+      return;
     }
     onChange([
       ...codes,
@@ -90,20 +94,20 @@ function CouponCodesCard({
         perCustomer: parseInt(newPerCust, 10) || 1,
         used: 0,
       },
-    ])
-    setNewCode("")
-    setNewMax("")
-    setNewPerCust("1")
-    setCodeError("")
+    ]);
+    setNewCode("");
+    setNewMax("");
+    setNewPerCust("1");
+    setCodeError("");
   }
 
   function handleRemove(code: string) {
-    onChange(codes.filter((c) => c.code !== code))
+    onChange(codes.filter((c) => c.code !== code));
   }
 
   function handleGenerate() {
-    setNewCode(autoGenerateCode())
-    setCodeError("")
+    setNewCode(autoGenerateCode());
+    setCodeError("");
   }
 
   return (
@@ -114,7 +118,6 @@ function CouponCodesCard({
         </CardTitle>
       </CardHeader>
       <CardContent className="pt-4 space-y-4">
-
         {codes.length > 0 ? (
           <div className="overflow-hidden rounded-lg border">
             <div className="grid grid-cols-[1fr_80px_96px_60px_36px] items-center bg-muted/20 px-4 py-2 text-xs font-medium text-muted-foreground">
@@ -171,15 +174,17 @@ function CouponCodesCard({
           </p>
           <div className="flex items-end gap-2">
             <div className="flex-1 space-y-1.5">
-              <Label htmlFor="new-code" className="text-xs">Code</Label>
+              <Label htmlFor="new-code" className="text-xs">
+                Code
+              </Label>
               <div className="flex gap-1.5">
                 <Input
                   id="new-code"
                   placeholder="e.g. SUMMER20"
                   value={newCode}
                   onChange={(e) => {
-                    setNewCode(e.target.value.toUpperCase())
-                    setCodeError("")
+                    setNewCode(e.target.value.toUpperCase());
+                    setCodeError("");
                   }}
                   className="font-mono uppercase"
                 />
@@ -196,7 +201,9 @@ function CouponCodesCard({
               </div>
             </div>
             <div className="w-24 space-y-1.5">
-              <Label htmlFor="new-max" className="text-xs">Max uses</Label>
+              <Label htmlFor="new-max" className="text-xs">
+                Max uses
+              </Label>
               <Input
                 id="new-max"
                 type="number"
@@ -207,7 +214,9 @@ function CouponCodesCard({
               />
             </div>
             <div className="w-28 space-y-1.5">
-              <Label htmlFor="new-per" className="text-xs">Per customer</Label>
+              <Label htmlFor="new-per" className="text-xs">
+                Per customer
+              </Label>
               <Input
                 id="new-per"
                 type="number"
@@ -217,9 +226,7 @@ function CouponCodesCard({
               />
             </div>
           </div>
-          {codeError && (
-            <p className="text-xs text-destructive">{codeError}</p>
-          )}
+          {codeError && <p className="text-xs text-destructive">{codeError}</p>}
           <Button
             variant="outline"
             size="sm"
@@ -230,51 +237,66 @@ function CouponCodesCard({
             Add coupon code
           </Button>
         </div>
-
       </CardContent>
     </Card>
-  )
+  );
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-const SEED = DISCOUNTS.find((d) => d.id === "1")!
+const SEED: Discount = {
+  id: "1",
+  name: "Summer Sale",
+  type: "percentage",
+  value: 20,
+  scope: "order",
+  scopeLabel: "All orders",
+  coupons: [{ code: "SUMMER20", maxUses: 50, perCustomer: 1, used: 23 }],
+  usedCount: 45,
+  usageLimit: 100,
+  status: "active",
+  startDate: "2026-05-01",
+  endDate: "2026-08-31",
+};
 
 function DiscountEditPage() {
-  const { discountId } = Route.useParams()
-  const discount = DISCOUNTS.find((d) => d.id === discountId) ?? SEED
+  const { discountId: _discountId } = Route.useParams();
+  const discount = SEED;
 
   // Discount details
-  const [name, setName]           = React.useState(discount.name)
-  const [type, setType]           = React.useState<DiscountType>(discount.type)
-  const [value, setValue]         = React.useState(String(discount.value))
-  const [appliesTo, setAppliesTo] = React.useState<AppliesTo>(discount.scope)
-  const [category, setCategory]   = React.useState(
-    discount.scope === "category" ? discount.scopeLabel.replace("Category: ", "") : "",
-  )
-  const [product, setProduct]     = React.useState(
-    discount.scope === "product" ? discount.scopeLabel.replace("Product: ", "") : "",
-  )
+  const [name, setName] = React.useState(discount.name);
+  const [type, setType] = React.useState<DiscountType>(discount.type);
+  const [value, setValue] = React.useState(String(discount.value));
+  const [appliesTo, setAppliesTo] = React.useState<AppliesTo>(discount.scope);
+  const [category, setCategory] = React.useState(
+    discount.scope === "category"
+      ? discount.scopeLabel.replace("Category: ", "")
+      : "",
+  );
+  const [product, setProduct] = React.useState(
+    discount.scope === "product"
+      ? discount.scopeLabel.replace("Product: ", "")
+      : "",
+  );
 
   // Conditions
-  const [minPurchase, setMinPurchase] = React.useState("")
-  const [startDate, setStartDate]     = React.useState("2026-05-01")
-  const [endDate, setEndDate]         = React.useState(
+  const [minPurchase, setMinPurchase] = React.useState("");
+  const [startDate, setStartDate] = React.useState("2026-05-01");
+  const [endDate, setEndDate] = React.useState(
     discount.endDate ? "2026-08-31" : "",
-  )
-  const [noEndDate, setNoEndDate]     = React.useState(!discount.endDate)
-  const [usageLimit, setUsageLimit]   = React.useState(
+  );
+  const [noEndDate, setNoEndDate] = React.useState(!discount.endDate);
+  const [usageLimit, setUsageLimit] = React.useState(
     discount.usageLimit !== null ? String(discount.usageLimit) : "",
-  )
+  );
 
   // Coupon codes
-  const [codes, setCodes] = React.useState<CouponCode[]>(discount.coupons)
+  const [codes, setCodes] = React.useState<CouponCode[]>(discount.coupons);
 
-  const canSave = name.trim().length > 0 && value.trim().length > 0
+  const canSave = name.trim().length > 0 && value.trim().length > 0;
 
   return (
     <div className="space-y-6 pb-10">
-
       {/* ── Header ────────────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
@@ -301,7 +323,6 @@ function DiscountEditPage() {
       </div>
 
       <div className="mx-auto max-w-2xl space-y-5">
-
         {/* ── Discount Details ──────────────────────────────────────────────── */}
         <Card>
           <CardHeader className="border-b pb-4">
@@ -310,7 +331,6 @@ function DiscountEditPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-5 pt-5">
-
             <div className="space-y-1.5">
               <Label htmlFor="d-name">
                 Internal name <span className="text-destructive">*</span>
@@ -407,9 +427,9 @@ function DiscountEditPage() {
                       )}
                     </div>
                     <span className="text-sm">
-                      {scope === "order"    && "Entire order"}
+                      {scope === "order" && "Entire order"}
                       {scope === "category" && "Specific category"}
-                      {scope === "product"  && "Specific product"}
+                      {scope === "product" && "Specific product"}
                     </span>
                   </label>
                 ))}
@@ -423,7 +443,9 @@ function DiscountEditPage() {
                     </SelectTrigger>
                     <SelectContent>
                       {CATEGORIES.map((c) => (
-                        <SelectItem key={c} value={c}>{c}</SelectItem>
+                        <SelectItem key={c} value={c}>
+                          {c}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -438,14 +460,15 @@ function DiscountEditPage() {
                     </SelectTrigger>
                     <SelectContent>
                       {PRODUCTS.map((p) => (
-                        <SelectItem key={p} value={p}>{p}</SelectItem>
+                        <SelectItem key={p} value={p}>
+                          {p}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
               )}
             </div>
-
           </CardContent>
         </Card>
 
@@ -457,7 +480,6 @@ function DiscountEditPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-5 pt-5">
-
             <div className="space-y-1.5">
               <Label htmlFor="d-min">
                 Minimum purchase amount{" "}
@@ -488,7 +510,10 @@ function DiscountEditPage() {
               </Label>
               <div className="flex flex-wrap items-end gap-4">
                 <div className="space-y-1.5">
-                  <Label htmlFor="d-start" className="text-xs text-muted-foreground">
+                  <Label
+                    htmlFor="d-start"
+                    className="text-xs text-muted-foreground"
+                  >
                     Start date
                   </Label>
                   <Input
@@ -501,7 +526,10 @@ function DiscountEditPage() {
                 </div>
                 {!noEndDate && (
                   <div className="space-y-1.5">
-                    <Label htmlFor="d-end" className="text-xs text-muted-foreground">
+                    <Label
+                      htmlFor="d-end"
+                      className="text-xs text-muted-foreground"
+                    >
                       End date
                     </Label>
                     <Input
@@ -560,14 +588,12 @@ function DiscountEditPage() {
                 className="w-36"
               />
             </div>
-
           </CardContent>
         </Card>
 
         {/* ── Coupon Codes ──────────────────────────────────────────────────── */}
         <CouponCodesCard codes={codes} onChange={setCodes} />
-
       </div>
     </div>
-  )
+  );
 }

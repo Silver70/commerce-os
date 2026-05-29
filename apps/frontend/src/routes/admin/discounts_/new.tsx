@@ -1,35 +1,35 @@
-import * as React from "react"
-import { createFileRoute, Link } from "@tanstack/react-router"
+import * as React from "react";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   ArrowLeftIcon,
   ChevronRightIcon,
   PlusIcon,
   RefreshCwIcon,
   Trash2Icon,
-} from "lucide-react"
+} from "lucide-react";
 
-import { cn } from "~/lib/utils"
-import { Button } from "~/components/ui/button"
-import { Input } from "~/components/ui/input"
-import { Label } from "~/components/ui/label"
-import { Separator } from "~/components/ui/separator"
-import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card"
+import { cn } from "~/lib/utils";
+import { Button } from "~/components/ui/button";
+import { Input } from "~/components/ui/input";
+import { Label } from "~/components/ui/label";
+import { Separator } from "~/components/ui/separator";
+import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "~/components/ui/select"
-import type { DiscountType, CouponCode } from "~/routes/admin/discounts_/index"
+} from "~/components/ui/select";
+import type { DiscountType, CouponCode } from "~/routes/admin/discounts_/index";
 
 export const Route = createFileRoute("/admin/discounts_/new")({
   component: DiscountNewPage,
-})
+});
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type AppliesTo = "order" | "category" | "product"
+type AppliesTo = "order" | "category" | "product";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -39,7 +39,7 @@ const CATEGORIES = [
   "Accessories",
   "Wetsuits",
   "Footwear",
-]
+];
 
 const PRODUCTS = [
   "Wave Board Pro",
@@ -48,16 +48,17 @@ const PRODUCTS = [
   "Board Shorts",
   "Canvas Tote Bag",
   "Fin Set Pro",
-]
+];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function autoGenerateCode() {
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-  const part = Array.from({ length: 4 }, () =>
-    chars[Math.floor(Math.random() * chars.length)],
-  ).join("")
-  return `DISC-${part}`
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  const part = Array.from(
+    { length: 4 },
+    () => chars[Math.floor(Math.random() * chars.length)],
+  ).join("");
+  return `DISC-${part}`;
 }
 
 // ─── Coupon Codes Card ────────────────────────────────────────────────────────
@@ -66,20 +67,23 @@ function CouponCodesCard({
   codes,
   onChange,
 }: {
-  codes: CouponCode[]
-  onChange: (codes: CouponCode[]) => void
+  codes: CouponCode[];
+  onChange: (codes: CouponCode[]) => void;
 }) {
-  const [newCode, setNewCode]         = React.useState("")
-  const [newMax, setNewMax]           = React.useState("")
-  const [newPerCust, setNewPerCust]   = React.useState("1")
-  const [codeError, setCodeError]     = React.useState("")
+  const [newCode, setNewCode] = React.useState("");
+  const [newMax, setNewMax] = React.useState("");
+  const [newPerCust, setNewPerCust] = React.useState("1");
+  const [codeError, setCodeError] = React.useState("");
 
   function handleAdd() {
-    const trimmed = newCode.trim().toUpperCase()
-    if (!trimmed) { setCodeError("Code is required."); return }
+    const trimmed = newCode.trim().toUpperCase();
+    if (!trimmed) {
+      setCodeError("Code is required.");
+      return;
+    }
     if (codes.some((c) => c.code === trimmed)) {
-      setCodeError("Code already exists.")
-      return
+      setCodeError("Code already exists.");
+      return;
     }
     onChange([
       ...codes,
@@ -89,20 +93,20 @@ function CouponCodesCard({
         perCustomer: parseInt(newPerCust, 10) || 1,
         used: 0,
       },
-    ])
-    setNewCode("")
-    setNewMax("")
-    setNewPerCust("1")
-    setCodeError("")
+    ]);
+    setNewCode("");
+    setNewMax("");
+    setNewPerCust("1");
+    setCodeError("");
   }
 
   function handleRemove(code: string) {
-    onChange(codes.filter((c) => c.code !== code))
+    onChange(codes.filter((c) => c.code !== code));
   }
 
   function handleGenerate() {
-    setNewCode(autoGenerateCode())
-    setCodeError("")
+    setNewCode(autoGenerateCode());
+    setCodeError("");
   }
 
   return (
@@ -113,7 +117,6 @@ function CouponCodesCard({
         </CardTitle>
       </CardHeader>
       <CardContent className="pt-4 space-y-4">
-
         {/* Existing codes table */}
         {codes.length > 0 ? (
           <div className="overflow-hidden rounded-lg border">
@@ -173,15 +176,17 @@ function CouponCodesCard({
 
           <div className="flex items-end gap-2">
             <div className="flex-1 space-y-1.5">
-              <Label htmlFor="new-code" className="text-xs">Code</Label>
+              <Label htmlFor="new-code" className="text-xs">
+                Code
+              </Label>
               <div className="flex gap-1.5">
                 <Input
                   id="new-code"
                   placeholder="e.g. SUMMER20"
                   value={newCode}
                   onChange={(e) => {
-                    setNewCode(e.target.value.toUpperCase())
-                    setCodeError("")
+                    setNewCode(e.target.value.toUpperCase());
+                    setCodeError("");
                   }}
                   className="font-mono uppercase"
                 />
@@ -198,7 +203,9 @@ function CouponCodesCard({
               </div>
             </div>
             <div className="w-24 space-y-1.5">
-              <Label htmlFor="new-max" className="text-xs">Max uses</Label>
+              <Label htmlFor="new-max" className="text-xs">
+                Max uses
+              </Label>
               <Input
                 id="new-max"
                 type="number"
@@ -209,7 +216,9 @@ function CouponCodesCard({
               />
             </div>
             <div className="w-28 space-y-1.5">
-              <Label htmlFor="new-per" className="text-xs">Per customer</Label>
+              <Label htmlFor="new-per" className="text-xs">
+                Per customer
+              </Label>
               <Input
                 id="new-per"
                 type="number"
@@ -220,9 +229,7 @@ function CouponCodesCard({
             </div>
           </div>
 
-          {codeError && (
-            <p className="text-xs text-destructive">{codeError}</p>
-          )}
+          {codeError && <p className="text-xs text-destructive">{codeError}</p>}
 
           <Button
             variant="outline"
@@ -234,38 +241,37 @@ function CouponCodesCard({
             Add coupon code
           </Button>
         </div>
-
       </CardContent>
     </Card>
-  )
+  );
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 function DiscountNewPage() {
   // Discount details
-  const [name, setName]           = React.useState("")
-  const [type, setType]           = React.useState<DiscountType>("percentage")
-  const [value, setValue]         = React.useState("")
-  const [appliesTo, setAppliesTo] = React.useState<AppliesTo>("order")
-  const [category, setCategory]   = React.useState("")
-  const [product, setProduct]     = React.useState("")
+  const [name, setName] = React.useState("");
+  const [type, setType] = React.useState<DiscountType>("percentage");
+  const [value, setValue] = React.useState("");
+  const [appliesTo, setAppliesTo] = React.useState<AppliesTo>("order");
+  const [category, setCategory] = React.useState("");
+  const [product, setProduct] = React.useState("");
 
   // Conditions
-  const [minPurchase, setMinPurchase]   = React.useState("")
-  const [startDate, setStartDate]       = React.useState("")
-  const [endDate, setEndDate]           = React.useState("")
-  const [noEndDate, setNoEndDate]       = React.useState(false)
-  const [usageLimit, setUsageLimit]     = React.useState("")
+  const [minPurchase, setMinPurchase] = React.useState("");
+  const [startDate, setStartDate] = React.useState("");
+  const [endDate, setEndDate] = React.useState("");
+  const [noEndDate, setNoEndDate] = React.useState(false);
+  const [usageLimit, setUsageLimit] = React.useState("");
 
   // Coupon codes
-  const [codes, setCodes] = React.useState<CouponCode[]>([])
+  const [codes, setCodes] = React.useState<CouponCode[]>([]);
 
-  const canSave = name.trim().length > 0 && value.trim().length > 0 && startDate.length > 0
+  const canSave =
+    name.trim().length > 0 && value.trim().length > 0 && startDate.length > 0;
 
   return (
     <div className="space-y-6 pb-10">
-
       {/* ── Header ────────────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
@@ -289,7 +295,6 @@ function DiscountNewPage() {
       </div>
 
       <div className="mx-auto max-w-2xl space-y-5">
-
         {/* ── Discount Details ──────────────────────────────────────────────── */}
         <Card>
           <CardHeader className="border-b pb-4">
@@ -298,7 +303,6 @@ function DiscountNewPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-5 pt-5">
-
             {/* Name */}
             <div className="space-y-1.5">
               <Label htmlFor="d-name">
@@ -401,9 +405,9 @@ function DiscountNewPage() {
                       )}
                     </div>
                     <span className="text-sm">
-                      {scope === "order"    && "Entire order"}
+                      {scope === "order" && "Entire order"}
                       {scope === "category" && "Specific category"}
-                      {scope === "product"  && "Specific product"}
+                      {scope === "product" && "Specific product"}
                     </span>
                   </label>
                 ))}
@@ -417,7 +421,9 @@ function DiscountNewPage() {
                     </SelectTrigger>
                     <SelectContent>
                       {CATEGORIES.map((c) => (
-                        <SelectItem key={c} value={c}>{c}</SelectItem>
+                        <SelectItem key={c} value={c}>
+                          {c}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -432,14 +438,15 @@ function DiscountNewPage() {
                     </SelectTrigger>
                     <SelectContent>
                       {PRODUCTS.map((p) => (
-                        <SelectItem key={p} value={p}>{p}</SelectItem>
+                        <SelectItem key={p} value={p}>
+                          {p}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
               )}
             </div>
-
           </CardContent>
         </Card>
 
@@ -451,7 +458,6 @@ function DiscountNewPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-5 pt-5">
-
             {/* Min purchase */}
             <div className="space-y-1.5">
               <Label htmlFor="d-min">
@@ -484,7 +490,10 @@ function DiscountNewPage() {
               </Label>
               <div className="flex flex-wrap items-end gap-4">
                 <div className="space-y-1.5">
-                  <Label htmlFor="d-start" className="text-xs text-muted-foreground">
+                  <Label
+                    htmlFor="d-start"
+                    className="text-xs text-muted-foreground"
+                  >
                     Start date
                   </Label>
                   <Input
@@ -497,7 +506,10 @@ function DiscountNewPage() {
                 </div>
                 {!noEndDate && (
                   <div className="space-y-1.5">
-                    <Label htmlFor="d-end" className="text-xs text-muted-foreground">
+                    <Label
+                      htmlFor="d-end"
+                      className="text-xs text-muted-foreground"
+                    >
                       End date
                     </Label>
                     <Input
@@ -557,14 +569,12 @@ function DiscountNewPage() {
                 className="w-36"
               />
             </div>
-
           </CardContent>
         </Card>
 
         {/* ── Coupon Codes ──────────────────────────────────────────────────── */}
         <CouponCodesCard codes={codes} onChange={setCodes} />
-
       </div>
     </div>
-  )
+  );
 }

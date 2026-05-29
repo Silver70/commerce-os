@@ -1,5 +1,6 @@
 import * as React from "react"
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router"
+import { useQueryClient, useSuspenseQuery } from "@tanstack/react-query"
 import {
   SearchIcon,
   Building2Icon,
@@ -25,23 +26,37 @@ import {
 } from "~/components/ui/sidebar"
 import { TooltipProvider } from "~/components/ui/tooltip"
 import { meQueryOptions } from "~/queries/auth"
+import { storesQueryOptions } from "~/queries/settings"
+import { setActiveStoreServerFn } from "~/server/stores"
+import type { Store } from "~/types/api"
 
 export const Route = createFileRoute("/admin")({
   beforeLoad: async ({ context }) => {
     const user = await context.queryClient.ensureQueryData(meQueryOptions())
     if (!user) throw redirect({ to: "/auth/login" })
+    await context.queryClient.ensureQueryData(storesQueryOptions())
     return { user }
   },
   component: AdminLayout,
 })
 
-const stores = [
-  { id: "1", name: "Main Store" },
-  { id: "2", name: "Outlet Store" },
-]
+function getActiveStoreId(): string | null {
+  if (typeof document === "undefined") return null
+  const match = document.cookie.match(/(?:^|;\s*)wos-active-store=([^;]*)/)
+  return match ? match[1] : null
+}
 
-function StoreSwitcher() {
-  const [active, setActive] = React.useState(stores[0])
+function StoreSwitcher({ stores }: { stores: Store[] }) {
+  const queryClient = useQueryClient()
+  const activeId = getActiveStoreId()
+  const active = stores.find((s) => s.id === activeId) ?? stores[0]
+
+  async function handleSelect(store: Store) {
+    await setActiveStoreServerFn({ data: { storeId: store.id } })
+    await queryClient.invalidateQueries()
+  }
+
+  if (!active) return null
 
   return (
     <DropdownMenu>
@@ -56,7 +71,7 @@ function StoreSwitcher() {
         <DropdownMenuLabel>Switch store</DropdownMenuLabel>
         <DropdownMenuSeparator />
         {stores.map((store) => (
-          <DropdownMenuItem key={store.id} onSelect={() => setActive(store)}>
+          <DropdownMenuItem key={store.id} onSelect={() => void handleSelect(store)}>
             <Building2Icon className="mr-2 h-4 w-4" />
             {store.name}
             {active.id === store.id && (
@@ -70,6 +85,8 @@ function StoreSwitcher() {
 }
 
 function AdminLayout() {
+  const { data: stores } = useSuspenseQuery(storesQueryOptions())
+
   return (
     <TooltipProvider>
       <SidebarProvider>
@@ -101,7 +118,7 @@ function AdminLayout() {
 
             {/* Right: store switcher + theme toggle */}
             <div className="flex items-center gap-2 pr-4">
-              <StoreSwitcher />
+              <StoreSwitcher stores={stores} />
               <ThemeToggle />
             </div>
 

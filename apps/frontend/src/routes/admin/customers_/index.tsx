@@ -1,5 +1,6 @@
 import * as React from "react"
 import { createFileRoute, Link } from "@tanstack/react-router"
+import { useSuspenseQuery } from "@tanstack/react-query"
 import { EyeIcon, PlusIcon } from "lucide-react"
 
 import { cn } from "~/lib/utils"
@@ -30,50 +31,22 @@ import {
   type DataTableColumn,
   type DataTableFilter,
 } from "~/components/data-table"
+import { customersQueryOptions } from "~/queries/customers"
+import { getCustomersServerFn } from "~/server/customers"
+import { formatMoney } from "~/lib/money"
+import type { Customer, CustomerStatus } from "~/types/api"
 
-export const Route = createFileRoute("/admin/customers_/")({
-  component: CustomersPage,
-})
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-export type CustomerStatus = "active" | "suspended" | "banned"
-
-export type Customer = {
-  id: string
-  firstName: string
-  lastName: string
-  email: string
-  phone: string
-  orders: number
-  total: number        // in cents
-  status: CustomerStatus
-  since: string
-}
+export type { CustomerStatus }
 
 export function fullName(c: Pick<Customer, "firstName" | "lastName">) {
   return `${c.firstName} ${c.lastName}`
 }
 
-// ─── Fake Data ────────────────────────────────────────────────────────────────
-
-export const CUSTOMERS: Customer[] = [
-  { id: "1",  firstName: "John",  lastName: "Smith",     email: "john@email.com",       phone: "+960 773-1234",   orders: 8, total: 124700, status: "active",    since: "Jan 15, 2026" },
-  { id: "2",  firstName: "Sara",  lastName: "Johnson",   email: "sara@email.com",       phone: "+1 555-0100",     orders: 3, total: 26800,  status: "active",    since: "Feb 3, 2026"  },
-  { id: "3",  firstName: "Ali",   lastName: "Hassan",    email: "ali@surf.com",         phone: "+960 773-9876",   orders: 5, total: 89250,  status: "active",    since: "Mar 12, 2026" },
-  { id: "4",  firstName: "Layla", lastName: "Ahmed",     email: "layla@ocean.com",      phone: "+960 791-2345",   orders: 1, total: 11800,  status: "active",    since: "Apr 1, 2026"  },
-  { id: "5",  firstName: "Mike",  lastName: "Torres",    email: "mike@example.com",     phone: "+1 555-0199",     orders: 0, total: 0,      status: "suspended", since: "Jan 28, 2026" },
-  { id: "6",  firstName: "Nina",  lastName: "Park",      email: "nina@waves.com",       phone: "+82 10-1234",     orders: 2, total: 31050,  status: "active",    since: "Feb 20, 2026" },
-  { id: "7",  firstName: "Omar",  lastName: "Rashid",    email: "omar@beach.com",       phone: "+971 50-1234",    orders: 4, total: 62100,  status: "active",    since: "Jan 5, 2026"  },
-  { id: "8",  firstName: "Petra", lastName: "Müller",    email: "petra@surf.com",       phone: "+49 171-5678",    orders: 1, total: 14999,  status: "active",    since: "Mar 25, 2026" },
-  { id: "9",  firstName: "Quinn", lastName: "Blake",     email: "quin@example.com",     phone: "+44 7700-9000",   orders: 3, total: 19700,  status: "active",    since: "Feb 14, 2026" },
-  { id: "10", firstName: "Rosa",  lastName: "Carvalho",  email: "rosa@ocean.com",       phone: "+55 11-9999",     orders: 2, total: 9900,   status: "active",    since: "Apr 8, 2026"  },
-  { id: "11", firstName: "Sam",   lastName: "Fisher",    email: "sam@waves.com",        phone: "+1 555-0177",     orders: 1, total: 7900,   status: "active",    since: "May 1, 2026"  },
-  { id: "12", firstName: "Tina",  lastName: "Fernandez", email: "tina@board.com",       phone: "+52 55-5678",     orders: 2, total: 25800,  status: "active",    since: "Mar 3, 2026"  },
-  { id: "13", firstName: "Uma",   lastName: "Patel",     email: "uma@surf.com",         phone: "+91 98765-4321",  orders: 1, total: 5400,   status: "active",    since: "Apr 19, 2026" },
-  { id: "14", firstName: "Val",   lastName: "Laurent",   email: "val@ocean.com",        phone: "+33 6-1234-5678", orders: 3, total: 34750,  status: "active",    since: "Feb 7, 2026"  },
-  { id: "15", firstName: "Wade",  lastName: "Chen",      email: "wade@beach.com",       phone: "+86 138-0000",    orders: 1, total: 3850,   status: "banned",    since: "Mar 15, 2026" },
-]
+export const Route = createFileRoute("/admin/customers_/")({
+  loader: ({ context }) =>
+    context.queryClient.ensureQueryData(customersQueryOptions()),
+  component: CustomersPage,
+})
 
 // ─── Avatar ───────────────────────────────────────────────────────────────────
 
@@ -98,10 +71,6 @@ export function initials(name: string) {
     .join("")
     .slice(0, 2)
     .toUpperCase()
-}
-
-export function customerInitials(c: Pick<Customer, "firstName" | "lastName">) {
-  return (c.firstName[0] + c.lastName[0]).toUpperCase()
 }
 
 export function CustomerAvatar({
@@ -149,15 +118,18 @@ const COLUMNS: DataTableColumn<Customer>[] = [
   {
     key: "customer",
     header: "Customer",
-    render: (row) => (
-      <div className="flex items-center gap-3">
-        <CustomerAvatar name={fullName(row)} />
-        <div className="min-w-0">
-          <p className="text-sm font-medium leading-none">{fullName(row)}</p>
-          <p className="mt-0.5 text-xs text-muted-foreground">{row.email}</p>
+    render: (row) => {
+      const name = `${row.firstName} ${row.lastName}`
+      return (
+        <div className="flex items-center gap-3">
+          <CustomerAvatar name={name} />
+          <div className="min-w-0">
+            <p className="text-sm font-medium leading-none">{name}</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">{row.email}</p>
+          </div>
         </div>
-      </div>
-    ),
+      )
+    },
   },
   {
     key: "status",
@@ -172,7 +144,7 @@ const COLUMNS: DataTableColumn<Customer>[] = [
     className: "w-24",
     render: (row) => (
       <span className="text-sm tabular-nums text-muted-foreground">
-        {row.orders === 0 ? "—" : row.orders}
+        {row.ordersCount === 0 ? "—" : row.ordersCount}
       </span>
     ),
   },
@@ -183,7 +155,7 @@ const COLUMNS: DataTableColumn<Customer>[] = [
     className: "w-32",
     render: (row) => (
       <span className="text-sm font-semibold tabular-nums">
-        {row.total === 0 ? "—" : `$${(row.total / 100).toFixed(2)}`}
+        {row.totalSpent === 0 ? "—" : formatMoney(row.totalSpent)}
       </span>
     ),
   },
@@ -192,7 +164,13 @@ const COLUMNS: DataTableColumn<Customer>[] = [
     header: "Customer since",
     className: "w-36",
     render: (row) => (
-      <span className="text-sm text-muted-foreground">{row.since}</span>
+      <span className="text-sm text-muted-foreground">
+        {new Date(row.createdAt).toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        })}
+      </span>
     ),
   },
   {
@@ -229,28 +207,25 @@ const FILTERS: DataTableFilter[] = [
   },
 ]
 
-// ─── Create Customer Sheet ────────────────────────────────────────────────────
+// ─── Create Customer Sheet (UI-only; backend endpoint TBD) ───────────────────
 
 function CreateCustomerSheet() {
-  const [open, setOpen]               = React.useState(false)
-  const [firstName, setFirstName]     = React.useState("")
-  const [lastName, setLastName]       = React.useState("")
-  const [email, setEmail]             = React.useState("")
-  const [phone, setPhone]             = React.useState("")
-  const [status, setStatus]           = React.useState<CustomerStatus>("active")
-  const [marketing, setMarketing]     = React.useState(false)
+  const [open, setOpen]           = React.useState(false)
+  const [firstName, setFirstName] = React.useState("")
+  const [lastName, setLastName]   = React.useState("")
+  const [email, setEmail]         = React.useState("")
+  const [phone, setPhone]         = React.useState("")
+  const [status, setStatus]       = React.useState<CustomerStatus>("active")
+  const [marketing, setMarketing] = React.useState(false)
 
-  const canSubmit = firstName.trim().length > 0 && lastName.trim().length > 0 && email.trim().length > 0
+  const canSubmit =
+    firstName.trim().length > 0 && lastName.trim().length > 0 && email.trim().length > 0
 
   function handleOpenChange(next: boolean) {
     setOpen(next)
     if (!next) {
-      setFirstName("")
-      setLastName("")
-      setEmail("")
-      setPhone("")
-      setStatus("active")
-      setMarketing(false)
+      setFirstName(""); setLastName(""); setEmail("")
+      setPhone(""); setStatus("active"); setMarketing(false)
     }
   }
 
@@ -267,14 +242,11 @@ function CreateCustomerSheet() {
         <SheetHeader className="border-b">
           <SheetTitle>Add customer</SheetTitle>
           <SheetDescription>
-            Create a new customer account. They will not receive a login email
-            until you invite them separately.
+            Create a new customer account.
           </SheetDescription>
         </SheetHeader>
 
         <div className="flex-1 overflow-y-auto px-4 py-5 space-y-5">
-
-          {/* Name + Email */}
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
@@ -315,9 +287,7 @@ function CreateCustomerSheet() {
             <div className="space-y-1.5">
               <Label htmlFor="cs-phone">
                 Phone{" "}
-                <span className="text-xs font-normal text-muted-foreground">
-                  (optional)
-                </span>
+                <span className="text-xs font-normal text-muted-foreground">(optional)</span>
               </Label>
               <Input
                 id="cs-phone"
@@ -331,7 +301,6 @@ function CreateCustomerSheet() {
 
           <Separator />
 
-          {/* Account status */}
           <div className="space-y-1.5">
             <Label htmlFor="cs-status">Account status</Label>
             <Select
@@ -347,20 +316,15 @@ function CreateCustomerSheet() {
                 <SelectItem value="banned">Banned</SelectItem>
               </SelectContent>
             </Select>
-            <p className="text-xs text-muted-foreground">
-              Active customers can log in and place orders.
-            </p>
           </div>
 
           <Separator />
 
-          {/* Marketing toggle */}
           <label className="flex cursor-pointer items-start justify-between gap-4">
             <div>
               <p className="text-sm font-medium">Marketing emails</p>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                Customer will be opted {marketing ? "in" : "out"} of
-                promotional emails.
+                Customer will be opted {marketing ? "in" : "out"} of promotional emails.
               </p>
             </div>
             <button
@@ -383,14 +347,11 @@ function CreateCustomerSheet() {
               />
             </button>
           </label>
-
         </div>
 
         <SheetFooter className="border-t">
           <SheetClose asChild>
-            <Button variant="outline" className="flex-1 py-3 ">
-              Cancel
-            </Button>
+            <Button variant="outline" className="flex-1 py-3">Cancel</Button>
           </SheetClose>
           <Button
             disabled={!canSubmit}
@@ -407,6 +368,28 @@ function CreateCustomerSheet() {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 function CustomersPage() {
+  const { data: page } = useSuspenseQuery(customersQueryOptions())
+  const [items, setItems] = React.useState<Customer[]>(page.items)
+  const [nextCursor, setNextCursor] = React.useState<string | null>(page.nextCursor)
+  const [loadingMore, setLoadingMore] = React.useState(false)
+
+  React.useEffect(() => {
+    setItems(page.items)
+    setNextCursor(page.nextCursor)
+  }, [page])
+
+  async function loadMore() {
+    if (!nextCursor || loadingMore) return
+    setLoadingMore(true)
+    try {
+      const more = await getCustomersServerFn({ data: { cursor: nextCursor } })
+      setItems((prev) => [...prev, ...more.items])
+      setNextCursor(more.nextCursor)
+    } finally {
+      setLoadingMore(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
@@ -414,19 +397,30 @@ function CustomersPage() {
           <h1 className="text-2xl font-semibold">Customers</h1>
           <p className="text-sm text-muted-foreground">
             View and manage customer accounts.
+            {page.totalCount > 0 && (
+              <span className="ml-1">({page.totalCount} total)</span>
+            )}
           </p>
         </div>
         <CreateCustomerSheet />
       </div>
 
       <DataTable
-        data={CUSTOMERS}
+        data={items}
         columns={COLUMNS}
         rowKey={(row) => row.id}
         filters={FILTERS}
-        pageSize={10}
+        pageSize={25}
         emptyMessage="No customers match your filters."
       />
+
+      {nextCursor && (
+        <div className="flex justify-center">
+          <Button variant="outline" onClick={loadMore} disabled={loadingMore}>
+            {loadingMore ? "Loading…" : "Load more"}
+          </Button>
+        </div>
+      )}
     </div>
   )
 }

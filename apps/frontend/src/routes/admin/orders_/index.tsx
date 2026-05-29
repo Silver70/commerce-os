@@ -1,61 +1,21 @@
 import * as React from "react"
 import { createFileRoute, Link } from "@tanstack/react-router"
+import { useSuspenseQuery } from "@tanstack/react-query"
 import { EyeIcon, PlusIcon } from "lucide-react"
 
 import { Button } from "~/components/ui/button"
 import { Badge } from "~/components/ui/badge"
 import { DataTable, type DataTableColumn, type DataTableFilter } from "~/components/data-table"
+import { ordersQueryOptions } from "~/queries/orders"
+import { getOrdersServerFn } from "~/server/orders"
+import { formatMoney } from "~/lib/money"
+import type { Order, OrderStatus } from "~/types/api"
 
 export const Route = createFileRoute("/admin/orders_/")({
+  loader: ({ context }) =>
+    context.queryClient.ensureQueryData(ordersQueryOptions()),
   component: OrdersPage,
 })
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-type OrderStatus =
-  | "pending"
-  | "paid"
-  | "processing"
-  | "shipped"
-  | "delivered"
-  | "cancelled"
-  | "refunded"
-
-type Order = {
-  id: string
-  number: string
-  customerName: string
-  customerEmail: string
-  status: OrderStatus
-  items: number
-  total: number
-  date: string
-}
-
-// ─── Fake Data ────────────────────────────────────────────────────────────────
-
-const ORDERS: Order[] = [
-  { id: "1",  number: "ORD-20260519-0025", customerName: "John Smith",     customerEmail: "john@email.com",     status: "paid",       items: 1, total: 171.99, date: "May 19, 2:34 PM"  },
-  { id: "2",  number: "ORD-20260519-0024", customerName: "Sara Johnson",   customerEmail: "sara@email.com",     status: "processing", items: 2, total: 89.50,  date: "May 19, 1:15 PM"  },
-  { id: "3",  number: "ORD-20260519-0023", customerName: "Guest User",     customerEmail: "guest@example.com",  status: "shipped",    items: 3, total: 234.00, date: "May 19, 11:02 AM" },
-  { id: "4",  number: "ORD-20260519-0022", customerName: "Ali Hassan",     customerEmail: "ali@surf.com",       status: "pending",    items: 1, total: 55.00,  date: "May 19, 9:45 AM"  },
-  { id: "5",  number: "ORD-20260518-0021", customerName: "Layla Ahmed",    customerEmail: "layla@ocean.com",    status: "delivered",  items: 2, total: 118.00, date: "May 18, 5:22 PM"  },
-  { id: "6",  number: "ORD-20260518-0020", customerName: "Mike Torres",    customerEmail: "mike@example.com",   status: "paid",       items: 1, total: 229.00, date: "May 18, 3:40 PM"  },
-  { id: "7",  number: "ORD-20260518-0019", customerName: "Nina Park",      customerEmail: "nina@waves.com",     status: "shipped",    items: 4, total: 310.50, date: "May 18, 2:05 PM"  },
-  { id: "8",  number: "ORD-20260518-0018", customerName: "Omar Rashid",    customerEmail: "omar@beach.com",     status: "cancelled",  items: 1, total: 44.95,  date: "May 18, 10:30 AM" },
-  { id: "9",  number: "ORD-20260517-0017", customerName: "Petra Müller",   customerEmail: "petra@surf.com",     status: "refunded",   items: 1, total: 149.99, date: "May 17, 4:50 PM"  },
-  { id: "10", number: "ORD-20260517-0016", customerName: "Quinn Blake",    customerEmail: "quin@example.com",   status: "delivered",  items: 3, total: 197.00, date: "May 17, 2:30 PM"  },
-  { id: "11", number: "ORD-20260517-0015", customerName: "Rosa Carvalho",  customerEmail: "rosa@ocean.com",     status: "processing", items: 2, total: 99.00,  date: "May 17, 11:20 AM" },
-  { id: "12", number: "ORD-20260516-0014", customerName: "Sam Fisher",     customerEmail: "sam@waves.com",      status: "paid",       items: 1, total: 79.00,  date: "May 16, 6:15 PM"  },
-  { id: "13", number: "ORD-20260516-0013", customerName: "Tina Fernandez", customerEmail: "tina@board.com",     status: "shipped",    items: 2, total: 258.00, date: "May 16, 4:45 PM"  },
-  { id: "14", number: "ORD-20260516-0012", customerName: "Uma Patel",      customerEmail: "uma@surf.com",       status: "delivered",  items: 1, total: 54.00,  date: "May 16, 2:10 PM"  },
-  { id: "15", number: "ORD-20260515-0011", customerName: "Val Laurent",    customerEmail: "val@ocean.com",      status: "paid",       items: 3, total: 347.50, date: "May 15, 5:30 PM"  },
-  { id: "16", number: "ORD-20260515-0010", customerName: "Wade Chen",      customerEmail: "wade@beach.com",     status: "pending",    items: 1, total: 38.50,  date: "May 15, 3:20 PM"  },
-  { id: "17", number: "ORD-20260515-0009", customerName: "Xena Kosta",     customerEmail: "xena@waves.com",     status: "shipped",    items: 2, total: 178.00, date: "May 15, 1:00 PM"  },
-  { id: "18", number: "ORD-20260514-0008", customerName: "Yuki Tanaka",    customerEmail: "yuki@surf.com",      status: "refunded",   items: 1, total: 49.99,  date: "May 14, 4:30 PM"  },
-  { id: "19", number: "ORD-20260514-0007", customerName: "Zara Wilson",    customerEmail: "zara@ocean.com",     status: "delivered",  items: 4, total: 423.00, date: "May 14, 2:45 PM"  },
-  { id: "20", number: "ORD-20260513-0006", customerName: "Adam Brooks",    customerEmail: "adam@board.com",     status: "cancelled",  items: 1, total: 65.00,  date: "May 13, 11:30 AM" },
-]
 
 // ─── Status Badge ─────────────────────────────────────────────────────────────
 
@@ -88,8 +48,15 @@ const COLUMNS: DataTableColumn<Order>[] = [
     header: "Order",
     render: (row) => (
       <div>
-        <p className="font-mono text-sm font-semibold">{row.number}</p>
-        <p className="mt-0.5 text-xs text-muted-foreground">{row.date}</p>
+        <p className="font-mono text-sm font-semibold">{row.orderNumber}</p>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          {new Date(row.createdAt).toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+          })}
+        </p>
       </div>
     ),
   },
@@ -115,7 +82,7 @@ const COLUMNS: DataTableColumn<Order>[] = [
     align: "center",
     className: "w-20",
     render: (row) => (
-      <span className="text-sm tabular-nums text-muted-foreground">{row.items}</span>
+      <span className="text-sm tabular-nums text-muted-foreground">{row.lineItems.length}</span>
     ),
   },
   {
@@ -124,7 +91,9 @@ const COLUMNS: DataTableColumn<Order>[] = [
     align: "right",
     className: "w-28",
     render: (row) => (
-      <span className="text-sm font-semibold tabular-nums">${row.total.toFixed(2)}</span>
+      <span className="text-sm font-semibold tabular-nums">
+        {formatMoney(row.total, row.currency)}
+      </span>
     ),
   },
   {
@@ -168,21 +137,46 @@ const FILTERS: DataTableFilter[] = [
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 function OrdersPage() {
+  const { data: page } = useSuspenseQuery(ordersQueryOptions())
+  const [items, setItems] = React.useState<Order[]>(page.items)
+  const [nextCursor, setNextCursor] = React.useState<string | null>(page.nextCursor)
+  const [loadingMore, setLoadingMore] = React.useState(false)
+
+  React.useEffect(() => {
+    setItems(page.items)
+    setNextCursor(page.nextCursor)
+  }, [page])
+
+  async function loadMore() {
+    if (!nextCursor || loadingMore) return
+    setLoadingMore(true)
+    try {
+      const more = await getOrdersServerFn({ data: { cursor: nextCursor } })
+      setItems((prev) => [...prev, ...more.items])
+      setNextCursor(more.nextCursor)
+    } finally {
+      setLoadingMore(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold">Orders</h1>
         <p className="text-sm text-muted-foreground">
           Manage and fulfill customer orders.
+          {page.totalCount > 0 && (
+            <span className="ml-1">({page.totalCount} total)</span>
+          )}
         </p>
       </div>
 
       <DataTable
-        data={ORDERS}
+        data={items}
         columns={COLUMNS}
         rowKey={(row) => row.id}
         filters={FILTERS}
-        pageSize={10}
+        pageSize={25}
         emptyMessage="No orders match your filters."
         action={
           <Button
@@ -196,6 +190,14 @@ function OrdersPage() {
           </Button>
         }
       />
+
+      {nextCursor && (
+        <div className="flex justify-center">
+          <Button variant="outline" onClick={loadMore} disabled={loadingMore}>
+            {loadingMore ? "Loading…" : "Load more"}
+          </Button>
+        </div>
+      )}
     </div>
   )
 }
