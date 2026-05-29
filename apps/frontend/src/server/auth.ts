@@ -10,6 +10,8 @@ import { apiClient } from "~/lib/api-client";
 import { getErrorMessage } from "~/lib/errors";
 import type { AdminUser, Store } from "~/types/api";
 
+type OnboardingStep = 1 | 2 | 3 | null;
+
 function forwardSetCookies(headers: Headers): void {
   const values = headers.getSetCookie();
   if (values.length > 0) {
@@ -71,36 +73,54 @@ export const loginServerFn = createServerFn({ method: "POST" })
       password: z.string().min(8, "Password must be at least 8 characters"),
     }),
   )
-  .handler(async ({ data }) => {
+  .handler(async ({ data }): Promise<{ onboardingStep: OnboardingStep }> => {
     try {
       const res = await apiClient.post("/api/auth/login", data);
       forwardSetCookies(res.headers);
 
-      // Extract the session token from the Set-Cookie header so we can
-      // immediately fetch the org's stores without waiting for the browser
-      // to send the cookie on the next request.
       const sessionStr = res.headers
         .getSetCookie()
         .find((c) => c.startsWith("wos-session="));
       const sessionCookie = sessionStr?.split(";")[0] ?? "";
+
+      let onboardingStep: OnboardingStep = null;
 
       if (sessionCookie) {
         try {
           const storesRes = await apiClient.get<Store[]>("/api/admin/stores", {
             headers: { cookie: sessionCookie },
           });
-          const firstStore = storesRes.data[0];
-          if (firstStore) {
-            setCookie("wos-active-store", firstStore.id, {
+          const stores = storesRes.data;
+
+          if (stores.length === 0) {
+            setCookie("wos-onboarding-step", "1", {
               path: "/",
               sameSite: "lax",
               maxAge: 30 * 24 * 60 * 60,
             });
+            onboardingStep = 1;
+          } else {
+            setCookie("wos-active-store", stores[0].id, {
+              path: "/",
+              sameSite: "lax",
+              maxAge: 30 * 24 * 60 * 60,
+            });
+            // Read the in-progress onboarding step from the incoming request
+            // cookie (set by a previous session that was interrupted mid-flow).
+            const inProgress = getCookie("wos-onboarding-step");
+            if (inProgress === "2") onboardingStep = 2;
+            else if (inProgress === "3") onboardingStep = 3;
+            else if (inProgress === "1") {
+              // Stale "1" cookie — store now exists, clear it
+              setCookie("wos-onboarding-step", "", { path: "/", maxAge: 0 });
+            }
           }
         } catch {
-          // Non-fatal — user can select a store from the switcher manually
+          // Non-fatal — login still succeeds, user lands on dashboard
         }
       }
+
+      return { onboardingStep };
     } catch (err) {
       throw new Error(getErrorMessage(err));
     }

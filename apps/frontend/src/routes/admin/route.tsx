@@ -27,13 +27,19 @@ import {
 import { TooltipProvider } from "~/components/ui/tooltip"
 import { meQueryOptions } from "~/queries/auth"
 import { storesQueryOptions } from "~/queries/settings"
-import { setActiveStoreServerFn } from "~/server/stores"
+import { getOnboardingStepServerFn, setActiveStoreServerFn } from "~/server/stores"
 import type { Store } from "~/types/api"
 
 export const Route = createFileRoute("/admin")({
   beforeLoad: async ({ context }) => {
     const user = await context.queryClient.ensureQueryData(meQueryOptions())
     if (!user) throw redirect({ to: "/auth/login" })
+
+    const step = await getOnboardingStepServerFn()
+    if (step === "1") throw redirect({ to: "/onboarding/step1" })
+    if (step === "2") throw redirect({ to: "/onboarding/step2" })
+    if (step === "3") throw redirect({ to: "/onboarding/step3" })
+
     await context.queryClient.ensureQueryData(storesQueryOptions())
     return { user }
   },

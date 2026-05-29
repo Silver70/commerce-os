@@ -139,12 +139,12 @@ function SignupPage() {
 
           <div className="space-y-1.5">
             <label htmlFor="organizationName" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-              Store / Organization name
+              Organization name
             </label>
             <input
               id="organizationName"
               type="text"
-              placeholder="Acme Store"
+              placeholder="Acme Inc"
               value={form.organizationName}
               onChange={set('organizationName')}
               className={inputCls}

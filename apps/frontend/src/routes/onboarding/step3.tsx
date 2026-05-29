@@ -1,5 +1,5 @@
 import * as React from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import {
   CheckCircle2Icon,
   CopyIcon,
@@ -14,6 +14,7 @@ import {
 import { Logo } from "~/components/Logo";
 import { Button } from "~/components/ui/button";
 import { createApiKeyServerFn } from "~/server/auth";
+import { clearOnboardingCookieServerFn } from "~/server/stores";
 
 export const Route = createFileRoute("/onboarding/step3")({
   component: OnboardingStep3,
@@ -44,6 +45,7 @@ type KeyState =
   | { status: "error"; message: string };
 
 function OnboardingStep3() {
+  const navigate = useNavigate();
   const [revealed, setRevealed] = React.useState(false);
   const [copied, setCopied] = React.useState(false);
   const [keyState, setKeyState] = React.useState<KeyState>({
@@ -54,9 +56,11 @@ function OnboardingStep3() {
     let cancelled = false;
 
     createApiKeyServerFn({ data: { name: "Default Storefront Key" } })
-      .then((result) => {
+      .then(async (result) => {
         if (!cancelled) {
           setKeyState({ status: "ready", key: result.key });
+          // Onboarding complete — clear the step cookie (fire-and-forget)
+          clearOnboardingCookieServerFn().catch(() => {});
         }
       })
       .catch((err: unknown) => {
@@ -71,6 +75,11 @@ function OnboardingStep3() {
       cancelled = true;
     };
   }, []);
+
+  async function handleSkip() {
+    await clearOnboardingCookieServerFn();
+    void navigate({ to: "/admin/dashboard" });
+  }
 
   function handleCopy() {
     if (keyState.status !== "ready") return;
@@ -117,7 +126,12 @@ function OnboardingStep3() {
             </p>
 
             {keyState.status === "error" ? (
-              <p className="text-sm text-destructive">{keyState.message}</p>
+              <div className="space-y-3">
+                <p className="text-sm text-destructive">{keyState.message}</p>
+                <Button variant="outline" size="sm" onClick={() => void handleSkip()}>
+                  Skip for now — go to dashboard
+                </Button>
+              </div>
             ) : (
               <>
                 <div className="flex items-center gap-1 rounded-lg border border-input bg-muted/50 pl-3 pr-1 py-1">

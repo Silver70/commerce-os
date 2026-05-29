@@ -9,6 +9,7 @@ import { Input } from '~/components/ui/input'
 import { Label } from '~/components/ui/label'
 import { Popover, PopoverContent, PopoverTrigger } from '~/components/ui/popover'
 import { createShippingZoneServerFn, createShippingMethodServerFn } from '~/server/shipping'
+import { setOnboardingStepServerFn } from '~/server/stores'
 
 export const Route = createFileRoute('/onboarding/step2')({
   component: OnboardingStep2,
@@ -283,13 +284,7 @@ function OnboardingStep2() {
         })
       }
 
-      const existing = sessionStorage.getItem('onboarding_state')
-      const prev: Record<string, unknown> = existing ? (JSON.parse(existing) as Record<string, unknown>) : {}
-      sessionStorage.setItem(
-        'onboarding_state',
-        JSON.stringify({ ...prev, zoneId: zone.id }),
-      )
-
+      await setOnboardingStepServerFn({ data: { step: '3' } })
       void navigate({ to: '/onboarding/step3' })
     } catch (err) {
       setApiError(err instanceof Error ? err.message : 'Something went wrong')

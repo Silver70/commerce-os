@@ -6,7 +6,6 @@ import { loginServerFn } from '~/server/auth'
 
 const SearchSchema = z.object({
   verified: z.string().optional().catch(undefined),
-  onboarding: z.string().optional().catch(undefined),
 })
 
 export const Route = createFileRoute('/auth/login')({
@@ -18,7 +17,7 @@ const inputCls =
   'w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3.5 py-2.5 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-100'
 
 function LoginPage() {
-  const { verified, onboarding } = Route.useSearch()
+  const { verified } = Route.useSearch()
   const navigate = useNavigate()
 
   const [email, setEmail] = React.useState('')
@@ -50,8 +49,12 @@ function LoginPage() {
 
     setIsPending(true)
     try {
-      await loginServerFn({ data: { email, password } })
-      await navigate({ to: onboarding === 'true' ? '/onboarding/step1' : '/admin/dashboard' })
+      const result = await loginServerFn({ data: { email, password } })
+      const step = result?.onboardingStep
+      if (step === 1) await navigate({ to: '/onboarding/step1' })
+      else if (step === 2) await navigate({ to: '/onboarding/step2' })
+      else if (step === 3) await navigate({ to: '/onboarding/step3' })
+      else await navigate({ to: '/admin/dashboard' })
     } catch (err) {
       setServerError(err instanceof Error ? err.message : 'Invalid credentials')
     } finally {
