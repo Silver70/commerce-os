@@ -1,6 +1,11 @@
-import { createFileRoute, Outlet } from '@tanstack/react-router'
+import { createFileRoute, Outlet, redirect } from '@tanstack/react-router'
+import { meQueryOptions } from '~/queries/auth'
 
 export const Route = createFileRoute('/onboarding')({
+  beforeLoad: async ({ context }) => {
+    const user = await context.queryClient.ensureQueryData(meQueryOptions())
+    if (!user) throw redirect({ to: '/auth/login' })
+  },
   component: OnboardingLayout,
 })
 

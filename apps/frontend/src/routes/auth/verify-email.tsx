@@ -50,7 +50,7 @@ function VerifyEmailPage() {
     setIsPending(true)
     try {
       await verifyEmailServerFn({ data: { userId, code } })
-      await navigate({ to: '/auth/login', search: { verified: '1' } })
+      await navigate({ to: '/auth/login', search: { verified: '1', onboarding: 'true' } })
     } catch (err) {
       setError(extractMessage(err))
     } finally {

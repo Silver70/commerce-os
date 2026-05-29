@@ -123,3 +123,23 @@ export const getMeServerFn = createServerFn({ method: "GET" }).handler(
     }
   },
 );
+
+// ─── API Keys ─────────────────────────────────────────────────────────────────
+
+export const createApiKeyServerFn = createServerFn({ method: "POST" })
+  .inputValidator(z.object({ name: z.string().min(1, "Key name is required") }))
+  .handler(async ({ data }) => {
+    try {
+      const res = await apiClient.post<{
+        id: string;
+        name: string;
+        key: string;
+        lastUsedAt: string | null;
+      }>("/api/auth/admin/api-keys", data, {
+        headers: { cookie: incomingCookie() },
+      });
+      return res.data;
+    } catch (err) {
+      throw new Error(getErrorMessage(err));
+    }
+  });
