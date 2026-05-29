@@ -16,6 +16,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as OnboardingStep3RouteImport } from './routes/onboarding/step3'
 import { Route as OnboardingStep2RouteImport } from './routes/onboarding/step2'
 import { Route as OnboardingStep1RouteImport } from './routes/onboarding/step1'
+import { Route as AuthVerifyEmailRouteImport } from './routes/auth/verify-email'
 import { Route as AuthSignupRouteImport } from './routes/auth/signup'
 import { Route as AuthLoginRouteImport } from './routes/auth/login'
 import { Route as AdminShippingRouteImport } from './routes/admin/shipping'
@@ -68,6 +69,11 @@ const OnboardingStep1Route = OnboardingStep1RouteImport.update({
   id: '/step1',
   path: '/step1',
   getParentRoute: () => OnboardingRouteRoute,
+} as any)
+const AuthVerifyEmailRoute = AuthVerifyEmailRouteImport.update({
+  id: '/verify-email',
+  path: '/verify-email',
+  getParentRoute: () => AuthRouteRoute,
 } as any)
 const AuthSignupRoute = AuthSignupRouteImport.update({
   id: '/signup',
@@ -168,6 +174,7 @@ export interface FileRoutesByFullPath {
   '/admin/shipping': typeof AdminShippingRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/signup': typeof AuthSignupRoute
+  '/auth/verify-email': typeof AuthVerifyEmailRoute
   '/onboarding/step1': typeof OnboardingStep1Route
   '/onboarding/step2': typeof OnboardingStep2Route
   '/onboarding/step3': typeof OnboardingStep3Route
@@ -194,6 +201,7 @@ export interface FileRoutesByTo {
   '/admin/shipping': typeof AdminShippingRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/signup': typeof AuthSignupRoute
+  '/auth/verify-email': typeof AuthVerifyEmailRoute
   '/onboarding/step1': typeof OnboardingStep1Route
   '/onboarding/step2': typeof OnboardingStep2Route
   '/onboarding/step3': typeof OnboardingStep3Route
@@ -221,6 +229,7 @@ export interface FileRoutesById {
   '/admin/shipping': typeof AdminShippingRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/signup': typeof AuthSignupRoute
+  '/auth/verify-email': typeof AuthVerifyEmailRoute
   '/onboarding/step1': typeof OnboardingStep1Route
   '/onboarding/step2': typeof OnboardingStep2Route
   '/onboarding/step3': typeof OnboardingStep3Route
@@ -249,6 +258,7 @@ export interface FileRouteTypes {
     | '/admin/shipping'
     | '/auth/login'
     | '/auth/signup'
+    | '/auth/verify-email'
     | '/onboarding/step1'
     | '/onboarding/step2'
     | '/onboarding/step3'
@@ -275,6 +285,7 @@ export interface FileRouteTypes {
     | '/admin/shipping'
     | '/auth/login'
     | '/auth/signup'
+    | '/auth/verify-email'
     | '/onboarding/step1'
     | '/onboarding/step2'
     | '/onboarding/step3'
@@ -301,6 +312,7 @@ export interface FileRouteTypes {
     | '/admin/shipping'
     | '/auth/login'
     | '/auth/signup'
+    | '/auth/verify-email'
     | '/onboarding/step1'
     | '/onboarding/step2'
     | '/onboarding/step3'
@@ -374,6 +386,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/onboarding/step1'
       preLoaderRoute: typeof OnboardingStep1RouteImport
       parentRoute: typeof OnboardingRouteRoute
+    }
+    '/auth/verify-email': {
+      id: '/auth/verify-email'
+      path: '/verify-email'
+      fullPath: '/auth/verify-email'
+      preLoaderRoute: typeof AuthVerifyEmailRouteImport
+      parentRoute: typeof AuthRouteRoute
     }
     '/auth/signup': {
       id: '/auth/signup'
@@ -540,11 +559,13 @@ const AdminRouteRouteWithChildren = AdminRouteRoute._addFileChildren(
 interface AuthRouteRouteChildren {
   AuthLoginRoute: typeof AuthLoginRoute
   AuthSignupRoute: typeof AuthSignupRoute
+  AuthVerifyEmailRoute: typeof AuthVerifyEmailRoute
 }
 
 const AuthRouteRouteChildren: AuthRouteRouteChildren = {
   AuthLoginRoute: AuthLoginRoute,
   AuthSignupRoute: AuthSignupRoute,
+  AuthVerifyEmailRoute: AuthVerifyEmailRoute,
 }
 
 const AuthRouteRouteWithChildren = AuthRouteRoute._addFileChildren(

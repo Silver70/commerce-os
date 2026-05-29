@@ -1,5 +1,5 @@
 import * as React from "react"
-import { createFileRoute, Outlet } from "@tanstack/react-router"
+import { createFileRoute, Outlet, redirect } from "@tanstack/react-router"
 import {
   SearchIcon,
   Building2Icon,
@@ -24,8 +24,14 @@ import {
   SidebarTrigger,
 } from "~/components/ui/sidebar"
 import { TooltipProvider } from "~/components/ui/tooltip"
+import { meQueryOptions } from "~/queries/auth"
 
 export const Route = createFileRoute("/admin")({
+  beforeLoad: async ({ context }) => {
+    const user = await context.queryClient.ensureQueryData(meQueryOptions())
+    if (!user) throw redirect({ to: "/auth/login" })
+    return { user }
+  },
   component: AdminLayout,
 })
 

@@ -30,8 +30,9 @@ export class WorkosAuthService {
     firstName: string,
     lastName: string,
   ) {
+    let user;
     try {
-      return await this.workos.userManagement.createUser({
+      user = await this.workos.userManagement.createUser({
         email,
         password,
         firstName,
@@ -42,6 +43,14 @@ export class WorkosAuthService {
       this.logger.error('WorkOS createUser failed', err);
       throw err;
     }
+
+    try {
+      await this.workos.userManagement.sendVerificationEmail({ userId: user.id });
+    } catch (err) {
+      this.logger.error('sendVerificationEmail failed after createUser', err);
+    }
+
+    return user;
   }
 
   async login(email: string, password: string): Promise<WorkOsLoginResult> {

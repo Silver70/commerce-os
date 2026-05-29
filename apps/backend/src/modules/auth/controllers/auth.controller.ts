@@ -66,7 +66,7 @@ export class AuthController {
       new TenantCreatedEvent('', user.id, dto.email, dto.organizationName),
     );
 
-    return { message: 'Account created. Please check your email to verify.' };
+    return { userId: user.id, email: user.email };
   }
 
   @Post('login')

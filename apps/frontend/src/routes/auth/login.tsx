@@ -1,11 +1,67 @@
-import { createFileRoute, Link } from '@tanstack/react-router'
+import * as React from 'react'
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
+import { z } from 'zod'
 import { Logo } from '~/components/Logo'
+import { loginServerFn } from '~/server/auth'
+
+const SearchSchema = z.object({
+  verified: z.string().optional().catch(undefined),
+})
 
 export const Route = createFileRoute('/auth/login')({
+  validateSearch: SearchSchema,
   component: LoginPage,
 })
 
+const inputCls =
+  'w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3.5 py-2.5 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-100'
+
 function LoginPage() {
+  const { verified } = Route.useSearch()
+  const navigate = useNavigate()
+
+  const [email, setEmail] = React.useState('')
+  const [password, setPassword] = React.useState('')
+  const [fieldErrors, setFieldErrors] = React.useState<Record<string, string>>({})
+  const [serverError, setServerError] = React.useState<string | null>(null)
+  const [isPending, setIsPending] = React.useState(false)
+
+  const LoginSchema = z.object({
+    email: z.string().email('Invalid email address'),
+    password: z.string().min(8, 'Password must be at least 8 characters'),
+  })
+
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    setFieldErrors({})
+    setServerError(null)
+
+    const result = LoginSchema.safeParse({ email, password })
+    if (!result.success) {
+      const errors: Record<string, string> = {}
+      for (const issue of result.error.issues) {
+        const key = String(issue.path[0])
+        if (!errors[key]) errors[key] = issue.message
+      }
+      setFieldErrors(errors)
+      return
+    }
+
+    setIsPending(true)
+    try {
+      await loginServerFn({ data: { email, password } })
+      await navigate({ to: '/admin/dashboard' })
+    } catch (err) {
+      setServerError(err instanceof Error ? err.message : 'Invalid credentials')
+    } finally {
+      setIsPending(false)
+    }
+  }
+
+  function handleGoogleLogin() {
+    window.location.href = `${import.meta.env.VITE_API_URL}/api/auth/google`
+  }
+
   return (
     <div className="flex flex-col flex-1 justify-center px-8 sm:px-16 py-12">
       <div className="w-full max-w-sm mx-auto">
@@ -19,34 +75,42 @@ function LoginPage() {
           </p>
         </div>
 
-        <form className="space-y-4">
+        {verified && (
+          <div className="mb-4 rounded-lg bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 px-4 py-2.5 text-sm text-green-700 dark:text-green-400">
+            Email verified — you can now sign in.
+          </div>
+        )}
+
+        <form className="space-y-4" onSubmit={handleSubmit}>
+          {serverError && (
+            <p className="rounded-lg bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 px-4 py-2.5 text-sm text-red-700 dark:text-red-400">
+              {serverError}
+            </p>
+          )}
+
           <div className="space-y-1.5">
-            <label
-              htmlFor="email"
-              className="block text-sm font-medium text-gray-700 dark:text-gray-300"
-            >
+            <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
               Email
             </label>
             <input
               id="email"
               type="email"
               placeholder="you@example.com"
-              className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3.5 py-2.5 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-100"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className={inputCls}
             />
+            {fieldErrors.email && (
+              <p className="text-xs text-red-600 dark:text-red-400">{fieldErrors.email}</p>
+            )}
           </div>
 
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <label
-                htmlFor="password"
-                className="block text-sm font-medium text-gray-700 dark:text-gray-300"
-              >
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                 Password
               </label>
-              <a
-                href="#"
-                className="text-xs text-gray-500 hover:text-gray-900 dark:hover:text-white"
-              >
+              <a href="#" className="text-xs text-gray-500 hover:text-gray-900 dark:hover:text-white">
                 Forgot password?
               </a>
             </div>
@@ -54,15 +118,21 @@ function LoginPage() {
               id="password"
               type="password"
               placeholder="••••••••"
-              className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3.5 py-2.5 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-100"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className={inputCls}
             />
+            {fieldErrors.password && (
+              <p className="text-xs text-red-600 dark:text-red-400">{fieldErrors.password}</p>
+            )}
           </div>
 
           <button
             type="submit"
-            className="w-full rounded-lg bg-gray-900 dark:bg-white px-4 py-2.5 text-sm font-medium text-white dark:text-gray-900 hover:bg-gray-700 dark:hover:bg-gray-100 transition-colors"
+            disabled={isPending}
+            className="w-full rounded-lg bg-gray-900 dark:bg-white px-4 py-2.5 text-sm font-medium text-white dark:text-gray-900 hover:bg-gray-700 dark:hover:bg-gray-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Sign in
+            {isPending ? 'Signing in…' : 'Sign in'}
           </button>
         </form>
 
@@ -74,6 +144,7 @@ function LoginPage() {
 
         <button
           type="button"
+          onClick={handleGoogleLogin}
           className="w-full flex items-center justify-center gap-3 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
         >
           <GoogleIcon />
@@ -82,10 +153,7 @@ function LoginPage() {
 
         <p className="mt-8 text-center text-sm text-gray-500 dark:text-gray-400">
           Don't have an account?{' '}
-          <Link
-            to="/auth/signup"
-            className="font-medium text-gray-900 dark:text-white hover:underline"
-          >
+          <Link to="/auth/signup" className="font-medium text-gray-900 dark:text-white hover:underline">
             Sign up
           </Link>
         </p>

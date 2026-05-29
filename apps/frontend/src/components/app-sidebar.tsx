@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Link, useRouterState } from "@tanstack/react-router"
+import { Link, useNavigate, useRouterState } from "@tanstack/react-router"
 import {
   LayoutDashboardIcon,
   PackageIcon,
@@ -37,12 +37,7 @@ import {
   SidebarRail,
   SidebarSeparator,
 } from "~/components/ui/sidebar"
-
-const currentUser = {
-  name: "Silver",
-  email: "jsameeu@gmail.com",
-  initials: "S",
-}
+import { logoutServerFn } from "~/server/auth"
 
 type NavItem = {
   title: string
@@ -87,6 +82,19 @@ function NavLink({ item }: { item: NavItem }) {
 }
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+  const navigate = useNavigate()
+  const [isLoggingOut, setIsLoggingOut] = React.useState(false)
+
+  async function handleLogout() {
+    setIsLoggingOut(true)
+    try {
+      await logoutServerFn()
+      await navigate({ to: '/auth/login' })
+    } finally {
+      setIsLoggingOut(false)
+    }
+  }
+
   return (
     <Sidebar collapsible="icon" {...props}>
 
@@ -143,12 +151,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 >
                   <Avatar className="h-8 w-8 shrink-0">
                     <AvatarFallback className="text-sm font-medium">
-                      {currentUser.initials}
+                      U
                     </AvatarFallback>
                   </Avatar>
                   <div className="grid flex-1 text-left text-sm leading-tight group-data-[collapsible=icon]:hidden">
-                    <span className="font-medium truncate">{currentUser.name}</span>
-                    <span className="text-xs text-muted-foreground truncate">{currentUser.email}</span>
+                    <span className="font-medium truncate">Account</span>
+                    <span className="text-xs text-muted-foreground truncate">Admin</span>
                   </div>
                   <ChevronsUpDownIcon className="ml-auto h-4 w-4 group-data-[collapsible=icon]:hidden" />
                 </SidebarMenuButton>
@@ -156,8 +164,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               <DropdownMenuContent className="w-56" side="top" align="start" sideOffset={8}>
                 <DropdownMenuLabel className="font-normal">
                   <div className="flex flex-col gap-1">
-                    <p className="text-sm font-medium">{currentUser.name}</p>
-                    <p className="text-xs text-muted-foreground">{currentUser.email}</p>
+                    <p className="text-sm font-medium">Account</p>
+                    <p className="text-xs text-muted-foreground">Admin</p>
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
@@ -172,9 +180,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   </DropdownMenuItem>
                 </DropdownMenuGroup>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem className="text-destructive focus:text-destructive">
+                <DropdownMenuItem
+                  className="text-destructive focus:text-destructive"
+                  onSelect={handleLogout}
+                  disabled={isLoggingOut}
+                >
                   <LogOutIcon className="mr-2 h-4 w-4" />
-                  Sign out
+                  {isLoggingOut ? 'Signing out…' : 'Sign out'}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
