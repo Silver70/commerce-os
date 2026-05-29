@@ -25,6 +25,7 @@ import { CurrentTenant } from '../../auth/decorators/current-tenant.decorator';
 import { TaxRateService } from '../services/tax-rate.service';
 import { CreateTaxRateDto, UpdateTaxRateDto } from '../dto/create-tax-rate.dto';
 import type { TenantContext } from '../../../shared/tenant/tenant-context';
+import { requireStoreContext } from '../../../shared/tenant/tenant.util';
 
 @ApiTags('Tax Rates')
 @ApiBearerAuth()
@@ -35,10 +36,11 @@ export class AdminTaxRatesController {
 
   @Get()
   @RequirePermission('tax.read')
-  @ApiOperation({ summary: 'List all tax rates for the organization' })
+  @ApiOperation({ summary: 'List all tax rates for the active store' })
   @ApiResponse({ status: 200 })
   list(@CurrentTenant() tenant: TenantContext) {
-    return this.taxRateService.list(tenant.organizationId);
+    const { organizationId, storeId } = requireStoreContext(tenant);
+    return this.taxRateService.list(organizationId, storeId);
   }
 
   @Post()
@@ -49,7 +51,8 @@ export class AdminTaxRatesController {
     @Body() dto: CreateTaxRateDto,
     @CurrentTenant() tenant: TenantContext,
   ) {
-    return this.taxRateService.create(tenant.organizationId, dto);
+    const { organizationId, storeId } = requireStoreContext(tenant);
+    return this.taxRateService.create(organizationId, storeId, dto);
   }
 
   @Get(':id')
@@ -61,9 +64,11 @@ export class AdminTaxRatesController {
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentTenant() tenant: TenantContext,
   ) {
+    const { organizationId, storeId } = requireStoreContext(tenant);
     const record = await this.taxRateService.findById(
       id,
-      tenant.organizationId,
+      organizationId,
+      storeId,
     );
     if (!record) {
       throw new NotFoundException('Tax rate not found');
@@ -81,7 +86,8 @@ export class AdminTaxRatesController {
     @Body() dto: UpdateTaxRateDto,
     @CurrentTenant() tenant: TenantContext,
   ) {
-    return this.taxRateService.update(id, tenant.organizationId, dto);
+    const { organizationId, storeId } = requireStoreContext(tenant);
+    return this.taxRateService.update(id, organizationId, storeId, dto);
   }
 
   @Delete(':id')
@@ -94,6 +100,7 @@ export class AdminTaxRatesController {
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentTenant() tenant: TenantContext,
   ) {
-    return this.taxRateService.remove(id, tenant.organizationId);
+    const { organizationId, storeId } = requireStoreContext(tenant);
+    return this.taxRateService.remove(id, organizationId, storeId);
   }
 }

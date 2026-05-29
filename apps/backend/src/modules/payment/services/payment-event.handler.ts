@@ -21,10 +21,15 @@ export class PaymentEventHandler {
   @OnEvent('payment.succeeded')
   async handlePaymentSucceeded(event: PaymentSucceededEvent): Promise<void> {
     try {
-      await this.orderService.markPaid(event.orderId, event.organizationId);
+      await this.orderService.markPaid(
+        event.orderId,
+        event.organizationId,
+        event.storeId,
+      );
       await this.inventoryService.convertReservations(
         event.orderId,
         event.organizationId,
+        event.storeId,
       );
       await this.auditService.log({
         entityType: 'order',
@@ -37,6 +42,7 @@ export class PaymentEventHandler {
           amount: event.amount,
         },
         organizationId: event.organizationId,
+        storeId: event.storeId,
       });
     } catch (err) {
       this.logger.error(
@@ -50,10 +56,15 @@ export class PaymentEventHandler {
   @OnEvent('payment.failed')
   async handlePaymentFailed(event: PaymentFailedEvent): Promise<void> {
     try {
-      await this.orderService.markFailed(event.orderId, event.organizationId);
+      await this.orderService.markFailed(
+        event.orderId,
+        event.organizationId,
+        event.storeId,
+      );
       await this.inventoryService.releaseReservations(
         event.orderId,
         event.organizationId,
+        event.storeId,
       );
       await this.auditService.log({
         entityType: 'order',
@@ -66,6 +77,7 @@ export class PaymentEventHandler {
           reason: event.reason,
         },
         organizationId: event.organizationId,
+        storeId: event.storeId,
       });
     } catch (err) {
       this.logger.error(

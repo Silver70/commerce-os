@@ -23,6 +23,7 @@ export class AdminAuditController {
   ) {
     return this.auditService.query({
       organizationId: tenant.organizationId,
+      storeId: tenant.storeId,
       entityType: query.entityType,
       actorId: query.actorId,
       from: query.from ? new Date(query.from) : undefined,

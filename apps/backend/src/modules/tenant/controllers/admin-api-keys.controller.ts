@@ -1,9 +1,7 @@
 import {
   Controller,
   Get,
-  Post,
   Delete,
-  Body,
   Param,
   UseGuards,
   HttpCode,
@@ -21,7 +19,6 @@ import { RbacGuard } from '../../auth/guards/rbac.guard';
 import { RequirePermission } from '../../auth/decorators/require-permission.decorator';
 import { CurrentTenant } from '../../auth/decorators/current-tenant.decorator';
 import { ApiKeyService } from '../../auth/services/api-key.service';
-import { CreateApiKeyDto } from '../dto/create-api-key.dto';
 import type { TenantContext } from '../../../shared/tenant/tenant-context';
 
 @ApiTags('API Keys')
@@ -33,29 +30,16 @@ export class AdminApiKeysController {
 
   @Get()
   @RequirePermission('api_keys.manage')
-  @ApiOperation({ summary: 'List all API keys for the organization' })
+  @ApiOperation({
+    summary: 'List all API keys across stores in the organization',
+  })
   @ApiResponse({
     status: 200,
-    description: 'Returns list of API keys (hash never exposed)',
+    description:
+      'Org-wide rollup. Use POST /admin/stores/:id/api-keys to create.',
   })
   list(@CurrentTenant() tenant: TenantContext) {
     return this.apiKeyService.listByOrg(tenant.organizationId);
-  }
-
-  @Post()
-  @RequirePermission('api_keys.manage')
-  @ApiOperation({ summary: 'Generate a new API key' })
-  @ApiResponse({
-    status: 201,
-    description:
-      'Returns the created API key record. The raw key is returned once — store it securely.',
-  })
-  create(@Body() dto: CreateApiKeyDto, @CurrentTenant() tenant: TenantContext) {
-    return this.apiKeyService.generate(
-      tenant.organizationId,
-      dto.name,
-      tenant.userId,
-    );
   }
 
   @Delete(':id')

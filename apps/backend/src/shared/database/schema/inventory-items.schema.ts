@@ -6,6 +6,7 @@ import {
   timestamp,
 } from 'drizzle-orm/pg-core';
 import { organizations } from './organizations.schema';
+import { stores } from './stores.schema';
 import { productVariants } from './product-variants.schema';
 
 export const inventoryItems = pgTable('inventory_items', {
@@ -13,6 +14,9 @@ export const inventoryItems = pgTable('inventory_items', {
   organizationId: uuid('organization_id')
     .notNull()
     .references(() => organizations.id, { onDelete: 'cascade' }),
+  storeId: uuid('store_id')
+    .notNull()
+    .references(() => stores.id, { onDelete: 'cascade' }),
   variantId: uuid('variant_id')
     .notNull()
     .unique()

@@ -8,6 +8,7 @@ import {
   unique,
 } from 'drizzle-orm/pg-core';
 import { organizations } from './organizations.schema';
+import { stores } from './stores.schema';
 
 export const productStatusEnum = pgEnum('product_status', [
   'draft',
@@ -22,6 +23,9 @@ export const products = pgTable(
     organizationId: uuid('organization_id')
       .notNull()
       .references(() => organizations.id, { onDelete: 'cascade' }),
+    storeId: uuid('store_id')
+      .notNull()
+      .references(() => stores.id, { onDelete: 'cascade' }),
     name: varchar('name', { length: 255 }).notNull(),
     slug: varchar('slug', { length: 255 }).notNull(),
     description: text('description'),
@@ -34,7 +38,7 @@ export const products = pgTable(
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
-  (t) => [unique('products_org_slug_unique').on(t.organizationId, t.slug)],
+  (t) => [unique('products_store_slug_unique').on(t.storeId, t.slug)],
 );
 
 export type Product = typeof products.$inferSelect;

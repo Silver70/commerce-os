@@ -7,6 +7,7 @@ import {
   pgEnum,
 } from 'drizzle-orm/pg-core';
 import { organizations } from './organizations.schema';
+import { stores } from './stores.schema';
 
 export const cartStatusEnum = pgEnum('cart_status', [
   'active',
@@ -19,6 +20,9 @@ export const carts = pgTable('carts', {
   organizationId: uuid('organization_id')
     .notNull()
     .references(() => organizations.id, { onDelete: 'cascade' }),
+  storeId: uuid('store_id')
+    .notNull()
+    .references(() => stores.id, { onDelete: 'cascade' }),
   customerId: uuid('customer_id'),
   status: cartStatusEnum('status').notNull().default('active'),
   couponId: uuid('coupon_id'),

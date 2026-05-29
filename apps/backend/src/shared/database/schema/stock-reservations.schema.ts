@@ -1,5 +1,6 @@
 import { pgTable, uuid, integer, timestamp, pgEnum } from 'drizzle-orm/pg-core';
 import { organizations } from './organizations.schema';
+import { stores } from './stores.schema';
 import { inventoryItems } from './inventory-items.schema';
 
 export const reservationStatusEnum = pgEnum('reservation_status', [
@@ -14,6 +15,9 @@ export const stockReservations = pgTable('stock_reservations', {
   organizationId: uuid('organization_id')
     .notNull()
     .references(() => organizations.id, { onDelete: 'cascade' }),
+  storeId: uuid('store_id')
+    .notNull()
+    .references(() => stores.id, { onDelete: 'cascade' }),
   inventoryItemId: uuid('inventory_item_id')
     .notNull()
     .references(() => inventoryItems.id, { onDelete: 'cascade' }),

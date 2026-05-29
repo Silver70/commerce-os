@@ -45,7 +45,9 @@ export class WorkosAuthService {
     }
 
     try {
-      await this.workos.userManagement.sendVerificationEmail({ userId: user.id });
+      await this.workos.userManagement.sendVerificationEmail({
+        userId: user.id,
+      });
     } catch (err) {
       this.logger.error('sendVerificationEmail failed after createUser', err);
     }

@@ -50,10 +50,11 @@ export class OrderService {
     orderId: string,
     newStatus: OrderStatus,
     orgId: string,
+    storeId: string,
     actorType: 'admin' | 'system',
     actorId: string,
   ): Promise<Order> {
-    const order = await this.orderRepo.findById(orderId, orgId);
+    const order = await this.orderRepo.findById(orderId, orgId, storeId);
     if (!order) throw new NotFoundException('Order not found');
 
     const allowed = VALID_TRANSITIONS[order.status];
@@ -66,12 +67,14 @@ export class OrderService {
     const updated = await this.orderRepo.updateStatus(
       orderId,
       orgId,
+      storeId,
       newStatus,
     );
     if (!updated) throw new NotFoundException('Order not found after update');
 
     await this.orderRepo.addTimelineEntry({
       organizationId: orgId,
+      storeId,
       orderId,
       eventType: 'status_changed',
       message: `Order status changed from ${order.status} to ${newStatus}`,
@@ -81,7 +84,13 @@ export class OrderService {
 
     this.eventEmitter.emit(
       'order.status_changed',
-      new OrderStatusChangedEvent(orderId, orgId, order.status, newStatus),
+      new OrderStatusChangedEvent(
+        orderId,
+        orgId,
+        storeId,
+        order.status,
+        newStatus,
+      ),
     );
 
     await this.auditService.log({
@@ -92,22 +101,38 @@ export class OrderService {
       actorId,
       changes: { from: order.status, to: newStatus },
       organizationId: orgId,
+      storeId,
     });
 
     return updated;
   }
 
-  async markPaid(orderId: string, orgId: string): Promise<Order> {
-    const order = await this.orderRepo.findById(orderId, orgId);
+  async markPaid(
+    orderId: string,
+    orgId: string,
+    storeId: string,
+  ): Promise<Order> {
+    const order = await this.orderRepo.findById(orderId, orgId, storeId);
     if (!order) throw new NotFoundException('Order not found');
 
     if (order.status === 'paid') return order;
 
-    return this.transition(orderId, 'paid', orgId, 'system', 'stripe-webhook');
+    return this.transition(
+      orderId,
+      'paid',
+      orgId,
+      storeId,
+      'system',
+      'stripe-webhook',
+    );
   }
 
-  async markFailed(orderId: string, orgId: string): Promise<Order> {
-    const order = await this.orderRepo.findById(orderId, orgId);
+  async markFailed(
+    orderId: string,
+    orgId: string,
+    storeId: string,
+  ): Promise<Order> {
+    const order = await this.orderRepo.findById(orderId, orgId, storeId);
     if (!order) throw new NotFoundException('Order not found');
 
     if (order.status === 'pending') {
@@ -115,6 +140,7 @@ export class OrderService {
         orderId,
         'cancelled',
         orgId,
+        storeId,
         'system',
         'stripe-webhook',
       );
@@ -122,14 +148,26 @@ export class OrderService {
     return order;
   }
 
-  async findById(orderId: string, orgId: string): Promise<Order> {
-    const order = await this.orderRepo.findById(orderId, orgId);
+  async findById(
+    orderId: string,
+    orgId: string,
+    storeId: string,
+  ): Promise<Order> {
+    const order = await this.orderRepo.findById(orderId, orgId, storeId);
     if (!order) throw new NotFoundException('Order not found');
     return order;
   }
 
-  async getDetail(orderId: string, orgId: string): Promise<OrderWithDetails> {
-    const detail = await this.orderRepo.findWithDetails(orderId, orgId);
+  async getDetail(
+    orderId: string,
+    orgId: string,
+    storeId: string,
+  ): Promise<OrderWithDetails> {
+    const detail = await this.orderRepo.findWithDetails(
+      orderId,
+      orgId,
+      storeId,
+    );
     if (!detail) throw new NotFoundException('Order not found');
     return detail;
   }
@@ -137,9 +175,11 @@ export class OrderService {
   async listOrders(
     filters: OrderFilterDto,
     orgId: string,
+    storeId: string,
   ): Promise<ListOrdersResult> {
     return this.orderRepo.listWithFilters({
       orgId,
+      storeId,
       status: filters.status,
       customerId: filters.customerId,
       from: filters.from ? new Date(filters.from) : undefined,
@@ -152,11 +192,13 @@ export class OrderService {
   async getOrdersByCustomer(
     customerId: string,
     orgId: string,
+    storeId: string,
     cursor?: string,
     limit = 10,
   ): Promise<ListOrdersResult> {
     return this.orderRepo.listWithFilters({
       orgId,
+      storeId,
       customerId,
       cursor,
       limit,
@@ -166,14 +208,16 @@ export class OrderService {
   async addNote(
     orderId: string,
     orgId: string,
+    storeId: string,
     note: string,
     actorId: string,
   ): Promise<void> {
-    const order = await this.orderRepo.findById(orderId, orgId);
+    const order = await this.orderRepo.findById(orderId, orgId, storeId);
     if (!order) throw new NotFoundException('Order not found');
 
     await this.orderRepo.addTimelineEntry({
       organizationId: orgId,
+      storeId,
       orderId,
       eventType: 'note_added',
       message: note,
@@ -187,8 +231,9 @@ export class OrderService {
     dto: CreateShipmentDto,
     adminId: string,
     orgId: string,
+    storeId: string,
   ): Promise<Shipment> {
-    const order = await this.orderRepo.findById(orderId, orgId);
+    const order = await this.orderRepo.findById(orderId, orgId, storeId);
     if (!order) throw new NotFoundException('Order not found');
 
     if (!['paid', 'processing'].includes(order.status)) {
@@ -199,6 +244,7 @@ export class OrderService {
 
     const shipment = await this.orderRepo.createShipment({
       organizationId: orgId,
+      storeId,
       orderId,
       carrier: dto.carrier ?? null,
       trackingNumber: dto.trackingNumber ?? null,
@@ -207,12 +253,18 @@ export class OrderService {
       createdBy: adminId,
     });
 
-    await this.orderRepo.updateFulfillmentStatus(orderId, orgId, 'partial');
+    await this.orderRepo.updateFulfillmentStatus(
+      orderId,
+      orgId,
+      storeId,
+      'partial',
+    );
 
-    await this.transition(orderId, 'shipped', orgId, 'admin', adminId);
+    await this.transition(orderId, 'shipped', orgId, storeId, 'admin', adminId);
 
     await this.orderRepo.addTimelineEntry({
       organizationId: orgId,
+      storeId,
       orderId,
       eventType: 'shipment_created',
       message: `Shipment created${dto.trackingNumber ? ` — tracking: ${dto.trackingNumber}` : ''}`,
@@ -228,6 +280,7 @@ export class OrderService {
       actorId: adminId,
       changes: { carrier: dto.carrier, trackingNumber: dto.trackingNumber },
       organizationId: orgId,
+      storeId,
     });
 
     return shipment;
@@ -238,6 +291,7 @@ export class OrderService {
     adminName: string,
     adminId: string,
     orgId: string,
+    storeId: string,
   ): Promise<Order> {
     const currency = dto.currency ?? 'USD';
 
@@ -248,12 +302,16 @@ export class OrderService {
     );
     const total = subtotal;
 
-    const orderNumber = await this.orderRepo.generateOrderNumber(orgId);
+    const orderNumber = await this.orderRepo.generateOrderNumber(
+      orgId,
+      storeId,
+    );
 
     const isPaid = dto.paymentType === 'paid';
 
     const order = await this.orderRepo.create({
       organizationId: orgId,
+      storeId,
       orderNumber,
       customerId: dto.customerId ?? null,
       customerEmail: dto.customerEmail,
@@ -300,6 +358,7 @@ export class OrderService {
     // Create line item snapshots + adjust inventory directly (no reservation)
     const lineItemData = dto.items.map((item) => ({
       organizationId: orgId,
+      storeId,
       orderId: order.id,
       variantId: item.variantId ?? null,
       productName: item.productName,
@@ -324,6 +383,7 @@ export class OrderService {
             `Manual order ${order.orderNumber}`,
             adminId,
             orgId,
+            storeId,
           )
           .catch(() => {
             // Non-fatal: manual orders can be created even if inventory tracking is missing
@@ -334,6 +394,7 @@ export class OrderService {
     // Create a manual payment record
     await this.db.insert(payments).values({
       organizationId: orgId,
+      storeId,
       orderId: order.id,
       provider: 'manual',
       status: isPaid ? 'captured' : 'pending',
@@ -344,6 +405,7 @@ export class OrderService {
     // Timeline entry
     await this.orderRepo.addTimelineEntry({
       organizationId: orgId,
+      storeId,
       orderId: order.id,
       eventType: 'manually_created',
       message: `Order created manually by ${adminName}`,
@@ -359,11 +421,12 @@ export class OrderService {
       actorId: adminId,
       changes: { orderNumber: order.orderNumber, paymentType: dto.paymentType },
       organizationId: orgId,
+      storeId,
     });
 
     this.eventEmitter.emit(
       'order.created',
-      new OrderCreatedEvent(order.id, orgId, dto.customerId ?? null),
+      new OrderCreatedEvent(order.id, orgId, storeId, dto.customerId ?? null),
     );
 
     return order;
@@ -372,11 +435,13 @@ export class OrderService {
   async updateFulfillmentStatus(
     orderId: string,
     orgId: string,
+    storeId: string,
     fulfillmentStatus: Order['fulfillmentStatus'],
   ): Promise<Order> {
     const updated = await this.orderRepo.updateFulfillmentStatus(
       orderId,
       orgId,
+      storeId,
       fulfillmentStatus,
     );
     if (!updated) throw new NotFoundException('Order not found');

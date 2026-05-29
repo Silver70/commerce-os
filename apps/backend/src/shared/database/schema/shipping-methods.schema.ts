@@ -8,6 +8,7 @@ import {
   pgEnum,
 } from 'drizzle-orm/pg-core';
 import { organizations } from './organizations.schema';
+import { stores } from './stores.schema';
 import { shippingZones } from './shipping-zones.schema';
 
 export const shippingRateTypeEnum = pgEnum('shipping_rate_type', [
@@ -21,6 +22,9 @@ export const shippingMethods = pgTable('shipping_methods', {
   organizationId: uuid('organization_id')
     .notNull()
     .references(() => organizations.id, { onDelete: 'cascade' }),
+  storeId: uuid('store_id')
+    .notNull()
+    .references(() => stores.id, { onDelete: 'cascade' }),
   zoneId: uuid('zone_id')
     .notNull()
     .references(() => shippingZones.id, { onDelete: 'cascade' }),

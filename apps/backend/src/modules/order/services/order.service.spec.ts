@@ -6,11 +6,13 @@ import type { InventoryService } from '../../inventory/services/inventory.servic
 import type { Order } from '../../../shared/database/schema';
 
 const orgId = 'org-1';
+const storeId = 'store-1';
 
 function makeOrder(status: Order['status'] = 'pending'): Order {
   return {
     id: 'order-1',
     organizationId: orgId,
+    storeId,
     orderNumber: 'ORD-001',
     customerId: null,
     customerEmail: 'test@example.com',
@@ -86,7 +88,7 @@ describe('OrderService.transition (state machine)', () => {
       findById: jest.fn().mockResolvedValue(null),
     });
     await expect(
-      service.transition('order-1', 'paid', orgId, 'admin', 'user-1'),
+      service.transition('order-1', 'paid', orgId, storeId, 'admin', 'user-1'),
     ).rejects.toThrow(NotFoundException);
   });
 
@@ -115,6 +117,7 @@ describe('OrderService.transition (state machine)', () => {
         'order-1',
         to,
         orgId,
+        storeId,
         'admin',
         'user-1',
       );
@@ -154,7 +157,7 @@ describe('OrderService.transition (state machine)', () => {
         findById: jest.fn().mockResolvedValue(order),
       });
       await expect(
-        service.transition('order-1', to, orgId, 'admin', 'user-1'),
+        service.transition('order-1', to, orgId, storeId, 'admin', 'user-1'),
       ).rejects.toThrow(BadRequestException);
     },
   );
@@ -166,7 +169,14 @@ describe('OrderService.transition (state machine)', () => {
       findById: jest.fn().mockResolvedValue(order),
       updateStatus: jest.fn().mockResolvedValue(updated),
     });
-    await service.transition('order-1', 'paid', orgId, 'admin', 'user-1');
+    await service.transition(
+      'order-1',
+      'paid',
+      orgId,
+      storeId,
+      'admin',
+      'user-1',
+    );
     expect(repo.addTimelineEntry).toHaveBeenCalledWith(
       expect.objectContaining({ eventType: 'status_changed' }),
     );
@@ -179,7 +189,14 @@ describe('OrderService.transition (state machine)', () => {
       findById: jest.fn().mockResolvedValue(order),
       updateStatus: jest.fn().mockResolvedValue(updated),
     });
-    await service.transition('order-1', 'paid', orgId, 'admin', 'user-1');
+    await service.transition(
+      'order-1',
+      'paid',
+      orgId,
+      storeId,
+      'admin',
+      'user-1',
+    );
     expect(eventEmitter.emit).toHaveBeenCalled();
   });
 });

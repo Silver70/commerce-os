@@ -11,8 +11,13 @@ export interface AuditLogInput {
   action: string;
   actorType: string;
   actorId?: string;
-  changes?: Record<string, any>;
+  changes?: Record<string, unknown>;
   organizationId: string;
+  /**
+   * Optional store scope — set for store-scoped actions, left undefined for
+   * org-level admin actions (creating a store, managing members, etc.).
+   */
+  storeId?: string;
   ipAddress?: string;
   userAgent?: string;
 }
@@ -24,6 +29,7 @@ export class AuditService {
   async log(input: AuditLogInput): Promise<void> {
     await this.db.insert(auditLogs).values({
       organizationId: input.organizationId,
+      storeId: input.storeId ?? null,
       entityType: input.entityType,
       entityId: input.entityId,
       action: input.action,
@@ -37,6 +43,7 @@ export class AuditService {
 
   async query(params: {
     organizationId: string;
+    storeId?: string;
     entityType?: string;
     actorId?: string;
     from?: Date;
@@ -48,6 +55,9 @@ export class AuditService {
       eq(auditLogs.organizationId, params.organizationId),
     ];
 
+    if (params.storeId) {
+      conditions.push(eq(auditLogs.storeId, params.storeId));
+    }
     if (params.entityType) {
       conditions.push(eq(auditLogs.entityType, params.entityType));
     }

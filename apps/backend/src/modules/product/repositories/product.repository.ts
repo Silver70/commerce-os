@@ -44,13 +44,18 @@ export interface PaginatedProducts {
 export class ProductRepository {
   constructor(@Inject(DRIZZLE_CLIENT) private readonly db: DrizzleClient) {}
 
-  async findBySlug(slug: string, orgId: string): Promise<Product | null> {
+  async findBySlug(
+    slug: string,
+    orgId: string,
+    storeId: string,
+  ): Promise<Product | null> {
     const [row] = await this.db
       .select()
       .from(products)
       .where(
         and(
           eq(products.organizationId, orgId),
+          eq(products.storeId, storeId),
           eq(products.slug, slug),
           isNull(products.deletedAt),
         ),
@@ -59,22 +64,37 @@ export class ProductRepository {
     return row ?? null;
   }
 
-  async findById(id: string, orgId: string): Promise<Product | null> {
+  async findById(
+    id: string,
+    orgId: string,
+    storeId: string,
+  ): Promise<Product | null> {
     const [row] = await this.db
       .select()
       .from(products)
-      .where(and(eq(products.id, id), eq(products.organizationId, orgId)))
+      .where(
+        and(
+          eq(products.id, id),
+          eq(products.organizationId, orgId),
+          eq(products.storeId, storeId),
+        ),
+      )
       .limit(1);
     return row ?? null;
   }
 
-  async slugExists(slug: string, orgId: string): Promise<boolean> {
+  async slugExists(
+    slug: string,
+    orgId: string,
+    storeId: string,
+  ): Promise<boolean> {
     const [row] = await this.db
       .select({ id: products.id })
       .from(products)
       .where(
         and(
           eq(products.organizationId, orgId),
+          eq(products.storeId, storeId),
           eq(products.slug, slug),
           isNull(products.deletedAt),
         ),
@@ -86,10 +106,12 @@ export class ProductRepository {
   async findWithFilters(
     filter: ProductFilterDto,
     orgId: string,
+    storeId: string,
   ): Promise<PaginatedProducts> {
     const limit = filter.limit ?? 20;
     const conditions: SQL[] = [
       eq(products.organizationId, orgId),
+      eq(products.storeId, storeId),
       isNull(products.deletedAt),
     ];
 
@@ -136,6 +158,7 @@ export class ProductRepository {
     const items = await this.findDetailBatch(
       pageRows.map((r) => r.id),
       orgId,
+      storeId,
       pageRows,
     );
 
@@ -145,6 +168,7 @@ export class ProductRepository {
   private async findDetailBatch(
     ids: string[],
     orgId: string,
+    storeId: string,
     baseRows: Product[],
   ): Promise<ProductDetail[]> {
     if (ids.length === 0) return [];
@@ -158,6 +182,7 @@ export class ProductRepository {
           and(
             inArray(productVariants.productId, ids),
             eq(productVariants.organizationId, orgId),
+            eq(productVariants.storeId, storeId),
           ),
         ),
       this.db
@@ -167,6 +192,7 @@ export class ProductRepository {
           and(
             inArray(productOptions.productId, ids),
             eq(productOptions.organizationId, orgId),
+            eq(productOptions.storeId, storeId),
           ),
         ),
       this.db
@@ -176,6 +202,7 @@ export class ProductRepository {
           and(
             inArray(productMedia.productId, ids),
             eq(productMedia.organizationId, orgId),
+            eq(productMedia.storeId, storeId),
           ),
         )
         .orderBy(productMedia.position),
@@ -238,11 +265,21 @@ export class ProductRepository {
     });
   }
 
-  async findDetail(id: string, orgId: string): Promise<ProductDetail | null> {
+  async findDetail(
+    id: string,
+    orgId: string,
+    storeId: string,
+  ): Promise<ProductDetail | null> {
     const [product] = await this.db
       .select()
       .from(products)
-      .where(and(eq(products.id, id), eq(products.organizationId, orgId)))
+      .where(
+        and(
+          eq(products.id, id),
+          eq(products.organizationId, orgId),
+          eq(products.storeId, storeId),
+        ),
+      )
       .limit(1);
 
     if (!product || product.deletedAt) return null;
@@ -255,6 +292,7 @@ export class ProductRepository {
           and(
             eq(productVariants.productId, id),
             eq(productVariants.organizationId, orgId),
+            eq(productVariants.storeId, storeId),
           ),
         ),
       this.db
@@ -264,6 +302,7 @@ export class ProductRepository {
           and(
             eq(productOptions.productId, id),
             eq(productOptions.organizationId, orgId),
+            eq(productOptions.storeId, storeId),
           ),
         ),
       this.db
@@ -273,6 +312,7 @@ export class ProductRepository {
           and(
             eq(productMedia.productId, id),
             eq(productMedia.organizationId, orgId),
+            eq(productMedia.storeId, storeId),
           ),
         )
         .orderBy(productMedia.position),
@@ -331,21 +371,34 @@ export class ProductRepository {
   async update(
     id: string,
     orgId: string,
+    storeId: string,
     data: Partial<NewProduct>,
   ): Promise<Product | null> {
     const [row] = await this.db
       .update(products)
       .set({ ...data, updatedAt: new Date() })
-      .where(and(eq(products.id, id), eq(products.organizationId, orgId)))
+      .where(
+        and(
+          eq(products.id, id),
+          eq(products.organizationId, orgId),
+          eq(products.storeId, storeId),
+        ),
+      )
       .returning();
     return row ?? null;
   }
 
-  async softDelete(id: string, orgId: string): Promise<void> {
+  async softDelete(id: string, orgId: string, storeId: string): Promise<void> {
     await this.db
       .update(products)
       .set({ deletedAt: new Date() })
-      .where(and(eq(products.id, id), eq(products.organizationId, orgId)));
+      .where(
+        and(
+          eq(products.id, id),
+          eq(products.organizationId, orgId),
+          eq(products.storeId, storeId),
+        ),
+      );
   }
 
   async createVariant(data: NewProductVariant): Promise<ProductVariant> {
@@ -398,6 +451,7 @@ export class ProductRepository {
   async updateVariant(
     variantId: string,
     orgId: string,
+    storeId: string,
     data: Partial<NewProductVariant>,
   ): Promise<ProductVariant | null> {
     const [row] = await this.db
@@ -407,25 +461,32 @@ export class ProductRepository {
         and(
           eq(productVariants.id, variantId),
           eq(productVariants.organizationId, orgId),
+          eq(productVariants.storeId, storeId),
         ),
       )
       .returning();
     return row ?? null;
   }
 
-  async deleteVariant(variantId: string, orgId: string): Promise<void> {
+  async deleteVariant(
+    variantId: string,
+    orgId: string,
+    storeId: string,
+  ): Promise<void> {
     await this.db
       .delete(productVariants)
       .where(
         and(
           eq(productVariants.id, variantId),
           eq(productVariants.organizationId, orgId),
+          eq(productVariants.storeId, storeId),
         ),
       );
   }
 
   async addMedia(data: {
     organizationId: string;
+    storeId: string;
     productId: string;
     url: string;
     altText?: string;
@@ -438,6 +499,7 @@ export class ProductRepository {
       .insert(productMedia)
       .values({
         organizationId: data.organizationId,
+        storeId: data.storeId,
         productId: data.productId,
         url: data.url,
         altText: data.altText,
@@ -450,13 +512,18 @@ export class ProductRepository {
     return row;
   }
 
-  async deleteMedia(mediaId: string, orgId: string): Promise<void> {
+  async deleteMedia(
+    mediaId: string,
+    orgId: string,
+    storeId: string,
+  ): Promise<void> {
     await this.db
       .delete(productMedia)
       .where(
         and(
           eq(productMedia.id, mediaId),
           eq(productMedia.organizationId, orgId),
+          eq(productMedia.storeId, storeId),
         ),
       );
   }
@@ -464,6 +531,7 @@ export class ProductRepository {
   async reorderMedia(
     productId: string,
     orgId: string,
+    storeId: string,
     orderedIds: string[],
   ): Promise<void> {
     for (let i = 0; i < orderedIds.length; i++) {
@@ -475,18 +543,24 @@ export class ProductRepository {
             eq(productMedia.id, orderedIds[i]),
             eq(productMedia.productId, productId),
             eq(productMedia.organizationId, orgId),
+            eq(productMedia.storeId, storeId),
           ),
         );
     }
   }
 
-  async skuExists(sku: string, orgId: string): Promise<boolean> {
+  async skuExists(
+    sku: string,
+    orgId: string,
+    storeId: string,
+  ): Promise<boolean> {
     const [row] = await this.db
       .select({ id: productVariants.id })
       .from(productVariants)
       .where(
         and(
           eq(productVariants.organizationId, orgId),
+          eq(productVariants.storeId, storeId),
           eq(productVariants.sku, sku),
         ),
       )

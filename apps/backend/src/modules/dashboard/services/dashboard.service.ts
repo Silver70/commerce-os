@@ -67,14 +67,18 @@ function calculateDelta(current: number, prior: number): number {
 export class DashboardService {
   constructor(@Inject(DRIZZLE_CLIENT) private readonly db: DrizzleClient) {}
 
-  async getStats(orgId: string, period: StatsPeriod): Promise<DashboardStats> {
+  async getStats(
+    orgId: string,
+    storeId: string,
+    period: StatsPeriod,
+  ): Promise<DashboardStats> {
     const [revenue, orders, conversion, returning, snapshots] =
       await Promise.all([
-        this.getRevenueStat(orgId, period),
-        this.getOrdersStat(orgId, period),
-        this.getConversionStat(orgId, period),
-        this.getReturningCustomerStat(orgId, period),
-        this.getSnapshotCounts(orgId),
+        this.getRevenueStat(orgId, storeId, period),
+        this.getOrdersStat(orgId, storeId, period),
+        this.getConversionStat(orgId, storeId, period),
+        this.getReturningCustomerStat(orgId, storeId, period),
+        this.getSnapshotCounts(orgId, storeId),
       ]);
 
     const aov = this.computeAov(revenue, orders);
@@ -92,6 +96,7 @@ export class DashboardService {
 
   private async getRevenueStat(
     orgId: string,
+    storeId: string,
     period: StatsPeriod,
   ): Promise<MetricWithSparkline> {
     const days = periodDays(period);
@@ -103,6 +108,7 @@ export class DashboardService {
         SELECT COALESCE(SUM(total), 0)::bigint AS value
         FROM orders
         WHERE organization_id = ${orgId}
+          AND store_id = ${storeId}
           AND status IN ('paid', 'processing', 'shipped', 'delivered')
           AND created_at >= ${start.toISOString()}
           AND created_at < ${end.toISOString()}
@@ -111,6 +117,7 @@ export class DashboardService {
         SELECT COALESCE(SUM(total), 0)::bigint AS value
         FROM orders
         WHERE organization_id = ${orgId}
+          AND store_id = ${storeId}
           AND status IN ('paid', 'processing', 'shipped', 'delivered')
           AND created_at >= ${priorStart.toISOString()}
           AND created_at < ${priorEnd.toISOString()}
@@ -121,6 +128,7 @@ export class DashboardService {
           COALESCE(SUM(total), 0)::bigint AS value
         FROM orders
         WHERE organization_id = ${orgId}
+          AND store_id = ${storeId}
           AND status IN ('paid', 'processing', 'shipped', 'delivered')
           AND created_at >= ${start.toISOString()}
           AND created_at < ${end.toISOString()}
@@ -142,6 +150,7 @@ export class DashboardService {
 
   private async getOrdersStat(
     orgId: string,
+    storeId: string,
     period: StatsPeriod,
   ): Promise<MetricWithSparkline> {
     const days = periodDays(period);
@@ -153,6 +162,7 @@ export class DashboardService {
         SELECT COUNT(*)::bigint AS value
         FROM orders
         WHERE organization_id = ${orgId}
+          AND store_id = ${storeId}
           AND created_at >= ${start.toISOString()}
           AND created_at < ${end.toISOString()}
       `),
@@ -160,6 +170,7 @@ export class DashboardService {
         SELECT COUNT(*)::bigint AS value
         FROM orders
         WHERE organization_id = ${orgId}
+          AND store_id = ${storeId}
           AND created_at >= ${priorStart.toISOString()}
           AND created_at < ${priorEnd.toISOString()}
       `),
@@ -169,6 +180,7 @@ export class DashboardService {
           COUNT(*)::bigint AS value
         FROM orders
         WHERE organization_id = ${orgId}
+          AND store_id = ${storeId}
           AND created_at >= ${start.toISOString()}
           AND created_at < ${end.toISOString()}
         GROUP BY 1
@@ -207,6 +219,7 @@ export class DashboardService {
 
   private async getConversionStat(
     orgId: string,
+    storeId: string,
     period: StatsPeriod,
   ): Promise<MetricWithSparkline> {
     const days = periodDays(period);
@@ -220,6 +233,7 @@ export class DashboardService {
           COUNT(*) FILTER (WHERE status IN ('converted', 'abandoned'))::bigint AS resolved
         FROM carts
         WHERE organization_id = ${orgId}
+          AND store_id = ${storeId}
           AND created_at >= ${start.toISOString()}
           AND created_at < ${end.toISOString()}
       `),
@@ -229,6 +243,7 @@ export class DashboardService {
           COUNT(*) FILTER (WHERE status IN ('converted', 'abandoned'))::bigint AS resolved
         FROM carts
         WHERE organization_id = ${orgId}
+          AND store_id = ${storeId}
           AND created_at >= ${priorStart.toISOString()}
           AND created_at < ${priorEnd.toISOString()}
       `),
@@ -239,6 +254,7 @@ export class DashboardService {
           COUNT(*) FILTER (WHERE status IN ('converted', 'abandoned'))::bigint AS resolved
         FROM carts
         WHERE organization_id = ${orgId}
+          AND store_id = ${storeId}
           AND created_at >= ${start.toISOString()}
           AND created_at < ${end.toISOString()}
         GROUP BY 1
@@ -273,6 +289,7 @@ export class DashboardService {
 
   private async getReturningCustomerStat(
     orgId: string,
+    storeId: string,
     period: StatsPeriod,
   ): Promise<MetricWithSparkline> {
     const days = periodDays(period);
@@ -289,11 +306,13 @@ export class DashboardService {
                 SELECT 1 FROM orders o2
                 WHERE o2.customer_id = orders.customer_id
                   AND o2.organization_id = orders.organization_id
+                  AND o2.store_id = orders.store_id
                   AND o2.created_at < ${start.toISOString()}
               )
           ) AS returning_count
         FROM orders
         WHERE organization_id = ${orgId}
+          AND store_id = ${storeId}
           AND customer_id IS NOT NULL
           AND created_at >= ${start.toISOString()}
           AND created_at < ${end.toISOString()}
@@ -307,11 +326,13 @@ export class DashboardService {
                 SELECT 1 FROM orders o2
                 WHERE o2.customer_id = orders.customer_id
                   AND o2.organization_id = orders.organization_id
+                  AND o2.store_id = orders.store_id
                   AND o2.created_at < ${priorStart.toISOString()}
               )
           ) AS returning_count
         FROM orders
         WHERE organization_id = ${orgId}
+          AND store_id = ${storeId}
           AND customer_id IS NOT NULL
           AND created_at >= ${priorStart.toISOString()}
           AND created_at < ${priorEnd.toISOString()}
@@ -326,11 +347,13 @@ export class DashboardService {
                 SELECT 1 FROM orders o2
                 WHERE o2.customer_id = orders.customer_id
                   AND o2.organization_id = orders.organization_id
+                  AND o2.store_id = orders.store_id
                   AND o2.created_at < ${start.toISOString()}
               )
           ) AS returning_count
         FROM orders
         WHERE organization_id = ${orgId}
+          AND store_id = ${storeId}
           AND customer_id IS NOT NULL
           AND created_at >= ${start.toISOString()}
           AND created_at < ${end.toISOString()}
@@ -363,7 +386,10 @@ export class DashboardService {
     return { current, prior, delta: calculateDelta(current, prior), sparkline };
   }
 
-  private async getSnapshotCounts(orgId: string): Promise<{
+  private async getSnapshotCounts(
+    orgId: string,
+    storeId: string,
+  ): Promise<{
     pendingOrders: number;
     processingOrders: number;
     lowStockItems: number;
@@ -375,11 +401,13 @@ export class DashboardService {
           COUNT(*) FILTER (WHERE status = 'processing')::bigint AS processing
         FROM orders
         WHERE organization_id = ${orgId}
+          AND store_id = ${storeId}
       `),
       this.db.execute(sql`
         SELECT COUNT(*)::bigint AS low_stock
         FROM inventory_items
         WHERE organization_id = ${orgId}
+          AND store_id = ${storeId}
           AND (quantity - reserved) <= low_stock_threshold
       `),
     ]);

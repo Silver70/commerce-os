@@ -29,6 +29,7 @@ import { RbacGuard } from '../guards/rbac.guard';
 import { RequirePermission } from '../decorators/require-permission.decorator';
 import { CurrentTenant } from '../decorators/current-tenant.decorator';
 import type { TenantContext } from '../../../shared/tenant/tenant-context';
+import { requireStoreContext } from '../../../shared/tenant/tenant.util';
 import { SignupDto } from '../dto/signup.dto';
 import { LoginDto } from '../dto/login.dto';
 import { VerifyEmailDto } from '../dto/verify-email.dto';
@@ -153,8 +154,10 @@ export class AuthController {
     @Body() dto: CreateApiKeyDto,
     @CurrentTenant() tenant: TenantContext,
   ) {
+    const { organizationId, storeId } = requireStoreContext(tenant);
     return this.apiKeyService.generate(
-      tenant.organizationId,
+      organizationId,
+      storeId,
       dto.name,
       tenant.userId,
     );

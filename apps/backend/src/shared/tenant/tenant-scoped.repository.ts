@@ -4,9 +4,11 @@ import type { DrizzleClient } from '../database/database.module';
 import type { TenantContext } from './tenant-context';
 
 // Structural constraint — every tenant-scoped table must have these two columns.
+// Tables that are also store-scoped additionally expose a `storeId` column.
 type TenantTable = PgTable & {
   id: PgColumn;
   organizationId: PgColumn;
+  storeId?: PgColumn;
 };
 
 export abstract class TenantScopedRepository<TTable extends TenantTable> {
@@ -20,15 +22,37 @@ export abstract class TenantScopedRepository<TTable extends TenantTable> {
     return eq(this.table.organizationId, this.ctx.organizationId);
   }
 
-  async findMany(filters?: SQL): Promise<InferSelectModel<TTable>[]> {
+  protected get storeFilter(): SQL | null {
+    const storeCol = this.table.storeId;
+    if (!storeCol) return null;
+    const storeId = this.requireStore();
+    return eq(storeCol, storeId);
+  }
+
+  protected requireStore(): string {
+    const storeId = this.ctx.storeId;
+    if (!storeId) {
+      throw new Error('Active store required for this operation');
+    }
+    return storeId;
+  }
+
+  protected get tenantFilters(): SQL[] {
     const conditions: SQL[] = [this.orgFilter];
+    const sf = this.storeFilter;
+    if (sf) conditions.push(sf);
+    return conditions;
+  }
+
+  async findMany(filters?: SQL): Promise<InferSelectModel<TTable>[]> {
+    const conditions = this.tenantFilters;
     if (filters) conditions.push(filters);
     // Drizzle's .from() has a conditional generic (TableLikeHasEmptySelection)
     // that can't be resolved when TTable is still generic — cast required here.
 
     const rows = await this.db
       .select()
-      .from(this.table as any)
+      .from(this.table as PgTable)
       .where(and(...conditions));
     return rows as InferSelectModel<TTable>[];
   }
@@ -36,20 +60,27 @@ export abstract class TenantScopedRepository<TTable extends TenantTable> {
   async findById(id: string): Promise<InferSelectModel<TTable> | null> {
     const rows = await this.db
       .select()
-      .from(this.table as any)
-      .where(and(eq(this.table.id, id), this.orgFilter))
+      .from(this.table as PgTable)
+      .where(and(eq(this.table.id, id), ...this.tenantFilters))
       .limit(1);
-    return (rows[0] as InferSelectModel<TTable>) ?? null;
+    return (rows[0] as InferSelectModel<TTable> | undefined) ?? null;
   }
 
   async create(
     data: Record<string, unknown>,
   ): Promise<InferSelectModel<TTable>> {
+    const values: Record<string, unknown> = {
+      ...data,
+      organizationId: this.ctx.organizationId,
+    };
+    if (this.table.storeId) {
+      values.storeId = this.requireStore();
+    }
     // .insert().values() requires concrete column types — cast required here.
 
     const [row] = (await this.db
-      .insert(this.table as any)
-      .values({ ...data, organizationId: this.ctx.organizationId })
+      .insert(this.table as PgTable)
+      .values(values)
       .returning()) as unknown as InferSelectModel<TTable>[];
     return row;
   }
@@ -63,11 +94,11 @@ export abstract class TenantScopedRepository<TTable extends TenantTable> {
     // .update().set() requires concrete column types — cast required here.
 
     const rows = await this.db
-      .update(this.table as any)
+      .update(this.table as PgTable)
       .set(patch)
-      .where(and(eq(this.table.id, id), this.orgFilter))
+      .where(and(eq(this.table.id, id), ...this.tenantFilters))
       .returning();
-    return (rows[0] as InferSelectModel<TTable>) ?? null;
+    return (rows[0] as InferSelectModel<TTable> | undefined) ?? null;
   }
 
   async softDelete(id: string): Promise<InferSelectModel<TTable> | null> {
@@ -75,17 +106,17 @@ export abstract class TenantScopedRepository<TTable extends TenantTable> {
       throw new Error(`Table does not support soft delete`);
     }
     const rows = await this.db
-      .update(this.table as any)
+      .update(this.table as PgTable)
       .set({ deletedAt: new Date() })
-      .where(and(eq(this.table.id, id), this.orgFilter))
+      .where(and(eq(this.table.id, id), ...this.tenantFilters))
       .returning();
-    return (rows[0] as InferSelectModel<TTable>) ?? null;
+    return (rows[0] as InferSelectModel<TTable> | undefined) ?? null;
   }
 
   async hardDelete(id: string): Promise<void> {
     // .delete() accepts PgTable directly — no cast needed.
     await this.db
       .delete(this.table)
-      .where(and(eq(this.table.id, id), this.orgFilter));
+      .where(and(eq(this.table.id, id), ...this.tenantFilters));
   }
 }

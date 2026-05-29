@@ -8,6 +8,7 @@ import {
   pgEnum,
 } from 'drizzle-orm/pg-core';
 import { organizations } from './organizations.schema';
+import { stores } from './stores.schema';
 import { payments } from './payments.schema';
 import { orders } from './orders.schema';
 
@@ -22,6 +23,9 @@ export const refunds = pgTable('refunds', {
   organizationId: uuid('organization_id')
     .notNull()
     .references(() => organizations.id, { onDelete: 'cascade' }),
+  storeId: uuid('store_id')
+    .notNull()
+    .references(() => stores.id, { onDelete: 'cascade' }),
   orderId: uuid('order_id')
     .notNull()
     .references(() => orders.id, { onDelete: 'cascade' }),

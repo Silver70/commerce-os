@@ -11,6 +11,7 @@ export class ProductCreatedEvent {
   constructor(
     public readonly productId: string,
     public readonly organizationId: string,
+    public readonly storeId: string,
   ) {}
 }
 
@@ -18,6 +19,7 @@ export class ProductUpdatedEvent {
   constructor(
     public readonly productId: string,
     public readonly organizationId: string,
+    public readonly storeId: string,
   ) {}
 }
 
@@ -25,6 +27,7 @@ export class ProductDeletedEvent {
   constructor(
     public readonly productId: string,
     public readonly organizationId: string,
+    public readonly storeId: string,
   ) {}
 }
 
@@ -32,6 +35,7 @@ export class InventoryLowEvent {
   constructor(
     public readonly variantId: string,
     public readonly organizationId: string,
+    public readonly storeId: string,
     public readonly currentQuantity: number,
     public readonly threshold: number,
   ) {}
@@ -41,6 +45,7 @@ export class OrderCreatedEvent {
   constructor(
     public readonly orderId: string,
     public readonly organizationId: string,
+    public readonly storeId: string,
     public readonly customerId: string | null,
   ) {}
 }
@@ -49,6 +54,7 @@ export class OrderStatusChangedEvent {
   constructor(
     public readonly orderId: string,
     public readonly organizationId: string,
+    public readonly storeId: string,
     public readonly fromStatus: string,
     public readonly toStatus: string,
   ) {}
@@ -58,6 +64,7 @@ export class PaymentSucceededEvent {
   constructor(
     public readonly orderId: string,
     public readonly organizationId: string,
+    public readonly storeId: string,
     public readonly paymentIntentId: string,
     public readonly amount: number,
   ) {}
@@ -67,6 +74,7 @@ export class PaymentFailedEvent {
   constructor(
     public readonly orderId: string,
     public readonly organizationId: string,
+    public readonly storeId: string,
     public readonly paymentIntentId: string,
     public readonly reason: string,
   ) {}
@@ -77,6 +85,7 @@ export class RefundIssuedEvent {
     public readonly refundId: string,
     public readonly orderId: string,
     public readonly organizationId: string,
+    public readonly storeId: string,
     public readonly amount: number,
   ) {}
 }
@@ -85,6 +94,7 @@ export class CartAbandonedEvent {
   constructor(
     public readonly cartId: string,
     public readonly organizationId: string,
+    public readonly storeId: string,
     public readonly customerId: string | null,
   ) {}
 }

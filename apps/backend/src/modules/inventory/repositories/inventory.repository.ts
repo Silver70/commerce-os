@@ -17,6 +17,7 @@ export interface ReserveInput {
   cartId?: string;
   orderId?: string;
   organizationId: string;
+  storeId: string;
   expiresAt: Date;
 }
 
@@ -27,6 +28,7 @@ export class InventoryRepository {
   async findByVariantId(
     variantId: string,
     orgId: string,
+    storeId: string,
   ): Promise<InventoryItem | null> {
     const [row] = await this.db
       .select()
@@ -35,13 +37,18 @@ export class InventoryRepository {
         and(
           eq(inventoryItems.variantId, variantId),
           eq(inventoryItems.organizationId, orgId),
+          eq(inventoryItems.storeId, storeId),
         ),
       )
       .limit(1);
     return row ?? null;
   }
 
-  async findById(id: string, orgId: string): Promise<InventoryItem | null> {
+  async findById(
+    id: string,
+    orgId: string,
+    storeId: string,
+  ): Promise<InventoryItem | null> {
     const [row] = await this.db
       .select()
       .from(inventoryItems)
@@ -49,26 +56,33 @@ export class InventoryRepository {
         and(
           eq(inventoryItems.id, id),
           eq(inventoryItems.organizationId, orgId),
+          eq(inventoryItems.storeId, storeId),
         ),
       )
       .limit(1);
     return row ?? null;
   }
 
-  async findAll(orgId: string): Promise<InventoryItem[]> {
-    return this.db
-      .select()
-      .from(inventoryItems)
-      .where(eq(inventoryItems.organizationId, orgId));
-  }
-
-  async findLowStock(orgId: string): Promise<InventoryItem[]> {
+  async findAll(orgId: string, storeId: string): Promise<InventoryItem[]> {
     return this.db
       .select()
       .from(inventoryItems)
       .where(
         and(
           eq(inventoryItems.organizationId, orgId),
+          eq(inventoryItems.storeId, storeId),
+        ),
+      );
+  }
+
+  async findLowStock(orgId: string, storeId: string): Promise<InventoryItem[]> {
+    return this.db
+      .select()
+      .from(inventoryItems)
+      .where(
+        and(
+          eq(inventoryItems.organizationId, orgId),
+          eq(inventoryItems.storeId, storeId),
           lte(
             sql`${inventoryItems.quantity} - ${inventoryItems.reserved}`,
             inventoryItems.lowStockThreshold,
@@ -80,6 +94,7 @@ export class InventoryRepository {
   async createForVariant(
     variantId: string,
     orgId: string,
+    storeId: string,
     initialQuantity = 0,
   ): Promise<InventoryItem> {
     const [row] = await this.db
@@ -87,6 +102,7 @@ export class InventoryRepository {
       .values({
         variantId,
         organizationId: orgId,
+        storeId,
         quantity: initialQuantity,
         reserved: 0,
       })
@@ -94,7 +110,13 @@ export class InventoryRepository {
       .returning();
 
     if (!row) {
-      return (await this.findByVariantId(variantId, orgId))!;
+      const existing = await this.findByVariantId(variantId, orgId, storeId);
+      if (!existing) {
+        throw new Error(
+          `Inventory item not found after insert for variant ${variantId}`,
+        );
+      }
+      return existing;
     }
     return row;
   }
@@ -102,6 +124,7 @@ export class InventoryRepository {
   async adjustQuantity(
     id: string,
     orgId: string,
+    storeId: string,
     delta: number,
   ): Promise<InventoryItem | null> {
     const [row] = await this.db
@@ -114,6 +137,7 @@ export class InventoryRepository {
         and(
           eq(inventoryItems.id, id),
           eq(inventoryItems.organizationId, orgId),
+          eq(inventoryItems.storeId, storeId),
         ),
       )
       .returning();
@@ -123,6 +147,7 @@ export class InventoryRepository {
   async incrementReserved(
     id: string,
     orgId: string,
+    storeId: string,
     qty: number,
   ): Promise<InventoryItem | null> {
     const [row] = await this.db
@@ -135,6 +160,7 @@ export class InventoryRepository {
         and(
           eq(inventoryItems.id, id),
           eq(inventoryItems.organizationId, orgId),
+          eq(inventoryItems.storeId, storeId),
         ),
       )
       .returning();
@@ -144,6 +170,7 @@ export class InventoryRepository {
   async decrementReserved(
     id: string,
     orgId: string,
+    storeId: string,
     qty: number,
   ): Promise<InventoryItem | null> {
     const [row] = await this.db
@@ -156,6 +183,7 @@ export class InventoryRepository {
         and(
           eq(inventoryItems.id, id),
           eq(inventoryItems.organizationId, orgId),
+          eq(inventoryItems.storeId, storeId),
         ),
       )
       .returning();
@@ -165,6 +193,7 @@ export class InventoryRepository {
   async convertReservation(
     id: string,
     orgId: string,
+    storeId: string,
     qty: number,
   ): Promise<InventoryItem | null> {
     const [row] = await this.db
@@ -178,6 +207,7 @@ export class InventoryRepository {
         and(
           eq(inventoryItems.id, id),
           eq(inventoryItems.organizationId, orgId),
+          eq(inventoryItems.storeId, storeId),
         ),
       )
       .returning();
@@ -188,6 +218,7 @@ export class InventoryRepository {
     const item = await this.findByVariantId(
       input.variantId,
       input.organizationId,
+      input.storeId,
     );
     if (!item)
       throw new Error(`No inventory item found for variant ${input.variantId}`);
@@ -196,6 +227,7 @@ export class InventoryRepository {
       .insert(stockReservations)
       .values({
         organizationId: input.organizationId,
+        storeId: input.storeId,
         inventoryItemId: item.id,
         cartId: input.cartId,
         orderId: input.orderId,
@@ -205,7 +237,12 @@ export class InventoryRepository {
       })
       .returning();
 
-    await this.incrementReserved(item.id, input.organizationId, input.quantity);
+    await this.incrementReserved(
+      item.id,
+      input.organizationId,
+      input.storeId,
+      input.quantity,
+    );
 
     return reservation;
   }
@@ -213,6 +250,7 @@ export class InventoryRepository {
   async findReservation(
     reservationId: string,
     orgId: string,
+    storeId: string,
   ): Promise<StockReservation | null> {
     const [row] = await this.db
       .select()
@@ -221,6 +259,7 @@ export class InventoryRepository {
         and(
           eq(stockReservations.id, reservationId),
           eq(stockReservations.organizationId, orgId),
+          eq(stockReservations.storeId, storeId),
         ),
       )
       .limit(1);
@@ -230,6 +269,7 @@ export class InventoryRepository {
   async findActiveReservationsByOrder(
     orderId: string,
     orgId: string,
+    storeId: string,
   ): Promise<StockReservation[]> {
     return this.db
       .select()
@@ -238,6 +278,7 @@ export class InventoryRepository {
         and(
           eq(stockReservations.orderId, orderId),
           eq(stockReservations.organizationId, orgId),
+          eq(stockReservations.storeId, storeId),
           eq(stockReservations.status, 'active'),
         ),
       );

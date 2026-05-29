@@ -12,18 +12,21 @@ import type {
 export class TaxRateService {
   constructor(@Inject(DRIZZLE_CLIENT) private readonly db: DrizzleClient) {}
 
-  list(orgId: string) {
+  list(orgId: string, storeId: string) {
     return this.db
       .select()
       .from(taxRates)
-      .where(eq(taxRates.organizationId, orgId));
+      .where(
+        and(eq(taxRates.organizationId, orgId), eq(taxRates.storeId, storeId)),
+      );
   }
 
-  async create(orgId: string, dto: CreateTaxRateDto) {
+  async create(orgId: string, storeId: string, dto: CreateTaxRateDto) {
     const [record] = await this.db
       .insert(taxRates)
       .values({
         organizationId: orgId,
+        storeId,
         name: dto.name,
         countryCode: dto.countryCode,
         stateCode: dto.stateCode ?? null,
@@ -35,16 +38,27 @@ export class TaxRateService {
     return record;
   }
 
-  async findById(id: string, orgId: string) {
+  async findById(id: string, orgId: string, storeId: string) {
     const [record] = await this.db
       .select()
       .from(taxRates)
-      .where(and(eq(taxRates.id, id), eq(taxRates.organizationId, orgId)))
+      .where(
+        and(
+          eq(taxRates.id, id),
+          eq(taxRates.organizationId, orgId),
+          eq(taxRates.storeId, storeId),
+        ),
+      )
       .limit(1);
     return record ?? null;
   }
 
-  async update(id: string, orgId: string, dto: UpdateTaxRateDto) {
+  async update(
+    id: string,
+    orgId: string,
+    storeId: string,
+    dto: UpdateTaxRateDto,
+  ) {
     const patch: Record<string, unknown> = { updatedAt: new Date() };
     if (dto.name !== undefined) patch.name = dto.name;
     if (dto.countryCode !== undefined) patch.countryCode = dto.countryCode;
@@ -56,18 +70,30 @@ export class TaxRateService {
     const [record] = await this.db
       .update(taxRates)
       .set(patch)
-      .where(and(eq(taxRates.id, id), eq(taxRates.organizationId, orgId)))
+      .where(
+        and(
+          eq(taxRates.id, id),
+          eq(taxRates.organizationId, orgId),
+          eq(taxRates.storeId, storeId),
+        ),
+      )
       .returning();
 
     if (!record) throw new NotFoundException('Tax rate not found');
     return record;
   }
 
-  async remove(id: string, orgId: string): Promise<void> {
-    const existing = await this.findById(id, orgId);
+  async remove(id: string, orgId: string, storeId: string): Promise<void> {
+    const existing = await this.findById(id, orgId, storeId);
     if (!existing) throw new NotFoundException('Tax rate not found');
     await this.db
       .delete(taxRates)
-      .where(and(eq(taxRates.id, id), eq(taxRates.organizationId, orgId)));
+      .where(
+        and(
+          eq(taxRates.id, id),
+          eq(taxRates.organizationId, orgId),
+          eq(taxRates.storeId, storeId),
+        ),
+      );
   }
 }

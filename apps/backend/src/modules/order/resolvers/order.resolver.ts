@@ -13,6 +13,7 @@ import {
 } from '../models/order.model';
 import type { OrderAddressJson } from '../models/order.model';
 import type { TenantContext } from '../../../shared/tenant/tenant-context';
+import { requireStoreContext } from '../../../shared/tenant/tenant.util';
 import type { Request } from 'express';
 import { encodeCursor } from '../../../shared/utils/pagination.util';
 
@@ -111,11 +112,13 @@ export class OrderResolver {
     if (!tenant?.customerId) {
       throw new UnauthorizedException('Customer authentication required');
     }
+    const { organizationId, storeId } = requireStoreContext(tenant);
 
     const limit = first ?? 10;
     const result = await this.orderService.getOrdersByCustomer(
       tenant.customerId,
-      tenant.organizationId,
+      organizationId,
+      storeId,
       after,
       limit,
     );
@@ -149,8 +152,13 @@ export class OrderResolver {
     if (!tenant?.customerId) {
       throw new UnauthorizedException('Customer authentication required');
     }
+    const { organizationId, storeId } = requireStoreContext(tenant);
 
-    const detail = await this.orderService.getDetail(id, tenant.organizationId);
+    const detail = await this.orderService.getDetail(
+      id,
+      organizationId,
+      storeId,
+    );
 
     if (detail.customerId !== tenant.customerId) {
       throw new UnauthorizedException('Order does not belong to this customer');

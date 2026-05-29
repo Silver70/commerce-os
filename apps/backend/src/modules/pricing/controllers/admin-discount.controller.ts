@@ -29,6 +29,7 @@ import {
 } from '../dto/create-discount.dto';
 import { CreateCouponDto, UpdateCouponDto } from '../dto/create-coupon.dto';
 import type { TenantContext } from '../../../shared/tenant/tenant-context';
+import { requireStoreContext } from '../../../shared/tenant/tenant.util';
 import type { Discount, Coupon } from '../../../shared/database/schema';
 
 // ─── Discounts ────────────────────────────────────────────────────────────────
@@ -42,10 +43,11 @@ export class AdminDiscountController {
 
   @Get()
   @RequirePermission('discounts.write')
-  @ApiOperation({ summary: 'List all discounts for the organization' })
+  @ApiOperation({ summary: 'List all discounts for the active store' })
   @ApiResponse({ status: 200 })
   async list(@CurrentTenant() tenant: TenantContext): Promise<Discount[]> {
-    return this.discountRepo.findManyDiscounts(tenant.organizationId);
+    const { organizationId, storeId } = requireStoreContext(tenant);
+    return this.discountRepo.findManyDiscounts(organizationId, storeId);
   }
 
   @Post()
@@ -56,8 +58,10 @@ export class AdminDiscountController {
     @Body() dto: CreateDiscountDto,
     @CurrentTenant() tenant: TenantContext,
   ): Promise<Discount> {
+    const { organizationId, storeId } = requireStoreContext(tenant);
     return this.discountRepo.createDiscount({
-      organizationId: tenant.organizationId,
+      organizationId,
+      storeId,
       name: dto.name,
       type: dto.type,
       value: dto.value,
@@ -79,9 +83,11 @@ export class AdminDiscountController {
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentTenant() tenant: TenantContext,
   ): Promise<Discount> {
+    const { organizationId, storeId } = requireStoreContext(tenant);
     const discount = await this.discountRepo.findDiscountById(
       id,
-      tenant.organizationId,
+      organizationId,
+      storeId,
     );
     if (!discount) throw new NotFoundException('Discount not found');
     return discount;
@@ -97,6 +103,7 @@ export class AdminDiscountController {
     @Body() dto: UpdateDiscountDto,
     @CurrentTenant() tenant: TenantContext,
   ): Promise<Discount> {
+    const { organizationId, storeId } = requireStoreContext(tenant);
     const patch: Record<string, unknown> = {};
     if (dto.name !== undefined) patch.name = dto.name;
     if (dto.type !== undefined) patch.type = dto.type;
@@ -113,7 +120,8 @@ export class AdminDiscountController {
 
     const updated = await this.discountRepo.updateDiscount(
       id,
-      tenant.organizationId,
+      organizationId,
+      storeId,
       patch,
     );
     if (!updated) throw new NotFoundException('Discount not found');
@@ -130,12 +138,14 @@ export class AdminDiscountController {
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentTenant() tenant: TenantContext,
   ): Promise<void> {
+    const { organizationId, storeId } = requireStoreContext(tenant);
     const existing = await this.discountRepo.findDiscountById(
       id,
-      tenant.organizationId,
+      organizationId,
+      storeId,
     );
     if (!existing) throw new NotFoundException('Discount not found');
-    await this.discountRepo.deleteDiscount(id, tenant.organizationId);
+    await this.discountRepo.deleteDiscount(id, organizationId, storeId);
   }
 }
 
@@ -150,10 +160,11 @@ export class AdminCouponController {
 
   @Get()
   @RequirePermission('discounts.write')
-  @ApiOperation({ summary: 'List all coupons for the organization' })
+  @ApiOperation({ summary: 'List all coupons for the active store' })
   @ApiResponse({ status: 200 })
   async list(@CurrentTenant() tenant: TenantContext): Promise<Coupon[]> {
-    return this.discountRepo.findManyCoupons(tenant.organizationId);
+    const { organizationId, storeId } = requireStoreContext(tenant);
+    return this.discountRepo.findManyCoupons(organizationId, storeId);
   }
 
   @Post()
@@ -164,8 +175,10 @@ export class AdminCouponController {
     @Body() dto: CreateCouponDto,
     @CurrentTenant() tenant: TenantContext,
   ): Promise<Coupon> {
+    const { organizationId, storeId } = requireStoreContext(tenant);
     return this.discountRepo.createCoupon({
-      organizationId: tenant.organizationId,
+      organizationId,
+      storeId,
       code: dto.code,
       type: dto.type,
       value: dto.value ?? 0,
@@ -187,9 +200,11 @@ export class AdminCouponController {
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentTenant() tenant: TenantContext,
   ): Promise<Coupon> {
+    const { organizationId, storeId } = requireStoreContext(tenant);
     const coupon = await this.discountRepo.findCouponById(
       id,
-      tenant.organizationId,
+      organizationId,
+      storeId,
     );
     if (!coupon) throw new NotFoundException('Coupon not found');
     return coupon;
@@ -205,6 +220,7 @@ export class AdminCouponController {
     @Body() dto: UpdateCouponDto,
     @CurrentTenant() tenant: TenantContext,
   ): Promise<Coupon> {
+    const { organizationId, storeId } = requireStoreContext(tenant);
     const patch: Record<string, unknown> = {};
     if (dto.code !== undefined) patch.code = dto.code;
     if (dto.type !== undefined) patch.type = dto.type;
@@ -223,7 +239,8 @@ export class AdminCouponController {
 
     const updated = await this.discountRepo.updateCoupon(
       id,
-      tenant.organizationId,
+      organizationId,
+      storeId,
       patch,
     );
     if (!updated) throw new NotFoundException('Coupon not found');
@@ -240,11 +257,13 @@ export class AdminCouponController {
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentTenant() tenant: TenantContext,
   ): Promise<void> {
+    const { organizationId, storeId } = requireStoreContext(tenant);
     const existing = await this.discountRepo.findCouponById(
       id,
-      tenant.organizationId,
+      organizationId,
+      storeId,
     );
     if (!existing) throw new NotFoundException('Coupon not found');
-    await this.discountRepo.deleteCoupon(id, tenant.organizationId);
+    await this.discountRepo.deleteCoupon(id, organizationId, storeId);
   }
 }

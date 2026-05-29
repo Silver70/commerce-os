@@ -103,6 +103,7 @@ export class StripeWebhookController {
       new PaymentSucceededEvent(
         payment.orderId,
         payment.organizationId,
+        payment.storeId,
         intent.id,
         payment.amount,
       ),
@@ -124,6 +125,7 @@ export class StripeWebhookController {
       new PaymentFailedEvent(
         payment.orderId,
         payment.organizationId,
+        payment.storeId,
         intent.id,
         reason,
       ),

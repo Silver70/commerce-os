@@ -7,7 +7,7 @@ import {
   Int,
   Context,
 } from '@nestjs/graphql';
-import { UseGuards } from '@nestjs/common';
+import { UnauthorizedException, UseGuards } from '@nestjs/common';
 import { StorefrontAuthGuard } from '../../auth/guards/storefront-auth.guard';
 import { CartService } from '../services/cart.service';
 import { CheckoutService } from '../services/checkout.service';
@@ -16,10 +16,19 @@ import { CheckoutResultType } from '../models/checkout.model';
 import { CheckoutInput } from '../models/checkout-input.model';
 import type { CartWithItems } from '../repositories/cart.repository';
 import type { TenantContext } from '../../../shared/tenant/tenant-context';
+import { requireStoreContext } from '../../../shared/tenant/tenant.util';
 import type { Request } from 'express';
 
 interface GqlContext {
   req: Request & { tenantContext?: TenantContext };
+}
+
+function tenantFrom(ctx: GqlContext): TenantContext {
+  const tenant = ctx.req.tenantContext;
+  if (!tenant) {
+    throw new UnauthorizedException('Missing tenant context');
+  }
+  return tenant;
 }
 
 @Resolver(() => CartType)
@@ -35,21 +44,23 @@ export class CartResolver {
     @Context() ctx: GqlContext,
     @Args('cartId', { type: () => ID }) cartId: string,
   ): Promise<CartType | null> {
-    const tenant = ctx.req.tenantContext ?? { organizationId: '' };
+    const { organizationId, storeId } = requireStoreContext(tenantFrom(ctx));
     const result = await this.cartService.getCart(
       cartId,
-      tenant.organizationId,
+      organizationId,
+      storeId,
     );
     return toCartType(result);
   }
 
   @Mutation(() => CartType, { description: 'Create a new empty cart' })
   async createCart(@Context() ctx: GqlContext): Promise<CartType> {
-    const tenant = ctx.req.tenantContext ?? { organizationId: '' };
-    const customerId = tenant.customerId;
+    const tenant = tenantFrom(ctx);
+    const { organizationId, storeId } = requireStoreContext(tenant);
     const result = await this.cartService.createCart(
-      tenant.organizationId,
-      customerId,
+      organizationId,
+      storeId,
+      tenant.customerId,
     );
     return toCartType(result);
   }
@@ -61,12 +72,13 @@ export class CartResolver {
     @Args('variantId', { type: () => ID }) variantId: string,
     @Args('quantity', { type: () => Int }) quantity: number,
   ): Promise<CartType> {
-    const tenant = ctx.req.tenantContext ?? { organizationId: '' };
+    const { organizationId, storeId } = requireStoreContext(tenantFrom(ctx));
     const result = await this.cartService.addItem(
       cartId,
       variantId,
       quantity,
-      tenant.organizationId,
+      organizationId,
+      storeId,
     );
     return toCartType(result);
   }
@@ -81,12 +93,13 @@ export class CartResolver {
     @Args('itemId', { type: () => ID }) itemId: string,
     @Args('quantity', { type: () => Int }) quantity: number,
   ): Promise<CartType> {
-    const tenant = ctx.req.tenantContext ?? { organizationId: '' };
+    const { organizationId, storeId } = requireStoreContext(tenantFrom(ctx));
     const result = await this.cartService.updateItem(
       cartId,
       itemId,
       quantity,
-      tenant.organizationId,
+      organizationId,
+      storeId,
     );
     return toCartType(result);
   }
@@ -97,11 +110,12 @@ export class CartResolver {
     @Args('cartId', { type: () => ID }) cartId: string,
     @Args('itemId', { type: () => ID }) itemId: string,
   ): Promise<CartType> {
-    const tenant = ctx.req.tenantContext ?? { organizationId: '' };
+    const { organizationId, storeId } = requireStoreContext(tenantFrom(ctx));
     const result = await this.cartService.removeItem(
       cartId,
       itemId,
-      tenant.organizationId,
+      organizationId,
+      storeId,
     );
     return toCartType(result);
   }
@@ -112,11 +126,12 @@ export class CartResolver {
     @Args('cartId', { type: () => ID }) cartId: string,
     @Args('code') code: string,
   ): Promise<CartType> {
-    const tenant = ctx.req.tenantContext ?? { organizationId: '' };
+    const { organizationId, storeId } = requireStoreContext(tenantFrom(ctx));
     const result = await this.cartService.applyCoupon(
       cartId,
       code,
-      tenant.organizationId,
+      organizationId,
+      storeId,
     );
     return toCartType(result);
   }
@@ -128,10 +143,11 @@ export class CartResolver {
     @Context() ctx: GqlContext,
     @Args('cartId', { type: () => ID }) cartId: string,
   ): Promise<CartType> {
-    const tenant = ctx.req.tenantContext ?? { organizationId: '' };
+    const { organizationId, storeId } = requireStoreContext(tenantFrom(ctx));
     const result = await this.cartService.removeCoupon(
       cartId,
-      tenant.organizationId,
+      organizationId,
+      storeId,
     );
     return toCartType(result);
   }
@@ -144,7 +160,7 @@ export class CartResolver {
     @Args('cartId', { type: () => ID }) cartId: string,
     @Args('input') input: CheckoutInput,
   ): Promise<CheckoutResultType> {
-    const tenant = ctx.req.tenantContext ?? { organizationId: '' };
+    const tenant = tenantFrom(ctx);
     return this.checkoutService.checkout(cartId, input, tenant);
   }
 }

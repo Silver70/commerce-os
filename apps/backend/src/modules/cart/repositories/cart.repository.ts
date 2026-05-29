@@ -19,11 +19,21 @@ export interface CartWithItems extends Cart {
 export class CartRepository {
   constructor(@Inject(DRIZZLE_CLIENT) private readonly db: DrizzleClient) {}
 
-  async findById(cartId: string, orgId: string): Promise<Cart | null> {
+  async findById(
+    cartId: string,
+    orgId: string,
+    storeId: string,
+  ): Promise<Cart | null> {
     const [row] = await this.db
       .select()
       .from(carts)
-      .where(and(eq(carts.id, cartId), eq(carts.organizationId, orgId)))
+      .where(
+        and(
+          eq(carts.id, cartId),
+          eq(carts.organizationId, orgId),
+          eq(carts.storeId, storeId),
+        ),
+      )
       .limit(1);
     return row ?? null;
   }
@@ -31,17 +41,19 @@ export class CartRepository {
   async findWithItems(
     cartId: string,
     orgId: string,
+    storeId: string,
   ): Promise<CartWithItems | null> {
-    const cart = await this.findById(cartId, orgId);
+    const cart = await this.findById(cartId, orgId, storeId);
     if (!cart) return null;
 
-    const items = await this.loadItemsWithVariants(cartId, orgId);
+    const items = await this.loadItemsWithVariants(cartId, orgId, storeId);
     return { ...cart, items };
   }
 
   async findByCustomer(
     customerId: string,
     orgId: string,
+    storeId: string,
   ): Promise<Cart | null> {
     const [row] = await this.db
       .select()
@@ -49,6 +61,7 @@ export class CartRepository {
       .where(
         and(
           eq(carts.organizationId, orgId),
+          eq(carts.storeId, storeId),
           eq(carts.customerId, customerId),
           eq(carts.status, 'active'),
         ),
@@ -57,11 +70,16 @@ export class CartRepository {
     return row ?? null;
   }
 
-  async create(orgId: string, customerId?: string): Promise<Cart> {
+  async create(
+    orgId: string,
+    storeId: string,
+    customerId?: string,
+  ): Promise<Cart> {
     const [cart] = await this.db
       .insert(carts)
       .values({
         organizationId: orgId,
+        storeId,
         customerId: customerId ?? null,
         status: 'active',
       })
@@ -72,6 +90,7 @@ export class CartRepository {
   async updateTotals(
     cartId: string,
     orgId: string,
+    storeId: string,
     totals: {
       subtotal: number;
       discountAmount: number;
@@ -98,7 +117,13 @@ export class CartRepository {
             : sql`coupon_code`,
         updatedAt: new Date(),
       })
-      .where(and(eq(carts.id, cartId), eq(carts.organizationId, orgId)))
+      .where(
+        and(
+          eq(carts.id, cartId),
+          eq(carts.organizationId, orgId),
+          eq(carts.storeId, storeId),
+        ),
+      )
       .returning();
     return row ?? null;
   }
@@ -106,22 +131,39 @@ export class CartRepository {
   async setCoupon(
     cartId: string,
     orgId: string,
+    storeId: string,
     couponId: string | null,
     couponCode: string | null,
   ): Promise<Cart | null> {
     const [row] = await this.db
       .update(carts)
       .set({ couponId, couponCode, updatedAt: new Date() })
-      .where(and(eq(carts.id, cartId), eq(carts.organizationId, orgId)))
+      .where(
+        and(
+          eq(carts.id, cartId),
+          eq(carts.organizationId, orgId),
+          eq(carts.storeId, storeId),
+        ),
+      )
       .returning();
     return row ?? null;
   }
 
-  async markConverted(cartId: string, orgId: string): Promise<Cart | null> {
+  async markConverted(
+    cartId: string,
+    orgId: string,
+    storeId: string,
+  ): Promise<Cart | null> {
     const [row] = await this.db
       .update(carts)
       .set({ status: 'converted', updatedAt: new Date() })
-      .where(and(eq(carts.id, cartId), eq(carts.organizationId, orgId)))
+      .where(
+        and(
+          eq(carts.id, cartId),
+          eq(carts.organizationId, orgId),
+          eq(carts.storeId, storeId),
+        ),
+      )
       .returning();
     return row ?? null;
   }
@@ -132,6 +174,7 @@ export class CartRepository {
     cartId: string,
     itemId: string,
     orgId: string,
+    storeId: string,
   ): Promise<CartItem | null> {
     const [row] = await this.db
       .select()
@@ -141,6 +184,7 @@ export class CartRepository {
           eq(cartItems.id, itemId),
           eq(cartItems.cartId, cartId),
           eq(cartItems.organizationId, orgId),
+          eq(cartItems.storeId, storeId),
         ),
       )
       .limit(1);
@@ -151,6 +195,7 @@ export class CartRepository {
     cartId: string,
     variantId: string,
     orgId: string,
+    storeId: string,
   ): Promise<CartItem | null> {
     const [row] = await this.db
       .select()
@@ -160,6 +205,7 @@ export class CartRepository {
           eq(cartItems.cartId, cartId),
           eq(cartItems.variantId, variantId),
           eq(cartItems.organizationId, orgId),
+          eq(cartItems.storeId, storeId),
         ),
       )
       .limit(1);
@@ -172,8 +218,14 @@ export class CartRepository {
     quantity: number,
     unitPrice: number,
     orgId: string,
+    storeId: string,
   ): Promise<CartItem> {
-    const existing = await this.findItemByVariant(cartId, variantId, orgId);
+    const existing = await this.findItemByVariant(
+      cartId,
+      variantId,
+      orgId,
+      storeId,
+    );
 
     if (existing) {
       const newQty = existing.quantity + quantity;
@@ -193,6 +245,7 @@ export class CartRepository {
       .insert(cartItems)
       .values({
         organizationId: orgId,
+        storeId,
         cartId,
         variantId,
         quantity,
@@ -208,8 +261,9 @@ export class CartRepository {
     itemId: string,
     quantity: number,
     orgId: string,
+    storeId: string,
   ): Promise<CartItem | null> {
-    const item = await this.findItem(cartId, itemId, orgId);
+    const item = await this.findItem(cartId, itemId, orgId, storeId);
     if (!item) return null;
 
     const [row] = await this.db
@@ -228,6 +282,7 @@ export class CartRepository {
     cartId: string,
     itemId: string,
     orgId: string,
+    storeId: string,
   ): Promise<void> {
     await this.db
       .delete(cartItems)
@@ -236,6 +291,7 @@ export class CartRepository {
           eq(cartItems.id, itemId),
           eq(cartItems.cartId, cartId),
           eq(cartItems.organizationId, orgId),
+          eq(cartItems.storeId, storeId),
         ),
       );
   }
@@ -245,6 +301,7 @@ export class CartRepository {
   async findVariant(
     variantId: string,
     orgId: string,
+    storeId: string,
   ): Promise<{
     id: string;
     productId: string;
@@ -267,6 +324,7 @@ export class CartRepository {
         and(
           eq(productVariants.id, variantId),
           eq(productVariants.organizationId, orgId),
+          eq(productVariants.storeId, storeId),
           eq(productVariants.isActive, true),
         ),
       )
@@ -287,12 +345,17 @@ export class CartRepository {
   private async loadItemsWithVariants(
     cartId: string,
     orgId: string,
+    storeId: string,
   ): Promise<CartItemWithVariant[]> {
     const rawItems = await this.db
       .select()
       .from(cartItems)
       .where(
-        and(eq(cartItems.cartId, cartId), eq(cartItems.organizationId, orgId)),
+        and(
+          eq(cartItems.cartId, cartId),
+          eq(cartItems.organizationId, orgId),
+          eq(cartItems.storeId, storeId),
+        ),
       );
 
     if (rawItems.length === 0) return [];
@@ -300,7 +363,7 @@ export class CartRepository {
     const results: CartItemWithVariant[] = [];
 
     for (const item of rawItems) {
-      const variant = await this.findVariant(item.variantId, orgId);
+      const variant = await this.findVariant(item.variantId, orgId, storeId);
       if (!variant) continue;
 
       const productCategoryIds = await this.getProductCategoryIds(
@@ -315,6 +378,7 @@ export class CartRepository {
         unitPrice: item.unitPrice,
         totalPrice: item.totalPrice,
         organizationId: item.organizationId,
+        storeId: item.storeId,
         variant,
         productCategoryIds,
       });

@@ -1,4 +1,5 @@
 export * from './organizations.schema';
+export * from './stores.schema';
 export * from './api-keys.schema';
 export * from './products.schema';
 export * from './product-variants.schema';

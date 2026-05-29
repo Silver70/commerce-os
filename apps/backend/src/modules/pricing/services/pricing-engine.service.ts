@@ -17,6 +17,7 @@ export interface CartItemWithVariant {
   unitPrice: number;
   totalPrice: number;
   organizationId: string;
+  storeId: string;
   variant: {
     id: string;
     productId: string;
@@ -83,6 +84,7 @@ export class PricingEngineService {
     items: CartItemWithVariant[],
     couponCode: string | null,
     orgId: string,
+    storeId: string,
   ): Promise<DiscountResult> {
     if (items.length === 0) {
       return {
@@ -101,9 +103,17 @@ export class PricingEngineService {
 
     const [productDiscounts, categoryDiscounts, orderDiscounts] =
       await Promise.all([
-        this.discountRepo.findActiveProductDiscounts(orgId, productIds),
-        this.discountRepo.findActiveCategoryDiscounts(orgId, categoryIds),
-        this.discountRepo.findActiveOrderDiscounts(orgId),
+        this.discountRepo.findActiveProductDiscounts(
+          orgId,
+          storeId,
+          productIds,
+        ),
+        this.discountRepo.findActiveCategoryDiscounts(
+          orgId,
+          storeId,
+          categoryIds,
+        ),
+        this.discountRepo.findActiveOrderDiscounts(orgId, storeId),
       ]);
 
     // ── Step 1 & 2: Apply item-level discounts ──────────────────────────────
@@ -203,6 +213,7 @@ export class PricingEngineService {
       const coupon = await this.discountRepo.findCouponByCode(
         couponCode,
         orgId,
+        storeId,
       );
       this.validateCoupon(coupon, subtotalAfterOrderDiscounts, couponCode);
 
@@ -239,10 +250,12 @@ export class PricingEngineService {
     pricedItems: PricedItem[],
     shippingAddress: ShippingAddressInput,
     orgId: string,
+    storeId: string,
   ): Promise<TaxResult> {
     // Try exact state match first, fall back to country-only
     const conditions = [
       eq(taxRates.organizationId, orgId),
+      eq(taxRates.storeId, storeId),
       eq(taxRates.isActive, true),
       eq(taxRates.countryCode, shippingAddress.countryCode),
     ];

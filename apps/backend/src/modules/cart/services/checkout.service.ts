@@ -14,6 +14,7 @@ import { PaymentService } from '../../payment/services/payment.service';
 import { OrderRepository } from '../../order/repositories/order.repository';
 import { OrderCreatedEvent } from '../../../shared/events/events';
 import { add, subtract } from '../../../shared/utils/money.util';
+import { requireStoreContext } from '../../../shared/tenant/tenant.util';
 import type { AddressInputDto } from '../dto/checkout.dto';
 import type { CheckoutInput } from '../models/checkout-input.model';
 import type { TenantContext } from '../../../shared/tenant/tenant-context';
@@ -37,10 +38,10 @@ export class CheckoutService {
     dto: CheckoutInput,
     tenantCtx: TenantContext,
   ): Promise<CheckoutResultType> {
-    const orgId = tenantCtx.organizationId;
+    const { organizationId: orgId, storeId } = requireStoreContext(tenantCtx);
 
     // 1. Load and validate cart
-    const cart = await this.cartRepo.findWithItems(cartId, orgId);
+    const cart = await this.cartRepo.findWithItems(cartId, orgId, storeId);
     if (!cart) throw new NotFoundException('Cart not found');
     if (cart.status !== 'active') {
       throw new ConflictException('Cart is no longer active');
@@ -60,6 +61,7 @@ export class CheckoutService {
           item.variantId,
           item.quantity,
           orgId,
+          storeId,
           cartId,
         );
         reservationIds.push(reservation.id);
@@ -68,7 +70,7 @@ export class CheckoutService {
       // Roll back successful reservations before re-throwing
       for (const resId of reservationIds) {
         await this.inventoryService
-          .release(resId, orgId)
+          .release(resId, orgId, storeId)
           .catch(() => undefined);
       }
       throw err;
@@ -79,6 +81,7 @@ export class CheckoutService {
       cart.items,
       cart.couponCode ?? null,
       orgId,
+      storeId,
     );
 
     const pricedItems = cart.items.map((item, idx) => ({
@@ -94,12 +97,17 @@ export class CheckoutService {
         stateCode: shippingAddress.state ?? null,
       },
       orgId,
+      storeId,
     );
 
     // 4. Get shipping price
     const shippingAmount = discountResult.isFreeShipping
       ? 0
-      : await this.shippingService.getMethodPrice(dto.shippingMethodId, orgId);
+      : await this.shippingService.getMethodPrice(
+          dto.shippingMethodId,
+          orgId,
+          storeId,
+        );
 
     // 5. Compute final totals
     const subtotal = cart.items.reduce(
@@ -114,13 +122,17 @@ export class CheckoutService {
     );
 
     // 6. Create order + line items
-    const orderNumber = await this.orderRepo.generateOrderNumber(orgId);
+    const orderNumber = await this.orderRepo.generateOrderNumber(
+      orgId,
+      storeId,
+    );
     const customerEmail =
       dto.email ?? this.getCustomerEmail() ?? 'guest@checkout';
     const customerName = this.buildCustomerName(shippingAddress);
 
     const order = await this.orderRepo.create({
       organizationId: orgId,
+      storeId,
       orderNumber,
       customerId: tenantCtx.customerId ?? null,
       customerEmail,
@@ -153,6 +165,7 @@ export class CheckoutService {
     // 7. Create order line item snapshots
     const lineItemData = cart.items.map((item, idx) => ({
       organizationId: orgId,
+      storeId,
       orderId: order.id,
       variantId: item.variantId,
       productName: item.variant.name ?? item.variant.sku,
@@ -179,15 +192,21 @@ export class CheckoutService {
       total,
       cart.currency,
       orgId,
+      storeId,
     );
 
     // 10. Convert cart to converted
-    await this.cartService.markConverted(cartId, orgId);
+    await this.cartService.markConverted(cartId, orgId, storeId);
 
     // 11. Emit order created event
     this.eventEmitter.emit(
       'order.created',
-      new OrderCreatedEvent(order.id, orgId, tenantCtx.customerId ?? null),
+      new OrderCreatedEvent(
+        order.id,
+        orgId,
+        storeId,
+        tenantCtx.customerId ?? null,
+      ),
     );
 
     return {

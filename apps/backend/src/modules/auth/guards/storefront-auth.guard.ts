@@ -28,8 +28,8 @@ export class StorefrontAuthGuard implements CanActivate {
       throw new UnauthorizedException('X-API-Key header required');
     }
 
-    const organizationId = await this.apiKeyService.lookup(rawKey);
-    request.tenantContext = { organizationId };
+    const { organizationId, storeId } = await this.apiKeyService.lookup(rawKey);
+    request.tenantContext = { organizationId, storeId };
 
     const authHeader = request.headers['authorization'];
     if (authHeader?.startsWith('Bearer ')) {

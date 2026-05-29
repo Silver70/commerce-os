@@ -1,9 +1,10 @@
 import { Resolver, Query, Args, Context } from '@nestjs/graphql';
-import { UseGuards } from '@nestjs/common';
+import { UnauthorizedException, UseGuards } from '@nestjs/common';
 import { StorefrontAuthGuard } from '../../auth/guards/storefront-auth.guard';
 import { ShippingService } from '../services/shipping.service';
 import { ShippingRateType } from '../models/shipping.model';
 import type { TenantContext } from '../../../shared/tenant/tenant-context';
+import { requireStoreContext } from '../../../shared/tenant/tenant.util';
 import type { Request } from 'express';
 
 interface GqlContext {
@@ -25,11 +26,16 @@ export class ShippingResolver {
     @Args('orderSubtotal', { description: 'Cart subtotal in cents' })
     orderSubtotal: number,
   ): Promise<ShippingRateType[]> {
-    const tenant = ctx.req.tenantContext ?? { organizationId: '' };
+    const tenant = ctx.req.tenantContext;
+    if (!tenant) {
+      throw new UnauthorizedException('Missing tenant context');
+    }
+    const { organizationId, storeId } = requireStoreContext(tenant);
     return this.shippingService.getShippingRates(
       countryCode,
       orderSubtotal,
-      tenant.organizationId,
+      organizationId,
+      storeId,
     );
   }
 }

@@ -22,6 +22,7 @@ import { CurrentTenant } from '../../auth/decorators/current-tenant.decorator';
 import { InventoryService } from '../services/inventory.service';
 import { AdjustInventoryDto } from '../dto/adjust-inventory.dto';
 import type { TenantContext } from '../../../shared/tenant/tenant-context';
+import { requireStoreContext } from '../../../shared/tenant/tenant.util';
 
 class InitInventoryDto {
   @ApiPropertyOptional({ description: 'Initial stock quantity (default 0)' })
@@ -40,10 +41,11 @@ export class AdminInventoryController {
 
   @Get()
   @RequirePermission('inventory.update')
-  @ApiOperation({ summary: 'List all inventory items for the organization' })
+  @ApiOperation({ summary: 'List all inventory items for the active store' })
   @ApiResponse({ status: 200 })
   async listAll(@CurrentTenant() tenant: TenantContext) {
-    return this.inventoryService.getAllForOrg(tenant.organizationId);
+    const { organizationId, storeId } = requireStoreContext(tenant);
+    return this.inventoryService.getAllForOrg(organizationId, storeId);
   }
 
   @Get('low-stock')
@@ -52,7 +54,8 @@ export class AdminInventoryController {
     summary: 'List inventory items at or below the low-stock threshold',
   })
   async getLowStock(@CurrentTenant() tenant: TenantContext) {
-    return this.inventoryService.getLowStockItems(tenant.organizationId);
+    const { organizationId, storeId } = requireStoreContext(tenant);
+    return this.inventoryService.getLowStockItems(organizationId, storeId);
   }
 
   @Post(':variantId')
@@ -63,9 +66,11 @@ export class AdminInventoryController {
     @Body() dto: InitInventoryDto,
     @CurrentTenant() tenant: TenantContext,
   ) {
+    const { organizationId, storeId } = requireStoreContext(tenant);
     return this.inventoryService.createForVariant(
       variantId,
-      tenant.organizationId,
+      organizationId,
+      storeId,
       dto.initialQuantity ?? 0,
     );
   }
@@ -77,9 +82,11 @@ export class AdminInventoryController {
     @Param('variantId') variantId: string,
     @CurrentTenant() tenant: TenantContext,
   ) {
+    const { organizationId, storeId } = requireStoreContext(tenant);
     return this.inventoryService.getByVariantId(
       variantId,
-      tenant.organizationId,
+      organizationId,
+      storeId,
     );
   }
 
@@ -91,12 +98,14 @@ export class AdminInventoryController {
     @Body() dto: AdjustInventoryDto,
     @CurrentTenant() tenant: TenantContext,
   ) {
+    const { organizationId, storeId } = requireStoreContext(tenant);
     return this.inventoryService.adjust(
       variantId,
       dto.adjustment,
       dto.reason,
       tenant.userId ?? 'system',
-      tenant.organizationId,
+      organizationId,
+      storeId,
     );
   }
 }

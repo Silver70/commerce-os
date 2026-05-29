@@ -13,65 +13,108 @@ export interface CategoryTreeNode extends Category {
 export class CategoryRepository {
   constructor(@Inject(DRIZZLE_CLIENT) private readonly db: DrizzleClient) {}
 
-  async findById(id: string, orgId: string): Promise<Category | null> {
-    const [row] = await this.db
-      .select()
-      .from(categories)
-      .where(and(eq(categories.id, id), eq(categories.organizationId, orgId)))
-      .limit(1);
-    return row ?? null;
-  }
-
-  async findBySlug(slug: string, orgId: string): Promise<Category | null> {
+  async findById(
+    id: string,
+    orgId: string,
+    storeId: string,
+  ): Promise<Category | null> {
     const [row] = await this.db
       .select()
       .from(categories)
       .where(
-        and(eq(categories.organizationId, orgId), eq(categories.slug, slug)),
+        and(
+          eq(categories.id, id),
+          eq(categories.organizationId, orgId),
+          eq(categories.storeId, storeId),
+        ),
       )
       .limit(1);
     return row ?? null;
   }
 
-  async slugExists(slug: string, orgId: string): Promise<boolean> {
+  async findBySlug(
+    slug: string,
+    orgId: string,
+    storeId: string,
+  ): Promise<Category | null> {
+    const [row] = await this.db
+      .select()
+      .from(categories)
+      .where(
+        and(
+          eq(categories.organizationId, orgId),
+          eq(categories.storeId, storeId),
+          eq(categories.slug, slug),
+        ),
+      )
+      .limit(1);
+    return row ?? null;
+  }
+
+  async slugExists(
+    slug: string,
+    orgId: string,
+    storeId: string,
+  ): Promise<boolean> {
     const [row] = await this.db
       .select({ id: categories.id })
       .from(categories)
       .where(
-        and(eq(categories.organizationId, orgId), eq(categories.slug, slug)),
+        and(
+          eq(categories.organizationId, orgId),
+          eq(categories.storeId, storeId),
+          eq(categories.slug, slug),
+        ),
       )
       .limit(1);
     return !!row;
   }
 
-  async getTree(orgId: string): Promise<CategoryTreeNode[]> {
+  async getTree(orgId: string, storeId: string): Promise<CategoryTreeNode[]> {
     const rows = await this.db
       .select()
       .from(categories)
-      .where(eq(categories.organizationId, orgId))
+      .where(
+        and(
+          eq(categories.organizationId, orgId),
+          eq(categories.storeId, storeId),
+        ),
+      )
       .orderBy(categories.position);
 
     return buildTree(rows);
   }
 
-  async getRootCategories(orgId: string): Promise<Category[]> {
+  async getRootCategories(orgId: string, storeId: string): Promise<Category[]> {
     return this.db
       .select()
       .from(categories)
       .where(
-        and(eq(categories.organizationId, orgId), isNull(categories.parentId)),
+        and(
+          eq(categories.organizationId, orgId),
+          eq(categories.storeId, storeId),
+          isNull(categories.parentId),
+        ),
       )
       .orderBy(categories.position);
   }
 
-  async getAncestors(categoryId: string, orgId: string): Promise<Category[]> {
+  async getAncestors(
+    categoryId: string,
+    orgId: string,
+    storeId: string,
+  ): Promise<Category[]> {
     const result = await this.db.execute(sql`
       WITH RECURSIVE ancestors AS (
-        SELECT * FROM categories WHERE id = ${categoryId} AND organization_id = ${orgId}
+        SELECT * FROM categories
+          WHERE id = ${categoryId}
+            AND organization_id = ${orgId}
+            AND store_id = ${storeId}
         UNION ALL
         SELECT c.* FROM categories c
         INNER JOIN ancestors a ON c.id = a.parent_id
         WHERE c.organization_id = ${orgId}
+          AND c.store_id = ${storeId}
       )
       SELECT * FROM ancestors ORDER BY created_at ASC
     `);
@@ -87,20 +130,33 @@ export class CategoryRepository {
   async update(
     id: string,
     orgId: string,
+    storeId: string,
     data: Partial<NewCategory>,
   ): Promise<Category | null> {
     const [row] = await this.db
       .update(categories)
       .set({ ...data, updatedAt: new Date() })
-      .where(and(eq(categories.id, id), eq(categories.organizationId, orgId)))
+      .where(
+        and(
+          eq(categories.id, id),
+          eq(categories.organizationId, orgId),
+          eq(categories.storeId, storeId),
+        ),
+      )
       .returning();
     return row ?? null;
   }
 
-  async delete(id: string, orgId: string): Promise<void> {
+  async delete(id: string, orgId: string, storeId: string): Promise<void> {
     await this.db
       .delete(categories)
-      .where(and(eq(categories.id, id), eq(categories.organizationId, orgId)));
+      .where(
+        and(
+          eq(categories.id, id),
+          eq(categories.organizationId, orgId),
+          eq(categories.storeId, storeId),
+        ),
+      );
   }
 }
 

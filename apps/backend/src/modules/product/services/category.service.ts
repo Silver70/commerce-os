@@ -10,23 +10,31 @@ import type { Category } from '../../../shared/database/schema';
 import type { CreateCategoryDto } from '../dto/create-category.dto';
 import type { UpdateCategoryDto } from '../dto/update-category.dto';
 import type { TenantContext } from '../../../shared/tenant/tenant-context';
+import { requireStoreContext } from '../../../shared/tenant/tenant.util';
 
 @Injectable()
 export class CategoryService {
   constructor(private readonly categoryRepo: CategoryRepository) {}
 
   async getTree(tenant: TenantContext): Promise<CategoryTreeNode[]> {
-    return this.categoryRepo.getTree(tenant.organizationId);
+    const { organizationId, storeId } = requireStoreContext(tenant);
+    return this.categoryRepo.getTree(organizationId, storeId);
   }
 
   async getBySlug(slug: string, tenant: TenantContext): Promise<Category> {
-    const cat = await this.categoryRepo.findBySlug(slug, tenant.organizationId);
+    const { organizationId, storeId } = requireStoreContext(tenant);
+    const cat = await this.categoryRepo.findBySlug(
+      slug,
+      organizationId,
+      storeId,
+    );
     if (!cat) throw new NotFoundException('Category not found');
     return cat;
   }
 
   async getById(id: string, tenant: TenantContext): Promise<Category> {
-    const cat = await this.categoryRepo.findById(id, tenant.organizationId);
+    const { organizationId, storeId } = requireStoreContext(tenant);
+    const cat = await this.categoryRepo.findById(id, organizationId, storeId);
     if (!cat) throw new NotFoundException('Category not found');
     return cat;
   }
@@ -35,12 +43,13 @@ export class CategoryService {
     dto: CreateCategoryDto,
     tenant: TenantContext,
   ): Promise<Category> {
-    const { organizationId } = tenant;
+    const { organizationId, storeId } = requireStoreContext(tenant);
 
     if (dto.parentId) {
       const parent = await this.categoryRepo.findById(
         dto.parentId,
         organizationId,
+        storeId,
       );
       if (!parent) {
         throw new BadRequestException('Parent category not found');
@@ -48,11 +57,12 @@ export class CategoryService {
     }
 
     const slug = await generateUniqueSlug(dto.name, (s) =>
-      this.categoryRepo.slugExists(s, organizationId),
+      this.categoryRepo.slugExists(s, organizationId, storeId),
     );
 
     return this.categoryRepo.create({
       organizationId,
+      storeId,
       name: dto.name,
       slug,
       parentId: dto.parentId,
@@ -66,8 +76,12 @@ export class CategoryService {
     dto: UpdateCategoryDto,
     tenant: TenantContext,
   ): Promise<Category> {
-    const { organizationId } = tenant;
-    const existing = await this.categoryRepo.findById(id, organizationId);
+    const { organizationId, storeId } = requireStoreContext(tenant);
+    const existing = await this.categoryRepo.findById(
+      id,
+      organizationId,
+      storeId,
+    );
     if (!existing) throw new NotFoundException('Category not found');
 
     if (dto.parentId && dto.parentId === id) {
@@ -78,7 +92,7 @@ export class CategoryService {
     if (dto.name && dto.name !== existing.name) {
       patch.name = dto.name;
       patch.slug = await generateUniqueSlug(dto.name, (s) =>
-        this.categoryRepo.slugExists(s, organizationId),
+        this.categoryRepo.slugExists(s, organizationId, storeId),
       );
     }
     if (dto.description !== undefined) patch.description = dto.description;
@@ -87,25 +101,33 @@ export class CategoryService {
 
     if (Object.keys(patch).length === 0) return existing;
 
-    const updated = await this.categoryRepo.update(id, organizationId, patch);
+    const updated = await this.categoryRepo.update(
+      id,
+      organizationId,
+      storeId,
+      patch,
+    );
     if (!updated)
       throw new NotFoundException('Category not found after update');
     return updated;
   }
 
   async delete(id: string, tenant: TenantContext): Promise<void> {
+    const { organizationId, storeId } = requireStoreContext(tenant);
     const existing = await this.categoryRepo.findById(
       id,
-      tenant.organizationId,
+      organizationId,
+      storeId,
     );
     if (!existing) throw new NotFoundException('Category not found');
-    await this.categoryRepo.delete(id, tenant.organizationId);
+    await this.categoryRepo.delete(id, organizationId, storeId);
   }
 
   async getAncestors(
     categoryId: string,
     tenant: TenantContext,
   ): Promise<Category[]> {
-    return this.categoryRepo.getAncestors(categoryId, tenant.organizationId);
+    const { organizationId, storeId } = requireStoreContext(tenant);
+    return this.categoryRepo.getAncestors(categoryId, organizationId, storeId);
   }
 }

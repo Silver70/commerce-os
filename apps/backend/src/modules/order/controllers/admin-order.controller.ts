@@ -27,6 +27,7 @@ import { AddNoteDto } from '../dto/add-note.dto';
 import { CreateShipmentDto } from '../dto/create-shipment.dto';
 import { OrderFilterDto } from '../dto/order-filter.dto';
 import type { TenantContext } from '../../../shared/tenant/tenant-context';
+import { requireStoreContext } from '../../../shared/tenant/tenant.util';
 
 @ApiTags('Orders')
 @ApiBearerAuth()
@@ -48,7 +49,8 @@ export class AdminOrderController {
     @Query() filters: OrderFilterDto,
     @CurrentTenant() tenant: TenantContext,
   ) {
-    return this.orderService.listOrders(filters, tenant.organizationId);
+    const { organizationId, storeId } = requireStoreContext(tenant);
+    return this.orderService.listOrders(filters, organizationId, storeId);
   }
 
   @Post()
@@ -59,13 +61,15 @@ export class AdminOrderController {
     @Body() dto: CreateOrderDto,
     @CurrentTenant() tenant: TenantContext,
   ) {
+    const { organizationId, storeId } = requireStoreContext(tenant);
     const adminName = tenant.email ?? tenant.userId ?? 'Admin';
     const adminId = tenant.userId ?? 'system';
     return this.orderService.createManualOrder(
       dto,
       adminName,
       adminId,
-      tenant.organizationId,
+      organizationId,
+      storeId,
     );
   }
 
@@ -81,7 +85,8 @@ export class AdminOrderController {
     @Param('id') id: string,
     @CurrentTenant() tenant: TenantContext,
   ) {
-    return this.orderService.getDetail(id, tenant.organizationId);
+    const { organizationId, storeId } = requireStoreContext(tenant);
+    return this.orderService.getDetail(id, organizationId, storeId);
   }
 
   @Patch(':id/status')
@@ -97,11 +102,13 @@ export class AdminOrderController {
     @Body() dto: UpdateOrderStatusDto,
     @CurrentTenant() tenant: TenantContext,
   ) {
+    const { organizationId, storeId } = requireStoreContext(tenant);
     const adminId = tenant.userId ?? 'system';
     return this.orderService.transition(
       id,
       dto.status,
-      tenant.organizationId,
+      organizationId,
+      storeId,
       'admin',
       adminId,
     );
@@ -117,10 +124,12 @@ export class AdminOrderController {
     @Body() dto: AddNoteDto,
     @CurrentTenant() tenant: TenantContext,
   ) {
+    const { organizationId, storeId } = requireStoreContext(tenant);
     const adminId = tenant.userId ?? 'system';
     await this.orderService.addNote(
       id,
-      tenant.organizationId,
+      organizationId,
+      storeId,
       dto.note,
       adminId,
     );
@@ -141,13 +150,15 @@ export class AdminOrderController {
     @Body() dto: CreateRefundDto,
     @CurrentTenant() tenant: TenantContext,
   ) {
+    const { organizationId, storeId } = requireStoreContext(tenant);
     const adminId = tenant.userId ?? 'system';
     return this.refundService.initiateRefund(
       id,
       dto.amount,
       dto.reason,
       adminId,
-      tenant.organizationId,
+      organizationId,
+      storeId,
     );
   }
 
@@ -167,12 +178,14 @@ export class AdminOrderController {
     @Body() dto: CreateShipmentDto,
     @CurrentTenant() tenant: TenantContext,
   ) {
+    const { organizationId, storeId } = requireStoreContext(tenant);
     const adminId = tenant.userId ?? 'system';
     return this.orderService.createShipment(
       id,
       dto,
       adminId,
-      tenant.organizationId,
+      organizationId,
+      storeId,
     );
   }
 }

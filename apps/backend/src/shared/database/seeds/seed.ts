@@ -1,5 +1,5 @@
 /**
- * Demo seed script — populates a fresh DB with one org, 2 categories,
+ * Demo seed script — populates a fresh DB with one org, one store, 2 categories,
  * 10 products (2 variants each), 5 orders in various states, and one API key.
  *
  * Usage:
@@ -19,6 +19,7 @@ import * as crypto from 'crypto';
 import * as https from 'https';
 import {
   organizations,
+  stores,
   apiKeys,
   categories,
   products,
@@ -126,6 +127,22 @@ async function main() {
   const orgId = org.id;
   console.log(`✓ Organization created: ${org.name} (${orgId})`);
 
+  // ── Store (default) ─────────────────────────────────────────────────────────
+  const [store] = await db
+    .insert(stores)
+    .values({
+      organizationId: orgId,
+      name: 'Demo Storefront',
+      slug: 'demo-storefront',
+      currency: 'USD',
+      timezone: 'America/New_York',
+      isActive: true,
+    })
+    .returning();
+
+  const storeId = store.id;
+  console.log(`✓ Store created: ${store.name} (${storeId})`);
+
   // ── API Key ──────────────────────────────────────────────────────────────────
   const rawKey = crypto.randomBytes(32).toString('hex');
   const keyHash = crypto.createHash('sha256').update(rawKey).digest('hex');
@@ -133,6 +150,7 @@ async function main() {
 
   await db.insert(apiKeys).values({
     organizationId: orgId,
+    storeId,
     name: 'Demo Key',
     keyHash,
     keyPrefix,
@@ -144,6 +162,7 @@ async function main() {
   // ── Tax Rate ─────────────────────────────────────────────────────────────────
   await db.insert(taxRates).values({
     organizationId: orgId,
+    storeId,
     name: 'US Standard',
     countryCode: 'US',
     rate: 875,
@@ -156,6 +175,7 @@ async function main() {
     .insert(shippingZones)
     .values({
       organizationId: orgId,
+      storeId,
       name: 'Domestic',
       countries: ['US', 'CA'],
       isDefault: true,
@@ -166,6 +186,7 @@ async function main() {
     .insert(shippingMethods)
     .values({
       organizationId: orgId,
+      storeId,
       zoneId: zone.id,
       name: 'Standard Shipping',
       rateType: 'flat_rate',
@@ -183,6 +204,7 @@ async function main() {
     .insert(categories)
     .values({
       organizationId: orgId,
+      storeId,
       name: 'Apparel',
       slug: 'apparel',
       description: 'Clothing and accessories',
@@ -193,6 +215,7 @@ async function main() {
     .insert(categories)
     .values({
       organizationId: orgId,
+      storeId,
       name: 'Accessories',
       slug: 'accessories',
       description: 'Bags, wallets, and accessories',
@@ -212,6 +235,7 @@ async function main() {
       .insert(products)
       .values({
         organizationId: orgId,
+        storeId,
         name,
         slug: slug(name),
         description: `High-quality ${name.toLowerCase()} for everyday use.`,
@@ -230,6 +254,7 @@ async function main() {
         .insert(productVariants)
         .values({
           organizationId: orgId,
+          storeId,
           productId: product.id,
           sku: vd.sku,
           name: vd.name,
@@ -240,6 +265,7 @@ async function main() {
 
       await db.insert(inventoryItems).values({
         organizationId: orgId,
+        storeId,
         variantId: variant.id,
         quantity: 50 + i * 5,
         reserved: 0,
@@ -284,6 +310,7 @@ async function main() {
       .insert(orders)
       .values({
         organizationId: orgId,
+        storeId,
         orderNumber: `ORD-000${i + 1}`,
         customerEmail: `customer${i + 1}@example.com`,
         customerName: `Demo Customer ${i + 1}`,
@@ -315,6 +342,7 @@ async function main() {
 
     await db.insert(orderLineItems).values({
       organizationId: orgId,
+      storeId,
       orderId: order.id,
       variantId,
       productName: PRODUCT_NAMES[i],
@@ -329,6 +357,7 @@ async function main() {
 
     await db.insert(orderTimeline).values({
       organizationId: orgId,
+      storeId,
       orderId: order.id,
       eventType: 'manually_created',
       message: `Order created — ${label}`,
@@ -337,6 +366,7 @@ async function main() {
 
     await db.insert(payments).values({
       organizationId: orgId,
+      storeId,
       orderId: order.id,
       provider: 'manual',
       status: paymentStatus,
@@ -348,6 +378,7 @@ async function main() {
   console.log(`✓ 5 orders seeded (pending → delivered)`);
   console.log('\n✅ Seed complete!');
   console.log(`\nOrganization ID : ${orgId}`);
+  console.log(`Store ID        : ${storeId}`);
   console.log(
     `\nUse the API key above in the X-Api-Key header to authenticate storefront requests.`,
   );

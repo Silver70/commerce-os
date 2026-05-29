@@ -36,6 +36,7 @@ export interface OrderWithDetails extends Order {
 
 export interface ListOrdersParams {
   orgId: string;
+  storeId: string;
   status?: string;
   customerId?: string;
   from?: Date;
@@ -61,6 +62,7 @@ export class OrderRepository {
   async createLineItems(
     items: NewOrderLineItem[],
   ): Promise<(typeof orderLineItems.$inferSelect)[]> {
+    if (items.length === 0) return [];
     return this.db.insert(orderLineItems).values(items).returning();
   }
 
@@ -71,11 +73,21 @@ export class OrderRepository {
     return row;
   }
 
-  async findById(orderId: string, orgId: string): Promise<Order | null> {
+  async findById(
+    orderId: string,
+    orgId: string,
+    storeId: string,
+  ): Promise<Order | null> {
     const [row] = await this.db
       .select()
       .from(orders)
-      .where(and(eq(orders.id, orderId), eq(orders.organizationId, orgId)))
+      .where(
+        and(
+          eq(orders.id, orderId),
+          eq(orders.organizationId, orgId),
+          eq(orders.storeId, storeId),
+        ),
+      )
       .limit(1);
     return row ?? null;
   }
@@ -83,8 +95,9 @@ export class OrderRepository {
   async findWithDetails(
     orderId: string,
     orgId: string,
+    storeId: string,
   ): Promise<OrderWithDetails | null> {
-    const order = await this.findById(orderId, orgId);
+    const order = await this.findById(orderId, orgId, storeId);
     if (!order) return null;
 
     const [lineItemRows, timelineRows, paymentRows, shipmentRows] =
@@ -105,6 +118,7 @@ export class OrderRepository {
             and(
               eq(payments.orderId, orderId),
               eq(payments.organizationId, orgId),
+              eq(payments.storeId, storeId),
             ),
           )
           .limit(1),
@@ -115,6 +129,7 @@ export class OrderRepository {
             and(
               eq(shipments.orderId, orderId),
               eq(shipments.organizationId, orgId),
+              eq(shipments.storeId, storeId),
             ),
           )
           .orderBy(desc(shipments.createdAt)),
@@ -130,8 +145,11 @@ export class OrderRepository {
   }
 
   async listWithFilters(params: ListOrdersParams): Promise<ListOrdersResult> {
-    const { orgId, limit = 20 } = params;
-    const conditions: SQL[] = [eq(orders.organizationId, orgId)];
+    const { orgId, storeId, limit = 20 } = params;
+    const conditions: SQL[] = [
+      eq(orders.organizationId, orgId),
+      eq(orders.storeId, storeId),
+    ];
 
     if (params.status) {
       conditions.push(eq(orders.status, params.status as Order['status']));
@@ -171,12 +189,19 @@ export class OrderRepository {
   async updateStatus(
     orderId: string,
     orgId: string,
+    storeId: string,
     status: Order['status'],
   ): Promise<Order | null> {
     const [row] = await this.db
       .update(orders)
       .set({ status, updatedAt: new Date() })
-      .where(and(eq(orders.id, orderId), eq(orders.organizationId, orgId)))
+      .where(
+        and(
+          eq(orders.id, orderId),
+          eq(orders.organizationId, orgId),
+          eq(orders.storeId, storeId),
+        ),
+      )
       .returning();
     return row ?? null;
   }
@@ -184,12 +209,19 @@ export class OrderRepository {
   async updateFulfillmentStatus(
     orderId: string,
     orgId: string,
+    storeId: string,
     fulfillmentStatus: Order['fulfillmentStatus'],
   ): Promise<Order | null> {
     const [row] = await this.db
       .update(orders)
       .set({ fulfillmentStatus, updatedAt: new Date() })
-      .where(and(eq(orders.id, orderId), eq(orders.organizationId, orgId)))
+      .where(
+        and(
+          eq(orders.id, orderId),
+          eq(orders.organizationId, orgId),
+          eq(orders.storeId, storeId),
+        ),
+      )
       .returning();
     return row ?? null;
   }
@@ -197,12 +229,17 @@ export class OrderRepository {
   async findPaymentByOrderId(
     orderId: string,
     orgId: string,
+    storeId: string,
   ): Promise<Payment | null> {
     const [row] = await this.db
       .select()
       .from(payments)
       .where(
-        and(eq(payments.orderId, orderId), eq(payments.organizationId, orgId)),
+        and(
+          eq(payments.orderId, orderId),
+          eq(payments.organizationId, orgId),
+          eq(payments.storeId, storeId),
+        ),
       )
       .limit(1);
     return row ?? null;
@@ -210,6 +247,7 @@ export class OrderRepository {
 
   async createPayment(data: {
     organizationId: string;
+    storeId: string;
     orderId: string;
     provider: 'stripe' | 'manual';
     status: 'pending' | 'captured';
@@ -240,6 +278,7 @@ export class OrderRepository {
   async findShipmentsByOrder(
     orderId: string,
     orgId: string,
+    storeId: string,
   ): Promise<Shipment[]> {
     return this.db
       .select()
@@ -248,6 +287,7 @@ export class OrderRepository {
         and(
           eq(shipments.orderId, orderId),
           eq(shipments.organizationId, orgId),
+          eq(shipments.storeId, storeId),
         ),
       )
       .orderBy(desc(shipments.createdAt));
@@ -267,11 +307,13 @@ export class OrderRepository {
       .where(eq(orderLineItems.orderId, orderId));
   }
 
-  async generateOrderNumber(orgId: string): Promise<string> {
+  async generateOrderNumber(orgId: string, storeId: string): Promise<string> {
     const count = await this.db
       .select({ id: orders.id })
       .from(orders)
-      .where(eq(orders.organizationId, orgId));
+      .where(
+        and(eq(orders.organizationId, orgId), eq(orders.storeId, storeId)),
+      );
     const seq = count.length + 1;
     return `ORD-${String(seq).padStart(6, '0')}`;
   }

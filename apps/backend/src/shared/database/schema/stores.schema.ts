@@ -2,34 +2,30 @@ import {
   pgTable,
   uuid,
   varchar,
-  text,
-  integer,
+  boolean,
   timestamp,
   unique,
 } from 'drizzle-orm/pg-core';
 import { organizations } from './organizations.schema';
-import { stores } from './stores.schema';
 
-export const categories = pgTable(
-  'categories',
+export const stores = pgTable(
+  'stores',
   {
     id: uuid('id').primaryKey().defaultRandom(),
     organizationId: uuid('organization_id')
       .notNull()
       .references(() => organizations.id, { onDelete: 'cascade' }),
-    storeId: uuid('store_id')
-      .notNull()
-      .references(() => stores.id, { onDelete: 'cascade' }),
-    parentId: uuid('parent_id'),
     name: varchar('name', { length: 255 }).notNull(),
     slug: varchar('slug', { length: 255 }).notNull(),
-    description: text('description'),
-    position: integer('position').notNull().default(0),
+    currency: varchar('currency', { length: 3 }).notNull().default('USD'),
+    timezone: varchar('timezone', { length: 100 }).notNull().default('UTC'),
+    isActive: boolean('is_active').notNull().default(true),
+    deletedAt: timestamp('deleted_at'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
-  (t) => [unique('categories_store_slug_unique').on(t.storeId, t.slug)],
+  (t) => [unique('stores_org_slug_unique').on(t.organizationId, t.slug)],
 );
 
-export type Category = typeof categories.$inferSelect;
-export type NewCategory = typeof categories.$inferInsert;
+export type Store = typeof stores.$inferSelect;
+export type NewStore = typeof stores.$inferInsert;

@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { TenantCreatedEvent } from '../../../shared/events/events';
 import { TenantService } from './tenant.service';
+import { StoreService } from './store.service';
 import { WorkosAuthService } from '../../auth/services/workos-auth.service';
 import { ApiKeyService } from '../../auth/services/api-key.service';
 
@@ -11,6 +12,7 @@ export class TenantProvisioningService {
 
   constructor(
     private readonly tenantService: TenantService,
+    private readonly storeService: StoreService,
     private readonly workosAuth: WorkosAuthService,
     private readonly apiKeyService: ApiKeyService,
   ) {}
@@ -35,14 +37,19 @@ export class TenantProvisioningService {
         name: event.name,
       });
 
+      const store = await this.storeService.create(org.id, {
+        name: 'Default Store',
+      });
+
       const { rawKey } = await this.apiKeyService.generate(
         org.id,
+        store.id,
         'Default API Key',
         event.userId,
       );
 
       this.logger.log(
-        `Tenant provisioned: orgId=${org.id} — save this API key: ${rawKey}`,
+        `Tenant provisioned: orgId=${org.id} storeId=${store.id} — save this API key: ${rawKey}`,
       );
     } catch (error) {
       this.logger.error(

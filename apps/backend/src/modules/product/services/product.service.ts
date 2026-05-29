@@ -22,6 +22,7 @@ import type { CreateVariantDto } from '../dto/create-variant.dto';
 import type { UpdateVariantDto } from '../dto/update-variant.dto';
 import type { ProductFilterDto } from '../dto/product-filter.dto';
 import type { TenantContext } from '../../../shared/tenant/tenant-context';
+import { requireStoreContext } from '../../../shared/tenant/tenant.util';
 import type { Product, ProductVariant } from '../../../shared/database/schema';
 import type { productMedia } from '../../../shared/database/schema';
 
@@ -38,14 +39,15 @@ export class ProductService {
     dto: CreateProductDto,
     tenant: TenantContext,
   ): Promise<ProductDetail> {
-    const { organizationId } = tenant;
+    const { organizationId, storeId } = requireStoreContext(tenant);
 
     const slug = await generateUniqueSlug(dto.name, (s) =>
-      this.productRepo.slugExists(s, organizationId),
+      this.productRepo.slugExists(s, organizationId, storeId),
     );
 
     const product = await this.productRepo.create({
       organizationId,
+      storeId,
       name: dto.name,
       slug,
       description: dto.description,
@@ -61,6 +63,7 @@ export class ProductService {
         const optDto = dto.options[i];
         const option = await this.productRepo.createOption({
           organizationId,
+          storeId,
           productId: product.id,
           name: optDto.name,
           position: optDto.position ?? i,
@@ -70,6 +73,7 @@ export class ProductService {
           for (let j = 0; j < optDto.values.length; j++) {
             await this.productRepo.createOptionValue({
               organizationId,
+              storeId,
               optionId: option.id,
               value: optDto.values[j].value,
               position: optDto.values[j].position ?? j,
@@ -84,6 +88,7 @@ export class ProductService {
         await this.createVariantInternal(
           product.id,
           organizationId,
+          storeId,
           dto.variants[i],
           i,
         );
@@ -96,12 +101,13 @@ export class ProductService {
 
     this.eventEmitter.emit(
       'product.created',
-      new ProductCreatedEvent(product.id, organizationId),
+      new ProductCreatedEvent(product.id, organizationId, storeId),
     );
 
     const detail = await this.productRepo.findDetail(
       product.id,
       organizationId,
+      storeId,
     );
     if (!detail)
       throw new NotFoundException('Product not found after creation');
@@ -113,8 +119,12 @@ export class ProductService {
     dto: UpdateProductDto,
     tenant: TenantContext,
   ): Promise<ProductDetail> {
-    const { organizationId } = tenant;
-    const existing = await this.productRepo.findById(id, organizationId);
+    const { organizationId, storeId } = requireStoreContext(tenant);
+    const existing = await this.productRepo.findById(
+      id,
+      organizationId,
+      storeId,
+    );
     if (!existing || existing.deletedAt) {
       throw new NotFoundException('Product not found');
     }
@@ -124,7 +134,7 @@ export class ProductService {
     if (dto.name && dto.name !== existing.name) {
       patch.name = dto.name;
       patch.slug = await generateUniqueSlug(dto.name, (s) =>
-        this.productRepo.slugExists(s, organizationId),
+        this.productRepo.slugExists(s, organizationId, storeId),
       );
     }
     if (dto.description !== undefined) patch.description = dto.description;
@@ -136,7 +146,7 @@ export class ProductService {
       patch.seoDescription = dto.seoDescription;
 
     if (Object.keys(patch).length > 0) {
-      await this.productRepo.update(id, organizationId, patch);
+      await this.productRepo.update(id, organizationId, storeId, patch);
     }
 
     if (dto.categoryIds !== undefined) {
@@ -145,24 +155,32 @@ export class ProductService {
 
     this.eventEmitter.emit(
       'product.updated',
-      new ProductUpdatedEvent(id, organizationId),
+      new ProductUpdatedEvent(id, organizationId, storeId),
     );
 
-    const detail = await this.productRepo.findDetail(id, organizationId);
+    const detail = await this.productRepo.findDetail(
+      id,
+      organizationId,
+      storeId,
+    );
     if (!detail) throw new NotFoundException('Product not found after update');
     return detail;
   }
 
   async softDelete(id: string, tenant: TenantContext): Promise<void> {
-    const { organizationId } = tenant;
-    const existing = await this.productRepo.findById(id, organizationId);
+    const { organizationId, storeId } = requireStoreContext(tenant);
+    const existing = await this.productRepo.findById(
+      id,
+      organizationId,
+      storeId,
+    );
     if (!existing || existing.deletedAt) {
       throw new NotFoundException('Product not found');
     }
-    await this.productRepo.softDelete(id, organizationId);
+    await this.productRepo.softDelete(id, organizationId, storeId);
     this.eventEmitter.emit(
       'product.deleted',
-      new ProductDeletedEvent(id, organizationId),
+      new ProductDeletedEvent(id, organizationId, storeId),
     );
   }
 
@@ -170,24 +188,33 @@ export class ProductService {
     filter: ProductFilterDto,
     tenant: TenantContext,
   ): Promise<PaginatedProducts> {
-    return this.productRepo.findWithFilters(filter, tenant.organizationId);
+    const { organizationId, storeId } = requireStoreContext(tenant);
+    return this.productRepo.findWithFilters(filter, organizationId, storeId);
   }
 
   async getDetail(id: string, tenant: TenantContext): Promise<ProductDetail> {
-    const detail = await this.productRepo.findDetail(id, tenant.organizationId);
+    const { organizationId, storeId } = requireStoreContext(tenant);
+    const detail = await this.productRepo.findDetail(
+      id,
+      organizationId,
+      storeId,
+    );
     if (!detail) throw new NotFoundException('Product not found');
     return detail;
   }
 
   async getBySlug(slug: string, tenant: TenantContext): Promise<ProductDetail> {
+    const { organizationId, storeId } = requireStoreContext(tenant);
     const product = await this.productRepo.findBySlug(
       slug,
-      tenant.organizationId,
+      organizationId,
+      storeId,
     );
     if (!product) throw new NotFoundException('Product not found');
     const detail = await this.productRepo.findDetail(
       product.id,
-      tenant.organizationId,
+      organizationId,
+      storeId,
     );
     if (!detail) throw new NotFoundException('Product not found');
     return detail;
@@ -198,12 +225,16 @@ export class ProductService {
     dto: CreateVariantDto,
     tenant: TenantContext,
   ): Promise<ProductVariant> {
-    const { organizationId } = tenant;
-    const product = await this.productRepo.findById(productId, organizationId);
+    const { organizationId, storeId } = requireStoreContext(tenant);
+    const product = await this.productRepo.findById(
+      productId,
+      organizationId,
+      storeId,
+    );
     if (!product || product.deletedAt) {
       throw new NotFoundException('Product not found');
     }
-    return this.createVariantInternal(product.id, organizationId, dto);
+    return this.createVariantInternal(product.id, organizationId, storeId, dto);
   }
 
   async updateVariant(
@@ -212,8 +243,12 @@ export class ProductService {
     dto: UpdateVariantDto,
     tenant: TenantContext,
   ): Promise<ProductVariant> {
-    const { organizationId } = tenant;
-    const product = await this.productRepo.findById(productId, organizationId);
+    const { organizationId, storeId } = requireStoreContext(tenant);
+    const product = await this.productRepo.findById(
+      productId,
+      organizationId,
+      storeId,
+    );
     if (!product || product.deletedAt) {
       throw new NotFoundException('Product not found');
     }
@@ -221,6 +256,7 @@ export class ProductService {
     const updated = await this.productRepo.updateVariant(
       variantId,
       organizationId,
+      storeId,
       dto,
     );
     if (!updated) throw new NotFoundException('Variant not found');
@@ -239,18 +275,26 @@ export class ProductService {
     variantId: string,
     tenant: TenantContext,
   ): Promise<void> {
-    const { organizationId } = tenant;
-    const product = await this.productRepo.findById(productId, organizationId);
+    const { organizationId, storeId } = requireStoreContext(tenant);
+    const product = await this.productRepo.findById(
+      productId,
+      organizationId,
+      storeId,
+    );
     if (!product || product.deletedAt) {
       throw new NotFoundException('Product not found');
     }
 
-    const detail = await this.productRepo.findDetail(productId, organizationId);
+    const detail = await this.productRepo.findDetail(
+      productId,
+      organizationId,
+      storeId,
+    );
     if (detail && detail.variants.length <= 1) {
       throw new BadRequestException('Product must have at least one variant');
     }
 
-    await this.productRepo.deleteVariant(variantId, organizationId);
+    await this.productRepo.deleteVariant(variantId, organizationId, storeId);
   }
 
   async addMedia(
@@ -264,13 +308,18 @@ export class ProductService {
       variantId?: string;
     },
   ): Promise<ProductMedia> {
-    const { organizationId } = tenant;
-    const product = await this.productRepo.findById(productId, organizationId);
+    const { organizationId, storeId } = requireStoreContext(tenant);
+    const product = await this.productRepo.findById(
+      productId,
+      organizationId,
+      storeId,
+    );
     if (!product || product.deletedAt) {
       throw new NotFoundException('Product not found');
     }
     return this.productRepo.addMedia({
       organizationId,
+      storeId,
       productId,
       url,
       ...options,
@@ -282,12 +331,16 @@ export class ProductService {
     mediaId: string,
     tenant: TenantContext,
   ): Promise<void> {
-    const { organizationId } = tenant;
-    const product = await this.productRepo.findById(productId, organizationId);
+    const { organizationId, storeId } = requireStoreContext(tenant);
+    const product = await this.productRepo.findById(
+      productId,
+      organizationId,
+      storeId,
+    );
     if (!product || product.deletedAt) {
       throw new NotFoundException('Product not found');
     }
-    await this.productRepo.deleteMedia(mediaId, organizationId);
+    await this.productRepo.deleteMedia(mediaId, organizationId, storeId);
   }
 
   async reorderMedia(
@@ -295,21 +348,32 @@ export class ProductService {
     orderedIds: string[],
     tenant: TenantContext,
   ): Promise<void> {
-    const { organizationId } = tenant;
-    const product = await this.productRepo.findById(productId, organizationId);
+    const { organizationId, storeId } = requireStoreContext(tenant);
+    const product = await this.productRepo.findById(
+      productId,
+      organizationId,
+      storeId,
+    );
     if (!product || product.deletedAt) {
       throw new NotFoundException('Product not found');
     }
-    await this.productRepo.reorderMedia(productId, organizationId, orderedIds);
+    await this.productRepo.reorderMedia(
+      productId,
+      organizationId,
+      storeId,
+      orderedIds,
+    );
   }
 
   async findMany(
     filter: ProductFilterDto,
     tenant: TenantContext,
   ): Promise<Product[]> {
+    const { organizationId, storeId } = requireStoreContext(tenant);
     const result = await this.productRepo.findWithFilters(
       filter,
-      tenant.organizationId,
+      organizationId,
+      storeId,
     );
     return result.items;
   }
@@ -317,6 +381,7 @@ export class ProductService {
   private async createVariantInternal(
     productId: string,
     organizationId: string,
+    storeId: string,
     dto: {
       sku: string;
       name?: string;
@@ -331,13 +396,18 @@ export class ProductService {
     },
     defaultPosition = 0,
   ): Promise<ProductVariant> {
-    const skuTaken = await this.productRepo.skuExists(dto.sku, organizationId);
+    const skuTaken = await this.productRepo.skuExists(
+      dto.sku,
+      organizationId,
+      storeId,
+    );
     if (skuTaken) {
       throw new ConflictException(`SKU "${dto.sku}" already exists`);
     }
 
     const variant = await this.productRepo.createVariant({
       organizationId,
+      storeId,
       productId,
       sku: dto.sku,
       name: dto.name,

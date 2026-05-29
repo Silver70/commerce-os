@@ -26,6 +26,7 @@ import {
   UpdateShippingMethodDto,
 } from '../dto/create-shipping-method.dto';
 import type { TenantContext } from '../../../shared/tenant/tenant-context';
+import { requireStoreContext } from '../../../shared/tenant/tenant.util';
 
 @ApiTags('Shipping')
 @Controller('admin/shipping')
@@ -40,7 +41,8 @@ export class AdminShippingController {
   @ApiOperation({ summary: 'List shipping zones' })
   @ApiResponse({ status: 200 })
   listZones(@CurrentTenant() tenant: TenantContext) {
-    return this.shippingService.listZones(tenant.organizationId);
+    const { organizationId, storeId } = requireStoreContext(tenant);
+    return this.shippingService.listZones(organizationId, storeId);
   }
 
   @Post('zones')
@@ -51,7 +53,8 @@ export class AdminShippingController {
     @Body() dto: CreateShippingZoneDto,
     @CurrentTenant() tenant: TenantContext,
   ) {
-    return this.shippingService.createZone(dto, tenant.organizationId);
+    const { organizationId, storeId } = requireStoreContext(tenant);
+    return this.shippingService.createZone(dto, organizationId, storeId);
   }
 
   @Patch('zones/:id')
@@ -63,7 +66,8 @@ export class AdminShippingController {
     @Body() dto: UpdateShippingZoneDto,
     @CurrentTenant() tenant: TenantContext,
   ) {
-    return this.shippingService.updateZone(id, dto, tenant.organizationId);
+    const { organizationId, storeId } = requireStoreContext(tenant);
+    return this.shippingService.updateZone(id, dto, organizationId, storeId);
   }
 
   @Delete('zones/:id')
@@ -72,7 +76,8 @@ export class AdminShippingController {
   @ApiOperation({ summary: 'Delete a shipping zone' })
   @ApiResponse({ status: 204 })
   deleteZone(@Param('id') id: string, @CurrentTenant() tenant: TenantContext) {
-    return this.shippingService.deleteZone(id, tenant.organizationId);
+    const { organizationId, storeId } = requireStoreContext(tenant);
+    return this.shippingService.deleteZone(id, organizationId, storeId);
   }
 
   // ─── Methods ──────────────────────────────────────────────────────────────────
@@ -85,7 +90,8 @@ export class AdminShippingController {
     @CurrentTenant() tenant: TenantContext,
     @Query('zoneId') zoneId?: string,
   ) {
-    return this.shippingService.listMethods(tenant.organizationId, zoneId);
+    const { organizationId, storeId } = requireStoreContext(tenant);
+    return this.shippingService.listMethods(organizationId, storeId, zoneId);
   }
 
   @Post('methods')
@@ -96,7 +102,8 @@ export class AdminShippingController {
     @Body() dto: CreateShippingMethodDto,
     @CurrentTenant() tenant: TenantContext,
   ) {
-    return this.shippingService.createMethod(dto, tenant.organizationId);
+    const { organizationId, storeId } = requireStoreContext(tenant);
+    return this.shippingService.createMethod(dto, organizationId, storeId);
   }
 
   @Patch('methods/:id')
@@ -108,7 +115,8 @@ export class AdminShippingController {
     @Body() dto: UpdateShippingMethodDto,
     @CurrentTenant() tenant: TenantContext,
   ) {
-    return this.shippingService.updateMethod(id, dto, tenant.organizationId);
+    const { organizationId, storeId } = requireStoreContext(tenant);
+    return this.shippingService.updateMethod(id, dto, organizationId, storeId);
   }
 
   @Delete('methods/:id')
@@ -120,6 +128,7 @@ export class AdminShippingController {
     @Param('id') id: string,
     @CurrentTenant() tenant: TenantContext,
   ) {
-    return this.shippingService.deleteMethod(id, tenant.organizationId);
+    const { organizationId, storeId } = requireStoreContext(tenant);
+    return this.shippingService.deleteMethod(id, organizationId, storeId);
   }
 }

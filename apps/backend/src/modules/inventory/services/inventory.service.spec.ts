@@ -5,6 +5,7 @@ import type { AuditService } from '../../audit/services/audit.service';
 import type { InventoryItem } from '../../../shared/database/schema';
 
 const orgId = 'org-1';
+const storeId = 'store-1';
 
 function makeInventoryItem(
   overrides: Partial<InventoryItem> = {},
@@ -12,6 +13,7 @@ function makeInventoryItem(
   return {
     id: 'inv-1',
     organizationId: orgId,
+    storeId,
     variantId: 'variant-1',
     quantity: 10,
     reserved: 2,
@@ -26,6 +28,7 @@ function makeReservation(overrides: Record<string, unknown> = {}) {
   return {
     id: 'res-1',
     organizationId: orgId,
+    storeId,
     inventoryItemId: 'inv-1',
     variantId: 'variant-1',
     quantity: 2,
@@ -80,7 +83,7 @@ describe('InventoryService', () => {
       const { service } = buildService({
         findByVariantId: jest.fn().mockResolvedValue(null),
       });
-      const result = await service.checkAvailability('v1', 1, orgId);
+      const result = await service.checkAvailability('v1', 1, orgId, storeId);
       expect(result).toBe(false);
     });
 
@@ -89,7 +92,7 @@ describe('InventoryService', () => {
       const { service } = buildService({
         findByVariantId: jest.fn().mockResolvedValue(item),
       });
-      const result = await service.checkAvailability('v1', 7, orgId);
+      const result = await service.checkAvailability('v1', 7, orgId, storeId);
       expect(result).toBe(true);
     });
 
@@ -98,7 +101,7 @@ describe('InventoryService', () => {
       const { service } = buildService({
         findByVariantId: jest.fn().mockResolvedValue(item),
       });
-      const result = await service.checkAvailability('v1', 9, orgId);
+      const result = await service.checkAvailability('v1', 9, orgId, storeId);
       expect(result).toBe(false);
     });
 
@@ -111,7 +114,7 @@ describe('InventoryService', () => {
       const { service } = buildService({
         findByVariantId: jest.fn().mockResolvedValue(item),
       });
-      const result = await service.checkAvailability('v1', 100, orgId);
+      const result = await service.checkAvailability('v1', 100, orgId, storeId);
       expect(result).toBe(true);
     });
   });
@@ -121,7 +124,7 @@ describe('InventoryService', () => {
       const { service } = buildService({
         findByVariantId: jest.fn().mockResolvedValue(null),
       });
-      await expect(service.reserve('v1', 1, orgId)).rejects.toThrow(
+      await expect(service.reserve('v1', 1, orgId, storeId)).rejects.toThrow(
         NotFoundException,
       );
     });
@@ -131,7 +134,7 @@ describe('InventoryService', () => {
       const { service } = buildService({
         findByVariantId: jest.fn().mockResolvedValue(item),
       });
-      await expect(service.reserve('v1', 2, orgId)).rejects.toThrow(
+      await expect(service.reserve('v1', 2, orgId, storeId)).rejects.toThrow(
         BadRequestException,
       );
     });
@@ -143,7 +146,7 @@ describe('InventoryService', () => {
         findByVariantId: jest.fn().mockResolvedValue(item),
         createReservation: jest.fn().mockResolvedValue(res),
       });
-      const result = await service.reserve('v1', 5, orgId, 'cart-1');
+      const result = await service.reserve('v1', 5, orgId, storeId, 'cart-1');
       expect(repo.createReservation).toHaveBeenCalledWith(
         expect.objectContaining({ quantity: 5, cartId: 'cart-1' }),
       );
@@ -156,7 +159,7 @@ describe('InventoryService', () => {
       const { service } = buildService({
         findReservation: jest.fn().mockResolvedValue(null),
       });
-      await expect(service.release('res-1', orgId)).rejects.toThrow(
+      await expect(service.release('res-1', orgId, storeId)).rejects.toThrow(
         NotFoundException,
       );
     });
@@ -166,7 +169,7 @@ describe('InventoryService', () => {
       const { service, repo } = buildService({
         findReservation: jest.fn().mockResolvedValue(res),
       });
-      await service.release('res-1', orgId);
+      await service.release('res-1', orgId, storeId);
       expect(repo.updateReservationStatus).not.toHaveBeenCalled();
     });
 
@@ -175,7 +178,7 @@ describe('InventoryService', () => {
       const { service, repo } = buildService({
         findReservation: jest.fn().mockResolvedValue(res),
       });
-      await service.release('res-1', orgId);
+      await service.release('res-1', orgId, storeId);
       expect(repo.updateReservationStatus).toHaveBeenCalledWith(
         'res-1',
         'released',
@@ -190,7 +193,7 @@ describe('InventoryService', () => {
       const { service, repo } = buildService({
         findReservation: jest.fn().mockResolvedValue(res),
       });
-      await service.convert('res-1', orgId);
+      await service.convert('res-1', orgId, storeId);
       expect(repo.updateReservationStatus).toHaveBeenCalledWith(
         'res-1',
         'converted',
@@ -205,7 +208,7 @@ describe('InventoryService', () => {
         findByVariantId: jest.fn().mockResolvedValue(null),
       });
       await expect(
-        service.adjust('v1', 5, 'restock', 'admin-1', orgId),
+        service.adjust('v1', 5, 'restock', 'admin-1', orgId, storeId),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -220,7 +223,7 @@ describe('InventoryService', () => {
         findByVariantId: jest.fn().mockResolvedValue(item),
         adjustQuantity: jest.fn().mockResolvedValue(updated),
       });
-      await service.adjust('v1', -6, 'sold', 'admin-1', orgId);
+      await service.adjust('v1', -6, 'sold', 'admin-1', orgId, storeId);
       expect(eventEmitter.emit).toHaveBeenCalledWith(
         'inventory.low',
         expect.anything(),
@@ -238,7 +241,7 @@ describe('InventoryService', () => {
         findByVariantId: jest.fn().mockResolvedValue(item),
         adjustQuantity: jest.fn().mockResolvedValue(updated),
       });
-      await service.adjust('v1', -5, 'sold', 'admin-1', orgId);
+      await service.adjust('v1', -5, 'sold', 'admin-1', orgId, storeId);
       expect(eventEmitter.emit).not.toHaveBeenCalled();
     });
   });

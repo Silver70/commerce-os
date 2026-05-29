@@ -34,11 +34,16 @@ export class RefundService {
     reason: string | undefined,
     adminId: string,
     orgId: string,
+    storeId: string,
   ): Promise<Refund> {
-    const order = await this.orderRepo.findById(orderId, orgId);
+    const order = await this.orderRepo.findById(orderId, orgId, storeId);
     if (!order) throw new NotFoundException('Order not found');
 
-    const payment = await this.orderRepo.findPaymentByOrderId(orderId, orgId);
+    const payment = await this.orderRepo.findPaymentByOrderId(
+      orderId,
+      orgId,
+      storeId,
+    );
     if (!payment) throw new NotFoundException('No payment found for order');
 
     const validRefundableStatuses: Array<typeof order.status> = [
@@ -77,6 +82,7 @@ export class RefundService {
 
     const refund = await this.orderRepo.createRefund({
       organizationId: orgId,
+      storeId,
       orderId,
       paymentId: payment.id,
       amount,
@@ -97,7 +103,7 @@ export class RefundService {
       .where(eq(payments.id, payment.id));
 
     if (isFullRefund) {
-      await this.orderRepo.updateStatus(orderId, orgId, 'refunded');
+      await this.orderRepo.updateStatus(orderId, orgId, storeId, 'refunded');
     }
 
     // Restore inventory for each line item
@@ -111,6 +117,7 @@ export class RefundService {
             `Refund for order ${order.orderNumber}`,
             adminId,
             orgId,
+            storeId,
           )
           .catch(() => {
             // Non-fatal: inventory restore failure should not block the refund
@@ -120,6 +127,7 @@ export class RefundService {
 
     await this.orderRepo.addTimelineEntry({
       organizationId: orgId,
+      storeId,
       orderId,
       eventType: 'refund_issued',
       message: `Refund of ${amount} ${payment.currency} issued${reason ? `: ${reason}` : ''}`,
@@ -135,11 +143,12 @@ export class RefundService {
       actorId: adminId,
       changes: { amount, reason, refundId: refund.id, stripeRefundId },
       organizationId: orgId,
+      storeId,
     });
 
     this.eventEmitter.emit(
       'refund.issued',
-      new RefundIssuedEvent(refund.id, orderId, orgId, amount),
+      new RefundIssuedEvent(refund.id, orderId, orgId, storeId, amount),
     );
 
     return refund;

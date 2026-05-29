@@ -18,13 +18,14 @@ export class SetRlsContextInterceptor implements NestInterceptor {
   async intercept(
     context: ExecutionContext,
     next: CallHandler,
-  ): Promise<Observable<any>> {
+  ): Promise<Observable<unknown>> {
     const request = context.switchToHttp().getRequest<Request>();
     const orgId = request.tenantContext?.organizationId;
+    const storeId = request.tenantContext?.storeId;
 
     if (orgId) {
       try {
-        await setRlsContext(this.db, orgId);
+        await setRlsContext(this.db, orgId, storeId);
       } catch {
         // RLS context setting is best-effort for non-transactional queries
       }

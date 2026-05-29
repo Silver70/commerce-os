@@ -19,13 +19,21 @@ export class CartService {
     private readonly discountRepo: DiscountRepository,
   ) {}
 
-  async createCart(orgId: string, customerId?: string): Promise<CartWithItems> {
-    const cart = await this.cartRepo.create(orgId, customerId);
+  async createCart(
+    orgId: string,
+    storeId: string,
+    customerId?: string,
+  ): Promise<CartWithItems> {
+    const cart = await this.cartRepo.create(orgId, storeId, customerId);
     return { ...cart, items: [] };
   }
 
-  async getCart(cartId: string, orgId: string): Promise<CartWithItems> {
-    const cart = await this.cartRepo.findWithItems(cartId, orgId);
+  async getCart(
+    cartId: string,
+    orgId: string,
+    storeId: string,
+  ): Promise<CartWithItems> {
+    const cart = await this.cartRepo.findWithItems(cartId, orgId, storeId);
     if (!cart) throw new NotFoundException('Cart not found');
     return cart;
   }
@@ -35,14 +43,15 @@ export class CartService {
     variantId: string,
     quantity: number,
     orgId: string,
+    storeId: string,
   ): Promise<CartWithItems> {
-    const cart = await this.cartRepo.findById(cartId, orgId);
+    const cart = await this.cartRepo.findById(cartId, orgId, storeId);
     if (!cart) throw new NotFoundException('Cart not found');
     if (cart.status !== 'active') {
       throw new UnprocessableEntityException('Cart is no longer active');
     }
 
-    const variant = await this.cartRepo.findVariant(variantId, orgId);
+    const variant = await this.cartRepo.findVariant(variantId, orgId, storeId);
     if (!variant) {
       throw new NotFoundException('Variant not found or not active');
     }
@@ -53,9 +62,10 @@ export class CartService {
       quantity,
       variant.price,
       orgId,
+      storeId,
     );
 
-    return this.recalculate(cartId, orgId);
+    return this.recalculate(cartId, orgId, storeId);
   }
 
   async updateItem(
@@ -63,77 +73,108 @@ export class CartService {
     itemId: string,
     quantity: number,
     orgId: string,
+    storeId: string,
   ): Promise<CartWithItems> {
-    const cart = await this.cartRepo.findById(cartId, orgId);
+    const cart = await this.cartRepo.findById(cartId, orgId, storeId);
     if (!cart) throw new NotFoundException('Cart not found');
     if (cart.status !== 'active') {
       throw new UnprocessableEntityException('Cart is no longer active');
     }
 
-    const item = await this.cartRepo.findItem(cartId, itemId, orgId);
+    const item = await this.cartRepo.findItem(cartId, itemId, orgId, storeId);
     if (!item) throw new NotFoundException('Cart item not found');
 
     if (quantity === 0) {
-      await this.cartRepo.removeItem(cartId, itemId, orgId);
+      await this.cartRepo.removeItem(cartId, itemId, orgId, storeId);
     } else {
-      await this.cartRepo.updateItemQuantity(cartId, itemId, quantity, orgId);
+      await this.cartRepo.updateItemQuantity(
+        cartId,
+        itemId,
+        quantity,
+        orgId,
+        storeId,
+      );
     }
 
-    return this.recalculate(cartId, orgId);
+    return this.recalculate(cartId, orgId, storeId);
   }
 
   async removeItem(
     cartId: string,
     itemId: string,
     orgId: string,
+    storeId: string,
   ): Promise<CartWithItems> {
-    const cart = await this.cartRepo.findById(cartId, orgId);
+    const cart = await this.cartRepo.findById(cartId, orgId, storeId);
     if (!cart) throw new NotFoundException('Cart not found');
     if (cart.status !== 'active') {
       throw new UnprocessableEntityException('Cart is no longer active');
     }
 
-    const item = await this.cartRepo.findItem(cartId, itemId, orgId);
+    const item = await this.cartRepo.findItem(cartId, itemId, orgId, storeId);
     if (!item) throw new NotFoundException('Cart item not found');
 
-    await this.cartRepo.removeItem(cartId, itemId, orgId);
-    return this.recalculate(cartId, orgId);
+    await this.cartRepo.removeItem(cartId, itemId, orgId, storeId);
+    return this.recalculate(cartId, orgId, storeId);
   }
 
   async applyCoupon(
     cartId: string,
     code: string,
     orgId: string,
+    storeId: string,
   ): Promise<CartWithItems> {
-    const cart = await this.cartRepo.findById(cartId, orgId);
+    const cart = await this.cartRepo.findById(cartId, orgId, storeId);
     if (!cart) throw new NotFoundException('Cart not found');
     if (cart.status !== 'active') {
       throw new UnprocessableEntityException('Cart is no longer active');
     }
 
     // Validate coupon exists before applying — full validation happens in recalculate
-    const coupon = await this.discountRepo.findCouponByCode(code, orgId);
+    const coupon = await this.discountRepo.findCouponByCode(
+      code,
+      orgId,
+      storeId,
+    );
     if (!coupon || !coupon.isActive) {
       throw new BadRequestException(`Coupon code "${code}" is not valid`);
     }
 
-    await this.cartRepo.setCoupon(cartId, orgId, coupon.id, coupon.code);
-    return this.recalculate(cartId, orgId);
+    await this.cartRepo.setCoupon(
+      cartId,
+      orgId,
+      storeId,
+      coupon.id,
+      coupon.code,
+    );
+    return this.recalculate(cartId, orgId, storeId);
   }
 
-  async removeCoupon(cartId: string, orgId: string): Promise<CartWithItems> {
-    const cart = await this.cartRepo.findById(cartId, orgId);
+  async removeCoupon(
+    cartId: string,
+    orgId: string,
+    storeId: string,
+  ): Promise<CartWithItems> {
+    const cart = await this.cartRepo.findById(cartId, orgId, storeId);
     if (!cart) throw new NotFoundException('Cart not found');
     if (cart.status !== 'active') {
       throw new UnprocessableEntityException('Cart is no longer active');
     }
 
-    await this.cartRepo.setCoupon(cartId, orgId, null, null);
-    return this.recalculate(cartId, orgId);
+    await this.cartRepo.setCoupon(cartId, orgId, storeId, null, null);
+    return this.recalculate(cartId, orgId, storeId);
   }
 
-  async recalculate(cartId: string, orgId: string): Promise<CartWithItems> {
-    const cartWithItems = await this.cartRepo.findWithItems(cartId, orgId);
+  async recalculate(
+    cartId: string,
+    orgId: string,
+    storeId: string,
+  ): Promise<CartWithItems> {
+    const cartWithItems = await this.cartRepo.findWithItems(
+      cartId,
+      orgId,
+      storeId,
+    );
     if (!cartWithItems) throw new NotFoundException('Cart not found');
 
     const { items, couponCode } = cartWithItems;
@@ -145,7 +186,7 @@ export class CartService {
     );
 
     if (items.length === 0) {
-      await this.cartRepo.updateTotals(cartId, orgId, {
+      await this.cartRepo.updateTotals(cartId, orgId, storeId, {
         subtotal: 0,
         discountAmount: 0,
         taxAmount: 0,
@@ -167,12 +208,13 @@ export class CartService {
       items,
       couponCode ?? null,
       orgId,
+      storeId,
     );
 
     const discountAmount = discountResult.totalDiscountAmount;
     const total = Math.max(0, subtract(subtotal, discountAmount));
 
-    const updated = await this.cartRepo.updateTotals(cartId, orgId, {
+    const updated = await this.cartRepo.updateTotals(cartId, orgId, storeId, {
       subtotal,
       discountAmount,
       taxAmount: 0,
@@ -188,20 +230,33 @@ export class CartService {
 
   async getOrCreateActiveCart(
     orgId: string,
+    storeId: string,
     customerId?: string,
   ): Promise<CartWithItems> {
     if (customerId) {
-      const existing = await this.cartRepo.findByCustomer(customerId, orgId);
+      const existing = await this.cartRepo.findByCustomer(
+        customerId,
+        orgId,
+        storeId,
+      );
       if (existing) {
-        const withItems = await this.cartRepo.findWithItems(existing.id, orgId);
+        const withItems = await this.cartRepo.findWithItems(
+          existing.id,
+          orgId,
+          storeId,
+        );
         if (withItems) return withItems;
       }
     }
-    return this.createCart(orgId, customerId);
+    return this.createCart(orgId, storeId, customerId);
   }
 
-  async markConverted(cartId: string, orgId: string): Promise<Cart> {
-    const updated = await this.cartRepo.markConverted(cartId, orgId);
+  async markConverted(
+    cartId: string,
+    orgId: string,
+    storeId: string,
+  ): Promise<Cart> {
+    const updated = await this.cartRepo.markConverted(cartId, orgId, storeId);
     if (!updated) throw new NotFoundException('Cart not found');
     return updated;
   }

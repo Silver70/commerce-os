@@ -8,6 +8,7 @@ import {
   pgEnum,
 } from 'drizzle-orm/pg-core';
 import { organizations } from './organizations.schema';
+import { stores } from './stores.schema';
 
 export const discountTypeEnum = pgEnum('discount_type', [
   'percentage',
@@ -25,6 +26,9 @@ export const discounts = pgTable('discounts', {
   organizationId: uuid('organization_id')
     .notNull()
     .references(() => organizations.id, { onDelete: 'cascade' }),
+  storeId: uuid('store_id')
+    .notNull()
+    .references(() => stores.id, { onDelete: 'cascade' }),
   name: varchar('name', { length: 255 }).notNull(),
   type: discountTypeEnum('type').notNull(),
   value: integer('value').notNull(),

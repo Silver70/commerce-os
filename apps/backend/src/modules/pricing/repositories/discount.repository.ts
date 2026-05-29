@@ -16,19 +16,34 @@ export class DiscountRepository {
 
   // ─── Discounts ───────────────────────────────────────────────────────────────
 
-  async findManyDiscounts(orgId: string): Promise<Discount[]> {
+  async findManyDiscounts(orgId: string, storeId: string): Promise<Discount[]> {
     return this.db
       .select()
       .from(discounts)
-      .where(eq(discounts.organizationId, orgId))
+      .where(
+        and(
+          eq(discounts.organizationId, orgId),
+          eq(discounts.storeId, storeId),
+        ),
+      )
       .orderBy(discounts.createdAt);
   }
 
-  async findDiscountById(id: string, orgId: string): Promise<Discount | null> {
+  async findDiscountById(
+    id: string,
+    orgId: string,
+    storeId: string,
+  ): Promise<Discount | null> {
     const [row] = await this.db
       .select()
       .from(discounts)
-      .where(and(eq(discounts.id, id), eq(discounts.organizationId, orgId)))
+      .where(
+        and(
+          eq(discounts.id, id),
+          eq(discounts.organizationId, orgId),
+          eq(discounts.storeId, storeId),
+        ),
+      )
       .limit(1);
     return row ?? null;
   }
@@ -43,24 +58,44 @@ export class DiscountRepository {
   async updateDiscount(
     id: string,
     orgId: string,
-    data: Partial<Omit<NewDiscount, 'id' | 'organizationId' | 'createdAt'>>,
+    storeId: string,
+    data: Partial<
+      Omit<NewDiscount, 'id' | 'organizationId' | 'storeId' | 'createdAt'>
+    >,
   ): Promise<Discount | null> {
     const [row] = await this.db
       .update(discounts)
       .set({ ...data, updatedAt: new Date() })
-      .where(and(eq(discounts.id, id), eq(discounts.organizationId, orgId)))
+      .where(
+        and(
+          eq(discounts.id, id),
+          eq(discounts.organizationId, orgId),
+          eq(discounts.storeId, storeId),
+        ),
+      )
       .returning();
     return row ?? null;
   }
 
-  async deleteDiscount(id: string, orgId: string): Promise<void> {
+  async deleteDiscount(
+    id: string,
+    orgId: string,
+    storeId: string,
+  ): Promise<void> {
     await this.db
       .delete(discounts)
-      .where(and(eq(discounts.id, id), eq(discounts.organizationId, orgId)));
+      .where(
+        and(
+          eq(discounts.id, id),
+          eq(discounts.organizationId, orgId),
+          eq(discounts.storeId, storeId),
+        ),
+      );
   }
 
   async findActiveProductDiscounts(
     orgId: string,
+    storeId: string,
     productIds: string[],
   ): Promise<Discount[]> {
     if (productIds.length === 0) return [];
@@ -71,6 +106,7 @@ export class DiscountRepository {
       .where(
         and(
           eq(discounts.organizationId, orgId),
+          eq(discounts.storeId, storeId),
           eq(discounts.isActive, true),
           eq(discounts.scope, 'product'),
           inArray(discounts.scopeId, productIds),
@@ -82,6 +118,7 @@ export class DiscountRepository {
 
   async findActiveCategoryDiscounts(
     orgId: string,
+    storeId: string,
     categoryIds: string[],
   ): Promise<Discount[]> {
     if (categoryIds.length === 0) return [];
@@ -92,6 +129,7 @@ export class DiscountRepository {
       .where(
         and(
           eq(discounts.organizationId, orgId),
+          eq(discounts.storeId, storeId),
           eq(discounts.isActive, true),
           eq(discounts.scope, 'category'),
           inArray(discounts.scopeId, categoryIds),
@@ -101,7 +139,10 @@ export class DiscountRepository {
       );
   }
 
-  async findActiveOrderDiscounts(orgId: string): Promise<Discount[]> {
+  async findActiveOrderDiscounts(
+    orgId: string,
+    storeId: string,
+  ): Promise<Discount[]> {
     const now = new Date();
     return this.db
       .select()
@@ -109,6 +150,7 @@ export class DiscountRepository {
       .where(
         and(
           eq(discounts.organizationId, orgId),
+          eq(discounts.storeId, storeId),
           eq(discounts.isActive, true),
           eq(discounts.scope, 'order'),
           or(isNull(discounts.startsAt), lte(discounts.startsAt, now)),
@@ -119,30 +161,47 @@ export class DiscountRepository {
 
   // ─── Coupons ─────────────────────────────────────────────────────────────────
 
-  async findManyCoupons(orgId: string): Promise<Coupon[]> {
+  async findManyCoupons(orgId: string, storeId: string): Promise<Coupon[]> {
     return this.db
       .select()
       .from(coupons)
-      .where(eq(coupons.organizationId, orgId))
+      .where(
+        and(eq(coupons.organizationId, orgId), eq(coupons.storeId, storeId)),
+      )
       .orderBy(coupons.createdAt);
   }
 
-  async findCouponById(id: string, orgId: string): Promise<Coupon | null> {
+  async findCouponById(
+    id: string,
+    orgId: string,
+    storeId: string,
+  ): Promise<Coupon | null> {
     const [row] = await this.db
       .select()
       .from(coupons)
-      .where(and(eq(coupons.id, id), eq(coupons.organizationId, orgId)))
+      .where(
+        and(
+          eq(coupons.id, id),
+          eq(coupons.organizationId, orgId),
+          eq(coupons.storeId, storeId),
+        ),
+      )
       .limit(1);
     return row ?? null;
   }
 
-  async findCouponByCode(code: string, orgId: string): Promise<Coupon | null> {
+  async findCouponByCode(
+    code: string,
+    orgId: string,
+    storeId: string,
+  ): Promise<Coupon | null> {
     const [row] = await this.db
       .select()
       .from(coupons)
       .where(
         and(
           eq(coupons.organizationId, orgId),
+          eq(coupons.storeId, storeId),
           eq(sql`UPPER(${coupons.code})`, code.toUpperCase()),
         ),
       )
@@ -163,8 +222,12 @@ export class DiscountRepository {
   async updateCoupon(
     id: string,
     orgId: string,
+    storeId: string,
     data: Partial<
-      Omit<NewCoupon, 'id' | 'organizationId' | 'createdAt' | 'usageCount'>
+      Omit<
+        NewCoupon,
+        'id' | 'organizationId' | 'storeId' | 'createdAt' | 'usageCount'
+      >
     >,
   ): Promise<Coupon | null> {
     const patch =
@@ -174,15 +237,31 @@ export class DiscountRepository {
     const [row] = await this.db
       .update(coupons)
       .set(patch)
-      .where(and(eq(coupons.id, id), eq(coupons.organizationId, orgId)))
+      .where(
+        and(
+          eq(coupons.id, id),
+          eq(coupons.organizationId, orgId),
+          eq(coupons.storeId, storeId),
+        ),
+      )
       .returning();
     return row ?? null;
   }
 
-  async deleteCoupon(id: string, orgId: string): Promise<void> {
+  async deleteCoupon(
+    id: string,
+    orgId: string,
+    storeId: string,
+  ): Promise<void> {
     await this.db
       .delete(coupons)
-      .where(and(eq(coupons.id, id), eq(coupons.organizationId, orgId)));
+      .where(
+        and(
+          eq(coupons.id, id),
+          eq(coupons.organizationId, orgId),
+          eq(coupons.storeId, storeId),
+        ),
+      );
   }
 
   async incrementCouponUsage(id: string): Promise<void> {

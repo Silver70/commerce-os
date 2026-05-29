@@ -9,6 +9,7 @@ import type { DiscountRepository } from '../repositories/discount.repository';
 import type { Discount, Coupon } from '../../../shared/database/schema';
 
 const orgId = 'org-1';
+const storeId = 'store-1';
 
 function makeItem(
   overrides: Partial<CartItemWithVariant> = {},
@@ -21,6 +22,7 @@ function makeItem(
     unitPrice: 1000,
     totalPrice: 1000,
     organizationId: orgId,
+    storeId,
     variant: {
       id: 'variant-1',
       productId: 'product-1',
@@ -38,6 +40,7 @@ function makeDiscount(overrides: Partial<Discount> = {}): Discount {
   return {
     id: 'discount-1',
     organizationId: orgId,
+    storeId,
     name: '10% off',
     type: 'percentage',
     value: 1000,
@@ -57,6 +60,7 @@ function makeCoupon(overrides: Partial<Coupon> = {}): Coupon {
   return {
     id: 'coupon-1',
     organizationId: orgId,
+    storeId,
     code: 'SAVE10',
     type: 'percentage',
     value: 1000,
@@ -99,7 +103,7 @@ describe('PricingEngineService', () => {
   describe('applyDiscounts', () => {
     it('returns zeroed result for empty cart', async () => {
       const { service } = buildService();
-      const result = await service.applyDiscounts([], null, orgId);
+      const result = await service.applyDiscounts([], null, orgId, storeId);
       expect(result.totalDiscountAmount).toBe(0);
       expect(result.items).toHaveLength(0);
     });
@@ -113,7 +117,7 @@ describe('PricingEngineService', () => {
       const items = [
         makeItem({ quantity: 2, unitPrice: 1000, totalPrice: 2000 }),
       ];
-      const result = await service.applyDiscounts(items, null, orgId);
+      const result = await service.applyDiscounts(items, null, orgId, storeId);
 
       // 10% of 2000 = 200
       expect(result.orderDiscountAmount).toBe(200);
@@ -135,7 +139,7 @@ describe('PricingEngineService', () => {
       const items = [
         makeItem({ quantity: 1, unitPrice: 1000, totalPrice: 1000 }),
       ];
-      const result = await service.applyDiscounts(items, null, orgId);
+      const result = await service.applyDiscounts(items, null, orgId, storeId);
 
       expect(result.items[0].discountAmount).toBe(300);
       expect(result.items[0].discountedLineTotal).toBe(700);
@@ -156,7 +160,7 @@ describe('PricingEngineService', () => {
       const items = [
         makeItem({ quantity: 1, unitPrice: 500, totalPrice: 500 }),
       ];
-      const result = await service.applyDiscounts(items, null, orgId);
+      const result = await service.applyDiscounts(items, null, orgId, storeId);
 
       expect(result.items[0].discountedLineTotal).toBe(0);
       expect(result.items[0].discountAmount).toBe(500);
@@ -171,7 +175,12 @@ describe('PricingEngineService', () => {
       const items = [
         makeItem({ quantity: 1, unitPrice: 1000, totalPrice: 1000 }),
       ];
-      const result = await service.applyDiscounts(items, 'SAVE10', orgId);
+      const result = await service.applyDiscounts(
+        items,
+        'SAVE10',
+        orgId,
+        storeId,
+      );
 
       // 20% of 1000 = 200
       expect(result.couponDiscountAmount).toBe(200);
@@ -184,7 +193,12 @@ describe('PricingEngineService', () => {
       });
 
       const items = [makeItem()];
-      const result = await service.applyDiscounts(items, 'FREE_SHIP', orgId);
+      const result = await service.applyDiscounts(
+        items,
+        'FREE_SHIP',
+        orgId,
+        storeId,
+      );
 
       expect(result.isFreeShipping).toBe(true);
       expect(result.couponDiscountAmount).toBe(0);
@@ -197,7 +211,7 @@ describe('PricingEngineService', () => {
       });
 
       await expect(
-        service.applyDiscounts([makeItem()], 'SAVE10', orgId),
+        service.applyDiscounts([makeItem()], 'SAVE10', orgId, storeId),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -208,7 +222,7 @@ describe('PricingEngineService', () => {
       });
 
       await expect(
-        service.applyDiscounts([makeItem()], 'SAVE10', orgId),
+        service.applyDiscounts([makeItem()], 'SAVE10', orgId, storeId),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -222,7 +236,7 @@ describe('PricingEngineService', () => {
         makeItem({ quantity: 1, unitPrice: 1000, totalPrice: 1000 }),
       ];
       await expect(
-        service.applyDiscounts(items, 'SAVE10', orgId),
+        service.applyDiscounts(items, 'SAVE10', orgId, storeId),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -232,7 +246,7 @@ describe('PricingEngineService', () => {
       });
 
       await expect(
-        service.applyDiscounts([makeItem()], 'INVALID', orgId),
+        service.applyDiscounts([makeItem()], 'INVALID', orgId, storeId),
       ).rejects.toThrow(BadRequestException);
     });
   });
@@ -254,7 +268,12 @@ describe('PricingEngineService', () => {
         execute: jest.fn(),
       };
       const { service } = buildService({}, db);
-      const result = await service.calculateTax(pricedItems, address, orgId);
+      const result = await service.calculateTax(
+        pricedItems,
+        address,
+        orgId,
+        storeId,
+      );
       expect(result.taxAmount).toBe(0);
     });
 
@@ -262,6 +281,7 @@ describe('PricingEngineService', () => {
       const taxRate = {
         id: 'tax-1',
         organizationId: orgId,
+        storeId,
         countryCode: 'US',
         stateCode: null,
         rate: 725,
@@ -277,7 +297,12 @@ describe('PricingEngineService', () => {
         execute: jest.fn(),
       };
       const { service } = buildService({}, db);
-      const result = await service.calculateTax(pricedItems, address, orgId);
+      const result = await service.calculateTax(
+        pricedItems,
+        address,
+        orgId,
+        storeId,
+      );
       // 7.25% of 10000 = 725
       expect(result.taxAmount).toBe(725);
       expect(result.rateBasisPoints).toBe(725);
@@ -288,6 +313,7 @@ describe('PricingEngineService', () => {
       const taxRate = {
         id: 'tax-2',
         organizationId: orgId,
+        storeId,
         countryCode: 'US',
         stateCode: null,
         rate: 1000,
@@ -304,7 +330,12 @@ describe('PricingEngineService', () => {
       };
       const { service } = buildService({}, db);
       // 10% inclusive: tax = 10000 - 10000/(1.10) = 10000 - 9090.9 ≈ 909
-      const result = await service.calculateTax(pricedItems, address, orgId);
+      const result = await service.calculateTax(
+        pricedItems,
+        address,
+        orgId,
+        storeId,
+      );
       expect(result.isInclusive).toBe(true);
       expect(result.taxAmount).toBeGreaterThan(0);
       // round(10000 - 10000/1.10) = round(909.09) = 909

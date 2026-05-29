@@ -12,6 +12,7 @@ import { RbacGuard } from '../../auth/guards/rbac.guard';
 import { RequirePermission } from '../../auth/decorators/require-permission.decorator';
 import { CurrentTenant } from '../../auth/decorators/current-tenant.decorator';
 import type { TenantContext } from '../../../shared/tenant/tenant-context';
+import { requireStoreContext } from '../../../shared/tenant/tenant.util';
 import {
   DashboardService,
   type StatsPeriod,
@@ -47,6 +48,11 @@ export class AdminDashboardController {
     @Query() query: StatsQueryDto,
     @CurrentTenant() tenant: TenantContext,
   ) {
-    return this.dashboardService.getStats(tenant.organizationId, query.period);
+    const { organizationId, storeId } = requireStoreContext(tenant);
+    return this.dashboardService.getStats(
+      organizationId,
+      storeId,
+      query.period,
+    );
   }
 }

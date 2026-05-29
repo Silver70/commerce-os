@@ -1,5 +1,5 @@
 {
-  "id": "bb7ec892-5e6d-40e5-a818-0eed6f5aff11",
+  "id": "1f1afe53-9582-4a51-af02-4eb2e482c1ea",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -91,6 +91,108 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.stores": {
+      "name": "stores",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "slug": {
+          "name": "slug",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "currency": {
+          "name": "currency",
+          "type": "varchar(3)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'USD'"
+        },
+        "timezone": {
+          "name": "timezone",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'UTC'"
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "stores_organization_id_organizations_id_fk": {
+          "name": "stores_organization_id_organizations_id_fk",
+          "tableFrom": "stores",
+          "tableTo": "organizations",
+          "columnsFrom": [
+            "organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "stores_org_slug_unique": {
+          "name": "stores_org_slug_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "organization_id",
+            "slug"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.api_keys": {
       "name": "api_keys",
       "schema": "",
@@ -104,6 +206,12 @@
         },
         "organization_id": {
           "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "store_id": {
+          "name": "store_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -173,6 +281,19 @@
           ],
           "onDelete": "cascade",
           "onUpdate": "no action"
+        },
+        "api_keys_store_id_stores_id_fk": {
+          "name": "api_keys_store_id_stores_id_fk",
+          "tableFrom": "api_keys",
+          "tableTo": "stores",
+          "columnsFrom": [
+            "store_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -202,6 +323,12 @@
         },
         "organization_id": {
           "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "store_id": {
+          "name": "store_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -291,15 +418,28 @@
           ],
           "onDelete": "cascade",
           "onUpdate": "no action"
+        },
+        "products_store_id_stores_id_fk": {
+          "name": "products_store_id_stores_id_fk",
+          "tableFrom": "products",
+          "tableTo": "stores",
+          "columnsFrom": [
+            "store_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "products_org_slug_unique": {
-          "name": "products_org_slug_unique",
+        "products_store_slug_unique": {
+          "name": "products_store_slug_unique",
           "nullsNotDistinct": false,
           "columns": [
-            "organization_id",
+            "store_id",
             "slug"
           ]
         }
@@ -321,6 +461,12 @@
         },
         "organization_id": {
           "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "store_id": {
+          "name": "store_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -425,6 +571,19 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
+        "product_variants_store_id_stores_id_fk": {
+          "name": "product_variants_store_id_stores_id_fk",
+          "tableFrom": "product_variants",
+          "tableTo": "stores",
+          "columnsFrom": [
+            "store_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
         "product_variants_product_id_products_id_fk": {
           "name": "product_variants_product_id_products_id_fk",
           "tableFrom": "product_variants",
@@ -441,11 +600,11 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "variants_org_sku_unique": {
-          "name": "variants_org_sku_unique",
+        "variants_store_sku_unique": {
+          "name": "variants_store_sku_unique",
           "nullsNotDistinct": false,
           "columns": [
-            "organization_id",
+            "store_id",
             "sku"
           ]
         }
@@ -467,6 +626,12 @@
         },
         "organization_id": {
           "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "store_id": {
+          "name": "store_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -513,6 +678,19 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
+        "product_options_store_id_stores_id_fk": {
+          "name": "product_options_store_id_stores_id_fk",
+          "tableFrom": "product_options",
+          "tableTo": "stores",
+          "columnsFrom": [
+            "store_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
         "product_options_product_id_products_id_fk": {
           "name": "product_options_product_id_products_id_fk",
           "tableFrom": "product_options",
@@ -546,6 +724,12 @@
         },
         "organization_id": {
           "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "store_id": {
+          "name": "store_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -585,6 +769,19 @@
           "tableTo": "organizations",
           "columnsFrom": [
             "organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "product_option_values_store_id_stores_id_fk": {
+          "name": "product_option_values_store_id_stores_id_fk",
+          "tableFrom": "product_option_values",
+          "tableTo": "stores",
+          "columnsFrom": [
+            "store_id"
           ],
           "columnsTo": [
             "id"
@@ -689,6 +886,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "store_id": {
+          "name": "store_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
         "parent_id": {
           "name": "parent_id",
           "type": "uuid",
@@ -749,15 +952,28 @@
           ],
           "onDelete": "cascade",
           "onUpdate": "no action"
+        },
+        "categories_store_id_stores_id_fk": {
+          "name": "categories_store_id_stores_id_fk",
+          "tableFrom": "categories",
+          "tableTo": "stores",
+          "columnsFrom": [
+            "store_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "categories_org_slug_unique": {
-          "name": "categories_org_slug_unique",
+        "categories_store_slug_unique": {
+          "name": "categories_store_slug_unique",
           "nullsNotDistinct": false,
           "columns": [
-            "organization_id",
+            "store_id",
             "slug"
           ]
         }
@@ -843,6 +1059,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "store_id": {
+          "name": "store_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
         "product_id": {
           "name": "product_id",
           "type": "uuid",
@@ -911,6 +1133,19 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
+        "product_media_store_id_stores_id_fk": {
+          "name": "product_media_store_id_stores_id_fk",
+          "tableFrom": "product_media",
+          "tableTo": "stores",
+          "columnsFrom": [
+            "store_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
         "product_media_product_id_products_id_fk": {
           "name": "product_media_product_id_products_id_fk",
           "tableFrom": "product_media",
@@ -944,6 +1179,12 @@
         },
         "organization_id": {
           "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "store_id": {
+          "name": "store_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -1005,6 +1246,19 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
+        "inventory_items_store_id_stores_id_fk": {
+          "name": "inventory_items_store_id_stores_id_fk",
+          "tableFrom": "inventory_items",
+          "tableTo": "stores",
+          "columnsFrom": [
+            "store_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
         "inventory_items_variant_id_product_variants_id_fk": {
           "name": "inventory_items_variant_id_product_variants_id_fk",
           "tableFrom": "inventory_items",
@@ -1046,6 +1300,12 @@
         },
         "organization_id": {
           "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "store_id": {
+          "name": "store_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -1118,6 +1378,19 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
+        "stock_reservations_store_id_stores_id_fk": {
+          "name": "stock_reservations_store_id_stores_id_fk",
+          "tableFrom": "stock_reservations",
+          "tableTo": "stores",
+          "columnsFrom": [
+            "store_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
         "stock_reservations_inventory_item_id_inventory_items_id_fk": {
           "name": "stock_reservations_inventory_item_id_inventory_items_id_fk",
           "tableFrom": "stock_reservations",
@@ -1151,6 +1424,12 @@
         },
         "organization_id": {
           "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "store_id": {
+          "name": "store_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -1242,6 +1521,19 @@
           ],
           "onDelete": "cascade",
           "onUpdate": "no action"
+        },
+        "discounts_store_id_stores_id_fk": {
+          "name": "discounts_store_id_stores_id_fk",
+          "tableFrom": "discounts",
+          "tableTo": "stores",
+          "columnsFrom": [
+            "store_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -1263,6 +1555,12 @@
         },
         "organization_id": {
           "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "store_id": {
+          "name": "store_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -1360,10 +1658,32 @@
           ],
           "onDelete": "cascade",
           "onUpdate": "no action"
+        },
+        "coupons_store_id_stores_id_fk": {
+          "name": "coupons_store_id_stores_id_fk",
+          "tableFrom": "coupons",
+          "tableTo": "stores",
+          "columnsFrom": [
+            "store_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
+      "uniqueConstraints": {
+        "coupons_store_code_unique": {
+          "name": "coupons_store_code_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "store_id",
+            "code"
+          ]
+        }
+      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -1381,6 +1701,12 @@
         },
         "organization_id": {
           "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "store_id": {
+          "name": "store_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -1488,6 +1814,19 @@
           ],
           "onDelete": "cascade",
           "onUpdate": "no action"
+        },
+        "carts_store_id_stores_id_fk": {
+          "name": "carts_store_id_stores_id_fk",
+          "tableFrom": "carts",
+          "tableTo": "stores",
+          "columnsFrom": [
+            "store_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -1509,6 +1848,12 @@
         },
         "organization_id": {
           "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "store_id": {
+          "name": "store_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -1573,6 +1918,19 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
+        "cart_items_store_id_stores_id_fk": {
+          "name": "cart_items_store_id_stores_id_fk",
+          "tableFrom": "cart_items",
+          "tableTo": "stores",
+          "columnsFrom": [
+            "store_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
         "cart_items_cart_id_carts_id_fk": {
           "name": "cart_items_cart_id_carts_id_fk",
           "tableFrom": "cart_items",
@@ -1619,6 +1977,12 @@
         },
         "organization_id": {
           "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "store_id": {
+          "name": "store_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -1769,10 +2133,32 @@
           ],
           "onDelete": "cascade",
           "onUpdate": "no action"
+        },
+        "orders_store_id_stores_id_fk": {
+          "name": "orders_store_id_stores_id_fk",
+          "tableFrom": "orders",
+          "tableTo": "stores",
+          "columnsFrom": [
+            "store_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
+      "uniqueConstraints": {
+        "orders_store_number_unique": {
+          "name": "orders_store_number_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "store_id",
+            "order_number"
+          ]
+        }
+      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -1790,6 +2176,12 @@
         },
         "organization_id": {
           "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "store_id": {
+          "name": "store_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -1878,6 +2270,19 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
+        "order_line_items_store_id_stores_id_fk": {
+          "name": "order_line_items_store_id_stores_id_fk",
+          "tableFrom": "order_line_items",
+          "tableTo": "stores",
+          "columnsFrom": [
+            "store_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
         "order_line_items_order_id_orders_id_fk": {
           "name": "order_line_items_order_id_orders_id_fk",
           "tableFrom": "order_line_items",
@@ -1911,6 +2316,12 @@
         },
         "organization_id": {
           "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "store_id": {
+          "name": "store_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -1968,6 +2379,19 @@
           "tableTo": "organizations",
           "columnsFrom": [
             "organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "order_timeline_store_id_stores_id_fk": {
+          "name": "order_timeline_store_id_stores_id_fk",
+          "tableFrom": "order_timeline",
+          "tableTo": "stores",
+          "columnsFrom": [
+            "store_id"
           ],
           "columnsTo": [
             "id"
@@ -2264,6 +2688,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "store_id": {
+          "name": "store_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
         "order_id": {
           "name": "order_id",
           "type": "uuid",
@@ -2359,6 +2789,19 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
+        "payments_store_id_stores_id_fk": {
+          "name": "payments_store_id_stores_id_fk",
+          "tableFrom": "payments",
+          "tableTo": "stores",
+          "columnsFrom": [
+            "store_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
         "payments_order_id_orders_id_fk": {
           "name": "payments_order_id_orders_id_fk",
           "tableFrom": "payments",
@@ -2392,6 +2835,12 @@
         },
         "organization_id": {
           "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "store_id": {
+          "name": "store_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -2477,6 +2926,19 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
+        "refunds_store_id_stores_id_fk": {
+          "name": "refunds_store_id_stores_id_fk",
+          "tableFrom": "refunds",
+          "tableTo": "stores",
+          "columnsFrom": [
+            "store_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
         "refunds_order_id_orders_id_fk": {
           "name": "refunds_order_id_orders_id_fk",
           "tableFrom": "refunds",
@@ -2523,6 +2985,12 @@
         },
         "organization_id": {
           "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "store_id": {
+          "name": "store_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -2576,6 +3044,19 @@
           ],
           "onDelete": "cascade",
           "onUpdate": "no action"
+        },
+        "shipping_zones_store_id_stores_id_fk": {
+          "name": "shipping_zones_store_id_stores_id_fk",
+          "tableFrom": "shipping_zones",
+          "tableTo": "stores",
+          "columnsFrom": [
+            "store_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -2597,6 +3078,12 @@
         },
         "organization_id": {
           "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "store_id": {
+          "name": "store_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -2683,6 +3170,19 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
+        "shipping_methods_store_id_stores_id_fk": {
+          "name": "shipping_methods_store_id_stores_id_fk",
+          "tableFrom": "shipping_methods",
+          "tableTo": "stores",
+          "columnsFrom": [
+            "store_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
         "shipping_methods_zone_id_shipping_zones_id_fk": {
           "name": "shipping_methods_zone_id_shipping_zones_id_fk",
           "tableFrom": "shipping_methods",
@@ -2716,6 +3216,12 @@
         },
         "organization_id": {
           "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "store_id": {
+          "name": "store_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -2806,6 +3312,19 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
+        "shipments_store_id_stores_id_fk": {
+          "name": "shipments_store_id_stores_id_fk",
+          "tableFrom": "shipments",
+          "tableTo": "stores",
+          "columnsFrom": [
+            "store_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
         "shipments_order_id_orders_id_fk": {
           "name": "shipments_order_id_orders_id_fk",
           "tableFrom": "shipments",
@@ -2839,6 +3358,12 @@
         },
         "organization_id": {
           "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "store_id": {
+          "name": "store_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -2911,6 +3436,19 @@
           ],
           "onDelete": "cascade",
           "onUpdate": "no action"
+        },
+        "tax_rates_store_id_stores_id_fk": {
+          "name": "tax_rates_store_id_stores_id_fk",
+          "tableFrom": "tax_rates",
+          "tableTo": "stores",
+          "columnsFrom": [
+            "store_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -2935,6 +3473,12 @@
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
+        },
+        "store_id": {
+          "name": "store_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
         },
         "entity_type": {
           "name": "entity_type",
@@ -3000,6 +3544,19 @@
           "tableTo": "organizations",
           "columnsFrom": [
             "organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "audit_logs_store_id_stores_id_fk": {
+          "name": "audit_logs_store_id_stores_id_fk",
+          "tableFrom": "audit_logs",
+          "tableTo": "stores",
+          "columnsFrom": [
+            "store_id"
           ],
           "columnsTo": [
             "id"

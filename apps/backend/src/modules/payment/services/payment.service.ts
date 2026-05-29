@@ -19,10 +19,12 @@ export class PaymentService {
     amount: number,
     currency: string,
     orgId: string,
+    storeId: string,
   ): Promise<Payment> {
     const { clientSecret, paymentIntentId } =
       await this.provider.createPaymentIntent(amount, currency, {
         organizationId: orgId,
+        storeId,
         orderId,
       });
 
@@ -30,6 +32,7 @@ export class PaymentService {
       .insert(payments)
       .values({
         organizationId: orgId,
+        storeId,
         orderId,
         provider: 'stripe',
         status: 'pending',
@@ -54,12 +57,20 @@ export class PaymentService {
     return row ?? null;
   }
 
-  async findByOrderId(orderId: string, orgId: string): Promise<Payment | null> {
+  async findByOrderId(
+    orderId: string,
+    orgId: string,
+    storeId: string,
+  ): Promise<Payment | null> {
     const [row] = await this.db
       .select()
       .from(payments)
       .where(
-        and(eq(payments.orderId, orderId), eq(payments.organizationId, orgId)),
+        and(
+          eq(payments.orderId, orderId),
+          eq(payments.organizationId, orgId),
+          eq(payments.storeId, storeId),
+        ),
       )
       .limit(1);
     return row ?? null;
@@ -98,10 +109,15 @@ export class PaymentService {
     paymentId: string,
     amount: number,
     orgId: string,
+    storeId: string,
     reason?: string,
   ): Promise<{ refundId: string; payment: Payment }> {
     const payment = await this.findByPaymentIntentId(paymentId);
-    if (!payment || payment.organizationId !== orgId) {
+    if (
+      !payment ||
+      payment.organizationId !== orgId ||
+      payment.storeId !== storeId
+    ) {
       throw new NotFoundException('Payment not found');
     }
     if (!payment.chargeId) {

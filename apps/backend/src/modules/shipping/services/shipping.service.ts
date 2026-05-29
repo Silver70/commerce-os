@@ -39,14 +39,23 @@ export class ShippingService {
 
   // ─── Zone CRUD ────────────────────────────────────────────────────────────────
 
-  async listZones(orgId: string): Promise<ShippingZone[]> {
+  async listZones(orgId: string, storeId: string): Promise<ShippingZone[]> {
     return this.db
       .select()
       .from(shippingZones)
-      .where(eq(shippingZones.organizationId, orgId));
+      .where(
+        and(
+          eq(shippingZones.organizationId, orgId),
+          eq(shippingZones.storeId, storeId),
+        ),
+      );
   }
 
-  async getZone(zoneId: string, orgId: string): Promise<ShippingZone> {
+  async getZone(
+    zoneId: string,
+    orgId: string,
+    storeId: string,
+  ): Promise<ShippingZone> {
     const [zone] = await this.db
       .select()
       .from(shippingZones)
@@ -54,6 +63,7 @@ export class ShippingService {
         and(
           eq(shippingZones.id, zoneId),
           eq(shippingZones.organizationId, orgId),
+          eq(shippingZones.storeId, storeId),
         ),
       )
       .limit(1);
@@ -64,11 +74,13 @@ export class ShippingService {
   async createZone(
     dto: CreateShippingZoneDto,
     orgId: string,
+    storeId: string,
   ): Promise<ShippingZone> {
     const [zone] = await this.db
       .insert(shippingZones)
       .values({
         organizationId: orgId,
+        storeId,
         name: dto.name,
         countries: dto.countries,
         isDefault: dto.isDefault ?? false,
@@ -81,8 +93,9 @@ export class ShippingService {
     zoneId: string,
     dto: UpdateShippingZoneDto,
     orgId: string,
+    storeId: string,
   ): Promise<ShippingZone> {
-    await this.getZone(zoneId, orgId);
+    await this.getZone(zoneId, orgId, storeId);
     const [updated] = await this.db
       .update(shippingZones)
       .set({
@@ -95,28 +108,41 @@ export class ShippingService {
         and(
           eq(shippingZones.id, zoneId),
           eq(shippingZones.organizationId, orgId),
+          eq(shippingZones.storeId, storeId),
         ),
       )
       .returning();
     return updated;
   }
 
-  async deleteZone(zoneId: string, orgId: string): Promise<void> {
-    await this.getZone(zoneId, orgId);
+  async deleteZone(
+    zoneId: string,
+    orgId: string,
+    storeId: string,
+  ): Promise<void> {
+    await this.getZone(zoneId, orgId, storeId);
     await this.db
       .delete(shippingZones)
       .where(
         and(
           eq(shippingZones.id, zoneId),
           eq(shippingZones.organizationId, orgId),
+          eq(shippingZones.storeId, storeId),
         ),
       );
   }
 
   // ─── Method CRUD ──────────────────────────────────────────────────────────────
 
-  async listMethods(orgId: string, zoneId?: string): Promise<ShippingMethod[]> {
-    const conditions = [eq(shippingMethods.organizationId, orgId)];
+  async listMethods(
+    orgId: string,
+    storeId: string,
+    zoneId?: string,
+  ): Promise<ShippingMethod[]> {
+    const conditions = [
+      eq(shippingMethods.organizationId, orgId),
+      eq(shippingMethods.storeId, storeId),
+    ];
     if (zoneId) conditions.push(eq(shippingMethods.zoneId, zoneId));
     return this.db
       .select()
@@ -124,7 +150,11 @@ export class ShippingService {
       .where(and(...conditions));
   }
 
-  async getMethod(methodId: string, orgId: string): Promise<ShippingMethod> {
+  async getMethod(
+    methodId: string,
+    orgId: string,
+    storeId: string,
+  ): Promise<ShippingMethod> {
     const [method] = await this.db
       .select()
       .from(shippingMethods)
@@ -132,6 +162,7 @@ export class ShippingService {
         and(
           eq(shippingMethods.id, methodId),
           eq(shippingMethods.organizationId, orgId),
+          eq(shippingMethods.storeId, storeId),
         ),
       )
       .limit(1);
@@ -142,12 +173,14 @@ export class ShippingService {
   async createMethod(
     dto: CreateShippingMethodDto,
     orgId: string,
+    storeId: string,
   ): Promise<ShippingMethod> {
-    await this.getZone(dto.zoneId, orgId);
+    await this.getZone(dto.zoneId, orgId, storeId);
     const [method] = await this.db
       .insert(shippingMethods)
       .values({
         organizationId: orgId,
+        storeId,
         zoneId: dto.zoneId,
         name: dto.name,
         rateType: dto.rateType ?? 'flat_rate',
@@ -165,8 +198,9 @@ export class ShippingService {
     methodId: string,
     dto: UpdateShippingMethodDto,
     orgId: string,
+    storeId: string,
   ): Promise<ShippingMethod> {
-    await this.getMethod(methodId, orgId);
+    await this.getMethod(methodId, orgId, storeId);
     const [updated] = await this.db
       .update(shippingMethods)
       .set({
@@ -189,20 +223,26 @@ export class ShippingService {
         and(
           eq(shippingMethods.id, methodId),
           eq(shippingMethods.organizationId, orgId),
+          eq(shippingMethods.storeId, storeId),
         ),
       )
       .returning();
     return updated;
   }
 
-  async deleteMethod(methodId: string, orgId: string): Promise<void> {
-    await this.getMethod(methodId, orgId);
+  async deleteMethod(
+    methodId: string,
+    orgId: string,
+    storeId: string,
+  ): Promise<void> {
+    await this.getMethod(methodId, orgId, storeId);
     await this.db
       .delete(shippingMethods)
       .where(
         and(
           eq(shippingMethods.id, methodId),
           eq(shippingMethods.organizationId, orgId),
+          eq(shippingMethods.storeId, storeId),
         ),
       );
   }
@@ -213,12 +253,18 @@ export class ShippingService {
     countryCode: string,
     orderSubtotal: number,
     orgId: string,
+    storeId: string,
   ): Promise<ShippingRate[]> {
     // Find zones that include the country code (or the default zone)
     const zones = await this.db
       .select()
       .from(shippingZones)
-      .where(eq(shippingZones.organizationId, orgId));
+      .where(
+        and(
+          eq(shippingZones.organizationId, orgId),
+          eq(shippingZones.storeId, storeId),
+        ),
+      );
 
     const matchingZone =
       zones.find((z) => z.countries.includes(countryCode)) ??
@@ -234,6 +280,7 @@ export class ShippingService {
         and(
           eq(shippingMethods.zoneId, matchingZone.id),
           eq(shippingMethods.organizationId, orgId),
+          eq(shippingMethods.storeId, storeId),
           eq(shippingMethods.isActive, true),
         ),
       );
@@ -252,8 +299,12 @@ export class ShippingService {
       }));
   }
 
-  async getMethodPrice(methodId: string, orgId: string): Promise<number> {
-    const method = await this.getMethod(methodId, orgId);
+  async getMethodPrice(
+    methodId: string,
+    orgId: string,
+    storeId: string,
+  ): Promise<number> {
+    const method = await this.getMethod(methodId, orgId, storeId);
     if (!method.isActive) {
       throw new BadRequestException('Shipping method is not active');
     }

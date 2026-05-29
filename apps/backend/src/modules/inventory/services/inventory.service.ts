@@ -24,8 +24,13 @@ export class InventoryService {
     variantId: string,
     qty: number,
     orgId: string,
+    storeId: string,
   ): Promise<boolean> {
-    const item = await this.inventoryRepo.findByVariantId(variantId, orgId);
+    const item = await this.inventoryRepo.findByVariantId(
+      variantId,
+      orgId,
+      storeId,
+    );
     if (!item) return false;
     const available = item.quantity - item.reserved;
     return item.allowBackorder || available >= qty;
@@ -35,10 +40,15 @@ export class InventoryService {
     variantId: string,
     qty: number,
     orgId: string,
+    storeId: string,
     cartId?: string,
     orderId?: string,
   ) {
-    const item = await this.inventoryRepo.findByVariantId(variantId, orgId);
+    const item = await this.inventoryRepo.findByVariantId(
+      variantId,
+      orgId,
+      storeId,
+    );
     if (!item) throw new NotFoundException('Inventory item not found');
 
     const available = item.quantity - item.reserved;
@@ -58,14 +68,20 @@ export class InventoryService {
       cartId,
       orderId,
       organizationId: orgId,
+      storeId,
       expiresAt,
     });
   }
 
-  async release(reservationId: string, orgId: string): Promise<void> {
+  async release(
+    reservationId: string,
+    orgId: string,
+    storeId: string,
+  ): Promise<void> {
     const reservation = await this.inventoryRepo.findReservation(
       reservationId,
       orgId,
+      storeId,
     );
     if (!reservation) throw new NotFoundException('Reservation not found');
     if (reservation.status !== 'active') return;
@@ -74,14 +90,20 @@ export class InventoryService {
     await this.inventoryRepo.decrementReserved(
       reservation.inventoryItemId,
       orgId,
+      storeId,
       reservation.quantity,
     );
   }
 
-  async convert(reservationId: string, orgId: string): Promise<void> {
+  async convert(
+    reservationId: string,
+    orgId: string,
+    storeId: string,
+  ): Promise<void> {
     const reservation = await this.inventoryRepo.findReservation(
       reservationId,
       orgId,
+      storeId,
     );
     if (!reservation) throw new NotFoundException('Reservation not found');
     if (reservation.status !== 'active') return;
@@ -93,27 +115,38 @@ export class InventoryService {
     await this.inventoryRepo.convertReservation(
       reservation.inventoryItemId,
       orgId,
+      storeId,
       reservation.quantity,
     );
   }
 
-  async convertReservations(orderId: string, orgId: string): Promise<void> {
+  async convertReservations(
+    orderId: string,
+    orgId: string,
+    storeId: string,
+  ): Promise<void> {
     const reservations = await this.inventoryRepo.findActiveReservationsByOrder(
       orderId,
       orgId,
+      storeId,
     );
     for (const r of reservations) {
-      await this.convert(r.id, orgId);
+      await this.convert(r.id, orgId, storeId);
     }
   }
 
-  async releaseReservations(orderId: string, orgId: string): Promise<void> {
+  async releaseReservations(
+    orderId: string,
+    orgId: string,
+    storeId: string,
+  ): Promise<void> {
     const reservations = await this.inventoryRepo.findActiveReservationsByOrder(
       orderId,
       orgId,
+      storeId,
     );
     for (const r of reservations) {
-      await this.release(r.id, orgId);
+      await this.release(r.id, orgId, storeId);
     }
   }
 
@@ -123,13 +156,19 @@ export class InventoryService {
     reason: string,
     adminId: string,
     orgId: string,
+    storeId: string,
   ): Promise<InventoryItem> {
-    const item = await this.inventoryRepo.findByVariantId(variantId, orgId);
+    const item = await this.inventoryRepo.findByVariantId(
+      variantId,
+      orgId,
+      storeId,
+    );
     if (!item) throw new NotFoundException('Inventory item not found');
 
     const updated = await this.inventoryRepo.adjustQuantity(
       item.id,
       orgId,
+      storeId,
       delta,
     );
     if (!updated)
@@ -143,6 +182,7 @@ export class InventoryService {
       actorId: adminId,
       changes: { delta, reason },
       organizationId: orgId,
+      storeId,
     });
 
     const newAvailable = updated.quantity - updated.reserved;
@@ -152,6 +192,7 @@ export class InventoryService {
         new InventoryLowEvent(
           variantId,
           orgId,
+          storeId,
           newAvailable,
           updated.lowStockThreshold,
         ),
@@ -164,11 +205,13 @@ export class InventoryService {
   async createForVariant(
     variantId: string,
     orgId: string,
+    storeId: string,
     initialQuantity = 0,
   ): Promise<InventoryItem> {
     return this.inventoryRepo.createForVariant(
       variantId,
       orgId,
+      storeId,
       initialQuantity,
     );
   }
@@ -176,16 +219,20 @@ export class InventoryService {
   async getByVariantId(
     variantId: string,
     orgId: string,
+    storeId: string,
   ): Promise<InventoryItem | null> {
-    return this.inventoryRepo.findByVariantId(variantId, orgId);
+    return this.inventoryRepo.findByVariantId(variantId, orgId, storeId);
   }
 
-  async getAllForOrg(orgId: string): Promise<InventoryItem[]> {
-    return this.inventoryRepo.findAll(orgId);
+  async getAllForOrg(orgId: string, storeId: string): Promise<InventoryItem[]> {
+    return this.inventoryRepo.findAll(orgId, storeId);
   }
 
-  async getLowStockItems(orgId: string): Promise<InventoryItem[]> {
-    return this.inventoryRepo.findLowStock(orgId);
+  async getLowStockItems(
+    orgId: string,
+    storeId: string,
+  ): Promise<InventoryItem[]> {
+    return this.inventoryRepo.findLowStock(orgId, storeId);
   }
 
   async associateReservationsWithOrder(
@@ -206,6 +253,7 @@ export class InventoryService {
       await this.inventoryRepo.decrementReserved(
         r.inventoryItemId,
         r.organizationId,
+        r.storeId,
         r.quantity,
       );
     }
