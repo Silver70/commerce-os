@@ -13,8 +13,8 @@ import {
   TrendingDownIcon,
   DollarSignIcon,
   ShoppingCartIcon,
+  PercentIcon,
   TagIcon,
-  UsersIcon,
 } from "lucide-react"
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "~/components/ui/card"
@@ -69,6 +69,31 @@ function fmtCount(n: number) {
       : n.toLocaleString()
 }
 
+const PERIOD_DAYS: Record<Period, number> = {
+  today: 1,
+  "7d": 7,
+  "30d": 30,
+  "90d": 90,
+}
+
+function sparklineToTrend(
+  sparkline: number[],
+  period: Period,
+): { date: string; revenue: number }[] {
+  const days = PERIOD_DAYS[period]
+  const start = new Date()
+  start.setDate(start.getDate() - days)
+
+  return sparkline.map((revenue, i) => {
+    const d = new Date(start)
+    d.setDate(d.getDate() + i)
+    return {
+      date: d.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+      revenue,
+    }
+  })
+}
+
 // ─── KPI Card ────────────────────────────────────────────────────────────────
 
 function KpiCard({
@@ -82,11 +107,15 @@ function KpiCard({
   value: number
   delta: number
   icon: React.ElementType
-  format?: "currency" | "number"
+  format?: "currency" | "number" | "percent"
 }) {
   const positive = delta >= 0
   const displayValue =
-    format === "currency" ? fmt(value) : fmtCount(value)
+    format === "currency"
+      ? fmt(value)
+      : format === "percent"
+        ? `${value}%`
+        : fmtCount(value)
 
   return (
     <Card>
@@ -194,7 +223,7 @@ const ORDER_STATUS_STYLES: Record<OrderStatus, string> = {
 
 function RecentOrders() {
   const { data } = useSuspenseQuery(ordersQueryOptions({}))
-  const orders = data.items.slice(0, 7)
+  const orders = data.orders.slice(0, 7)
 
   return (
     <Card>
@@ -265,6 +294,8 @@ function DashboardPage() {
   const [period, setPeriod] = React.useState<Period>("7d")
   const { data: stats } = useSuspenseQuery(dashboardStatsQueryOptions(period))
 
+  const revenueTrend = sparklineToTrend(stats.revenue.sparkline, period)
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -290,36 +321,36 @@ function DashboardPage() {
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <KpiCard
           label="Revenue"
-          value={stats.kpi.revenue}
-          delta={stats.kpi.revenueDelta}
+          value={stats.revenue.current}
+          delta={stats.revenue.delta}
           icon={DollarSignIcon}
           format="currency"
         />
         <KpiCard
           label="Orders"
-          value={stats.kpi.orders}
-          delta={stats.kpi.ordersDelta}
+          value={stats.orders.current}
+          delta={stats.orders.delta}
           icon={ShoppingCartIcon}
           format="number"
         />
         <KpiCard
-          label="Customers"
-          value={stats.kpi.customers}
-          delta={stats.kpi.customersDelta}
-          icon={UsersIcon}
-          format="number"
+          label="Conversion"
+          value={stats.conversion.current}
+          delta={stats.conversion.delta}
+          icon={PercentIcon}
+          format="percent"
         />
         <KpiCard
           label="Avg Order Value"
-          value={stats.kpi.avgOrderValue}
-          delta={stats.kpi.avgOrderValueDelta}
+          value={stats.aov.current}
+          delta={stats.aov.delta}
           icon={TagIcon}
           format="currency"
         />
       </div>
 
       {/* Revenue Chart — full width */}
-      <RevenueTrend data={stats.revenueTrend} />
+      <RevenueTrend data={revenueTrend} />
 
       {/* Recent Orders */}
       <RecentOrders />

@@ -285,25 +285,23 @@ export type TaxRate = {
 
 export type Period = "today" | "7d" | "30d" | "90d";
 
-export type DashboardKpi = {
-  revenue: number;
-  orders: number;
-  customers: number;
-  avgOrderValue: number;
-  revenueDelta: number;
-  ordersDelta: number;
-  customersDelta: number;
-  avgOrderValueDelta: number;
-};
-
-export type RevenueTrendPoint = {
-  date: string;
-  revenue: number;
+export type MetricWithSparkline = {
+  current: number;
+  prior: number;
+  delta: number;
+  sparkline: number[];
 };
 
 export type DashboardStats = {
-  kpi: DashboardKpi;
-  revenueTrend: RevenueTrendPoint[];
+  period: Period;
+  revenue: MetricWithSparkline;
+  orders: MetricWithSparkline;
+  aov: MetricWithSparkline;
+  conversion: MetricWithSparkline;
+  returning: MetricWithSparkline;
+  pendingOrders: number;
+  processingOrders: number;
+  lowStockItems: number;
 };
 
 // ─── Audit Log ────────────────────────────────────────────────────────────────
@@ -341,4 +339,10 @@ export type PaginatedResponse<T> = {
   items: T[];
   nextCursor: string | null;
   totalCount: number;
+};
+
+// Orders list uses a different envelope key — matches backend ListOrdersResult
+export type OrdersResponse = {
+  orders: Order[];
+  nextCursor: string | null;
 };

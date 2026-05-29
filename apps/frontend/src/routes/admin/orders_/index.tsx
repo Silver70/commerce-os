@@ -138,12 +138,12 @@ const FILTERS: DataTableFilter[] = [
 
 function OrdersPage() {
   const { data: page } = useSuspenseQuery(ordersQueryOptions())
-  const [items, setItems] = React.useState<Order[]>(page.items)
+  const [items, setItems] = React.useState<Order[]>(page.orders)
   const [nextCursor, setNextCursor] = React.useState<string | null>(page.nextCursor)
   const [loadingMore, setLoadingMore] = React.useState(false)
 
   React.useEffect(() => {
-    setItems(page.items)
+    setItems(page.orders)
     setNextCursor(page.nextCursor)
   }, [page])
 
@@ -152,7 +152,7 @@ function OrdersPage() {
     setLoadingMore(true)
     try {
       const more = await getOrdersServerFn({ data: { cursor: nextCursor } })
-      setItems((prev) => [...prev, ...more.items])
+      setItems((prev) => [...prev, ...more.orders])
       setNextCursor(more.nextCursor)
     } finally {
       setLoadingMore(false)
@@ -165,9 +165,6 @@ function OrdersPage() {
         <h1 className="text-2xl font-semibold">Orders</h1>
         <p className="text-sm text-muted-foreground">
           Manage and fulfill customer orders.
-          {page.totalCount > 0 && (
-            <span className="ml-1">({page.totalCount} total)</span>
-          )}
         </p>
       </div>
 

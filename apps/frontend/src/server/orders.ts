@@ -4,7 +4,7 @@ import { z } from "zod";
 import { adminStoreHeader } from "~/lib/active-store";
 import { apiClient } from "~/lib/api-client";
 import { getErrorMessage } from "~/lib/errors";
-import type { Order, OrderStatus, PaginatedResponse } from "~/types/api";
+import type { Order, OrderStatus, OrdersResponse } from "~/types/api";
 
 function incomingCookie(): string {
   return getRequestHeader("cookie") ?? "";
@@ -24,13 +24,13 @@ export const getOrdersServerFn = createServerFn({ method: "GET" })
       limit: z.number().int().positive().optional(),
     }),
   )
-  .handler(async ({ data }): Promise<PaginatedResponse<Order>> => {
+  .handler(async ({ data }): Promise<OrdersResponse> => {
     const params = new URLSearchParams();
     if (data.status) params.set("status", data.status);
     if (data.cursor) params.set("cursor", data.cursor);
     if (data.limit) params.set("limit", String(data.limit));
     try {
-      const res = await apiClient.get<PaginatedResponse<Order>>(
+      const res = await apiClient.get<OrdersResponse>(
         `/api/admin/orders?${params.toString()}`,
         { headers: storeHeaders() },
       );
