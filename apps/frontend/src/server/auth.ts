@@ -76,12 +76,26 @@ export const loginServerFn = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<{ onboardingStep: OnboardingStep }> => {
     try {
       const res = await apiClient.post("/api/auth/login", data);
+      console.log("[login] backend status:", res.status);
+      console.log(
+        "[login] response headers keys:",
+        typeof res.headers,
+        res.headers instanceof Headers,
+      );
+      const setCookies = res.headers.getSetCookie?.() ?? [];
+      console.log("[login] getSetCookie() count:", setCookies.length);
+      console.log(
+        "[login] getSetCookie() values:",
+        setCookies.map((c) => c.slice(0, 60)),
+      );
       forwardSetCookies(res.headers);
 
-      const sessionStr = res.headers
-        .getSetCookie()
-        .find((c) => c.startsWith("wos-session="));
+      const sessionStr = setCookies.find((c) => c.startsWith("wos-session="));
       const sessionCookie = sessionStr?.split(";")[0] ?? "";
+      console.log(
+        "[login] extracted sessionCookie:",
+        sessionCookie ? sessionCookie.slice(0, 40) + "..." : "(empty)",
+      );
 
       let onboardingStep: OnboardingStep = null;
 
@@ -91,6 +105,7 @@ export const loginServerFn = createServerFn({ method: "POST" })
             headers: { cookie: sessionCookie },
           });
           const stores = storesRes.data;
+          console.log("[login] stores fetched:", stores.length);
 
           if (stores.length === 0) {
             setCookie("wos-onboarding-step", "1", {
@@ -131,15 +146,22 @@ export const loginServerFn = createServerFn({ method: "POST" })
 export const logoutServerFn = createServerFn({ method: "POST" }).handler(
   async () => {
     try {
-      const res = await apiClient.post(
+      await apiClient.post(
         "/api/auth/logout",
         {},
         { headers: { cookie: incomingCookie() } },
       );
-      forwardSetCookies(res.headers);
     } catch {
       // swallow — logout should always succeed from the user's perspective
     }
+    // Expire the session cookie directly rather than relying on the backend's
+    // Set-Cookie forwarding (204 No Content responses are unreliable for this).
+    setCookie("wos-session", "", {
+      path: "/",
+      httpOnly: true,
+      sameSite: "lax",
+      maxAge: 0,
+    });
   },
 );
 
@@ -161,12 +183,31 @@ export const resendVerificationServerFn = createServerFn({ method: "POST" })
 
 export const getMeServerFn = createServerFn({ method: "GET" }).handler(
   async (): Promise<AdminUser | null> => {
+    const cookie = incomingCookie();
+    const hasSession = cookie.includes("wos-session=");
+    console.log(
+      "[me] incoming cookie:",
+      cookie ? cookie.slice(0, 80) : "(none)",
+      "| has wos-session:",
+      hasSession,
+    );
     try {
       const res = await apiClient.get<AdminUser>("/api/auth/me", {
-        headers: { cookie: incomingCookie() },
+        headers: { cookie },
       });
+      console.log("[me] success:", res.status, "user:", res.data?.email);
       return res.data;
-    } catch {
+    } catch (err) {
+      const status =
+        typeof err === "object" && err !== null && "status" in err
+          ? (err as { status?: number }).status
+          : undefined;
+      console.log(
+        "[me] FAILED — status:",
+        status,
+        "| message:",
+        getErrorMessage(err),
+      );
       return null;
     }
   },

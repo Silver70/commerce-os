@@ -76,11 +76,20 @@ export class WorkosAuthService {
         throw new UnauthorizedException('Token expired');
       }
       const user = await this.workos.userManagement.getUser(payload.sub);
-      return {
-        user,
-        userId: user.id,
-        organizationId: payload.org_id ?? payload.organizationId ?? null,
-      };
+
+      // authenticateWithPassword without an organizationId arg issues a token
+      // with no org_id claim. Fall back to the user's first active membership.
+      let organizationId: string | null =
+        payload.org_id ?? payload.organizationId ?? null;
+      if (!organizationId) {
+        const memberships =
+          await this.workos.userManagement.listOrganizationMemberships({
+            userId: payload.sub,
+          });
+        organizationId = memberships.data[0]?.organizationId ?? null;
+      }
+
+      return { user, userId: user.id, organizationId };
     } catch (error) {
       if (error instanceof UnauthorizedException) throw error;
       throw new UnauthorizedException('Invalid or expired session token');

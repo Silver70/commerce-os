@@ -1,5 +1,5 @@
-import * as React from "react"
-import { Link, useNavigate, useRouterState } from "@tanstack/react-router"
+import * as React from "react";
+import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   LayoutDashboardIcon,
   PackageIcon,
@@ -13,9 +13,9 @@ import {
   UserIcon,
   BellIcon,
   LogOutIcon,
-} from "lucide-react"
+} from "lucide-react";
 
-import { Avatar, AvatarFallback } from "~/components/ui/avatar"
+import { Avatar, AvatarFallback } from "~/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,7 +24,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "~/components/ui/dropdown-menu"
+} from "~/components/ui/dropdown-menu";
 import {
   Sidebar,
   SidebarContent,
@@ -36,32 +36,38 @@ import {
   SidebarMenuItem,
   SidebarRail,
   SidebarSeparator,
-} from "~/components/ui/sidebar"
-import { logoutServerFn } from "~/server/auth"
+} from "~/components/ui/sidebar";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { logoutServerFn } from "~/server/auth";
+import { meQueryOptions } from "~/queries/auth";
+import {
+  clearActiveStoreCookieServerFn,
+  clearOnboardingCookieServerFn,
+} from "~/server/stores";
 
 type NavItem = {
-  title: string
-  url: string
-  icon: React.ElementType
-}
+  title: string;
+  url: string;
+  icon: React.ElementType;
+};
 
 const primaryNav: NavItem[] = [
   { title: "Dashboard", url: "/admin/dashboard", icon: LayoutDashboardIcon },
-  { title: "Products",  url: "/admin/products",  icon: PackageIcon         },
-  { title: "Inventory", url: "/admin/inventory", icon: BoxesIcon            },
-  { title: "Orders",    url: "/admin/orders",    icon: ShoppingCartIcon     },
-  { title: "Customers", url: "/admin/customers", icon: UsersIcon            },
-  { title: "Discounts", url: "/admin/discounts", icon: PercentIcon          },
-]
+  { title: "Products", url: "/admin/products", icon: PackageIcon },
+  { title: "Inventory", url: "/admin/inventory", icon: BoxesIcon },
+  { title: "Orders", url: "/admin/orders", icon: ShoppingCartIcon },
+  { title: "Customers", url: "/admin/customers", icon: UsersIcon },
+  { title: "Discounts", url: "/admin/discounts", icon: PercentIcon },
+];
 
 const secondaryNav: NavItem[] = [
-  { title: "Shipping", url: "/admin/shipping", icon: TruckIcon    },
+  { title: "Shipping", url: "/admin/shipping", icon: TruckIcon },
   { title: "Settings", url: "/admin/settings", icon: SettingsIcon },
-]
+];
 
 function NavLink({ item }: { item: NavItem }) {
-  const pathname = useRouterState({ select: (s) => s.location.pathname })
-  const isActive = pathname === item.url || pathname.startsWith(item.url + "/")
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const isActive = pathname === item.url || pathname.startsWith(item.url + "/");
 
   return (
     <SidebarMenuItem>
@@ -78,26 +84,45 @@ function NavLink({ item }: { item: NavItem }) {
         </Link>
       </SidebarMenuButton>
     </SidebarMenuItem>
-  )
+  );
 }
 
+const ROLE_LABELS: Record<string, string> = {
+  super_admin: "Super Admin",
+  product_manager: "Product Manager",
+  support_agent: "Support Agent",
+};
+
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  const navigate = useNavigate()
-  const [isLoggingOut, setIsLoggingOut] = React.useState(false)
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const { data: user } = useQuery(meQueryOptions());
+  const [isLoggingOut, setIsLoggingOut] = React.useState(false);
+
+  const avatarInitial = user?.email?.[0]?.toUpperCase() ?? "U";
+  const displayEmail = user?.email ?? "Account";
+  const displayRole = user?.role
+    ? (ROLE_LABELS[user.role] ?? user.role)
+    : "Admin";
 
   async function handleLogout() {
-    setIsLoggingOut(true)
+    setIsLoggingOut(true);
     try {
-      await logoutServerFn()
-      await navigate({ to: '/auth/login' })
+      await logoutServerFn();
+      // Clear store-scoped cookies so a subsequent login starts fresh
+      await Promise.allSettled([
+        clearActiveStoreCookieServerFn(),
+        clearOnboardingCookieServerFn(),
+      ]);
+      queryClient.clear();
+      await navigate({ to: "/auth/login" });
     } finally {
-      setIsLoggingOut(false)
+      setIsLoggingOut(false);
     }
   }
 
   return (
     <Sidebar collapsible="icon" {...props}>
-
       <SidebarHeader className="h-16 border-b p-0">
         <div className="flex h-full w-full items-center group-data-[collapsible=icon]:justify-center">
           <Link
@@ -117,7 +142,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarHeader>
 
       <SidebarContent className="pt-2">
-
         {/* Primary: Dashboard → Discounts */}
         <SidebarGroup>
           <SidebarMenu className="group-data-[collapsible=icon]:gap-1.5">
@@ -137,7 +161,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             ))}
           </SidebarMenu>
         </SidebarGroup>
-
       </SidebarContent>
 
       <SidebarFooter className="border-t p-2">
@@ -151,21 +174,32 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 >
                   <Avatar className="h-8 w-8 shrink-0">
                     <AvatarFallback className="text-sm font-medium">
-                      U
+                      {avatarInitial}
                     </AvatarFallback>
                   </Avatar>
                   <div className="grid flex-1 text-left text-sm leading-tight group-data-[collapsible=icon]:hidden">
-                    <span className="font-medium truncate">Account</span>
-                    <span className="text-xs text-muted-foreground truncate">Admin</span>
+                    <span className="font-medium truncate">{displayEmail}</span>
+                    <span className="text-xs text-muted-foreground truncate">
+                      {displayRole}
+                    </span>
                   </div>
                   <ChevronsUpDownIcon className="ml-auto h-4 w-4 group-data-[collapsible=icon]:hidden" />
                 </SidebarMenuButton>
               </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-56" side="top" align="start" sideOffset={8}>
+              <DropdownMenuContent
+                className="w-56"
+                side="top"
+                align="start"
+                sideOffset={8}
+              >
                 <DropdownMenuLabel className="font-normal">
                   <div className="flex flex-col gap-1">
-                    <p className="text-sm font-medium">Account</p>
-                    <p className="text-xs text-muted-foreground">Admin</p>
+                    <p className="text-sm font-medium truncate">
+                      {displayEmail}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {displayRole}
+                    </p>
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
@@ -186,7 +220,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   disabled={isLoggingOut}
                 >
                   <LogOutIcon className="mr-2 h-4 w-4" />
-                  {isLoggingOut ? 'Signing out…' : 'Sign out'}
+                  {isLoggingOut ? "Signing out…" : "Sign out"}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -197,5 +231,5 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       {/* Rail: click the edge to collapse/expand on desktop */}
       <SidebarRail />
     </Sidebar>
-  )
+  );
 }

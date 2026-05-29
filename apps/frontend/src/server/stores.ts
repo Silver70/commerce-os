@@ -121,3 +121,9 @@ export const clearOnboardingCookieServerFn = createServerFn({
 }).handler(async () => {
   setCookie("wos-onboarding-step", "", { path: "/", maxAge: 0 });
 });
+
+export const clearActiveStoreCookieServerFn = createServerFn({
+  method: "POST",
+}).handler(async () => {
+  setCookie("wos-active-store", "", { path: "/", maxAge: 0 });
+});

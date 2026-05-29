@@ -81,11 +81,16 @@ function OnboardingStep3() {
     void navigate({ to: "/admin/dashboard" });
   }
 
-  function handleCopy() {
+  async function handleCopy() {
     if (keyState.status !== "ready") return;
-    void navigator.clipboard.writeText(keyState.key);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      await navigator.clipboard.writeText(keyState.key);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard API unavailable (HTTP context) — reveal the key so user can select manually
+      setRevealed(true);
+    }
   }
 
   const displayKey = keyState.status === "ready" ? keyState.key : "";
@@ -128,7 +133,11 @@ function OnboardingStep3() {
             {keyState.status === "error" ? (
               <div className="space-y-3">
                 <p className="text-sm text-destructive">{keyState.message}</p>
-                <Button variant="outline" size="sm" onClick={() => void handleSkip()}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void handleSkip()}
+                >
                   Skip for now — go to dashboard
                 </Button>
               </div>

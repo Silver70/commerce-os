@@ -1,5 +1,6 @@
 import * as React from 'react'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
+import { useQueryClient } from '@tanstack/react-query'
 import { z } from 'zod'
 import { Logo } from '~/components/Logo'
 import { loginServerFn } from '~/server/auth'
@@ -19,6 +20,7 @@ const inputCls =
 function LoginPage() {
   const { verified } = Route.useSearch()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
 
   const [email, setEmail] = React.useState('')
   const [password, setPassword] = React.useState('')
@@ -50,6 +52,10 @@ function LoginPage() {
     setIsPending(true)
     try {
       const result = await loginServerFn({ data: { email, password } })
+      // The auth guard reads `me` via ensureQueryData, which returns cached
+      // data without refetching. A pre-login visit may have cached `null`, so
+      // clear the cache to force a fresh fetch with the new session cookie.
+      queryClient.clear()
       const step = result?.onboardingStep
       if (step === 1) await navigate({ to: '/onboarding/step1' })
       else if (step === 2) await navigate({ to: '/onboarding/step2' })
