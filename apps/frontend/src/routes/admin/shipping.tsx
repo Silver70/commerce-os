@@ -1,12 +1,19 @@
 import * as React from "react"
 import { createFileRoute } from "@tanstack/react-router"
 import {
+  useSuspenseQuery,
+  useQuery,
+  useMutation,
+  useQueryClient,
+} from "@tanstack/react-query"
+import {
   ChevronDownIcon,
   ChevronRightIcon,
   GlobeIcon,
   PencilIcon,
   PlusIcon,
   SearchIcon,
+  Trash2Icon,
   XIcon,
 } from "lucide-react"
 
@@ -25,30 +32,25 @@ import {
   SheetHeader,
   SheetTitle,
 } from "~/components/ui/sheet"
+import type { ShippingMethod, ShippingZone } from "~/types/api"
+import {
+  createShippingZoneServerFn,
+  createShippingMethodServerFn,
+  updateShippingZoneServerFn,
+  deleteShippingZoneServerFn,
+  updateShippingMethodServerFn,
+  deleteShippingMethodServerFn,
+} from "~/server/shipping"
+import {
+  shippingZonesQueryOptions,
+  shippingMethodsQueryOptions,
+} from "~/queries/shipping"
 
 export const Route = createFileRoute("/admin/shipping")({
+  loader: ({ context }) =>
+    context.queryClient.ensureQueryData(shippingZonesQueryOptions()),
   component: ShippingPage,
 })
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-type ShippingMethod = {
-  id: string
-  name: string
-  description: string
-  price: number
-  minOrder: number | null
-  minDays: number
-  maxDays: number
-  active: boolean
-}
-
-type ShippingZone = {
-  id: string
-  name: string
-  countries: string[]
-  methods: ShippingMethod[]
-}
 
 // ─── Country Data ─────────────────────────────────────────────────────────────
 
@@ -56,80 +58,50 @@ type Country = { code: string; name: string; region: string }
 
 const ALL_COUNTRIES: Country[] = [
   // Asia
-  { code: "MV", name: "Maldives",     region: "Asia" },
-  { code: "SG", name: "Singapore",    region: "Asia" },
-  { code: "MY", name: "Malaysia",     region: "Asia" },
-  { code: "TH", name: "Thailand",     region: "Asia" },
-  { code: "IN", name: "India",        region: "Asia" },
-  { code: "LK", name: "Sri Lanka",    region: "Asia" },
-  { code: "PH", name: "Philippines",  region: "Asia" },
-  { code: "ID", name: "Indonesia",    region: "Asia" },
-  { code: "VN", name: "Vietnam",      region: "Asia" },
-  { code: "JP", name: "Japan",        region: "Asia" },
-  { code: "KR", name: "South Korea",  region: "Asia" },
-  { code: "CN", name: "China",        region: "Asia" },
+  { code: "MV", name: "Maldives",       region: "Asia" },
+  { code: "SG", name: "Singapore",      region: "Asia" },
+  { code: "MY", name: "Malaysia",       region: "Asia" },
+  { code: "TH", name: "Thailand",       region: "Asia" },
+  { code: "IN", name: "India",          region: "Asia" },
+  { code: "LK", name: "Sri Lanka",      region: "Asia" },
+  { code: "PH", name: "Philippines",    region: "Asia" },
+  { code: "ID", name: "Indonesia",      region: "Asia" },
+  { code: "VN", name: "Vietnam",        region: "Asia" },
+  { code: "JP", name: "Japan",          region: "Asia" },
+  { code: "KR", name: "South Korea",    region: "Asia" },
+  { code: "CN", name: "China",          region: "Asia" },
   // Middle East
-  { code: "AE", name: "UAE",          region: "Middle East" },
-  { code: "SA", name: "Saudi Arabia", region: "Middle East" },
-  { code: "QA", name: "Qatar",        region: "Middle East" },
-  { code: "KW", name: "Kuwait",       region: "Middle East" },
-  { code: "BH", name: "Bahrain",      region: "Middle East" },
+  { code: "AE", name: "UAE",            region: "Middle East" },
+  { code: "SA", name: "Saudi Arabia",   region: "Middle East" },
+  { code: "QA", name: "Qatar",          region: "Middle East" },
+  { code: "KW", name: "Kuwait",         region: "Middle East" },
+  { code: "BH", name: "Bahrain",        region: "Middle East" },
   // Europe
   { code: "GB", name: "United Kingdom", region: "Europe" },
-  { code: "DE", name: "Germany",      region: "Europe" },
-  { code: "FR", name: "France",       region: "Europe" },
-  { code: "IT", name: "Italy",        region: "Europe" },
-  { code: "ES", name: "Spain",        region: "Europe" },
-  { code: "NL", name: "Netherlands",  region: "Europe" },
-  { code: "SE", name: "Sweden",       region: "Europe" },
-  { code: "NO", name: "Norway",       region: "Europe" },
+  { code: "DE", name: "Germany",        region: "Europe" },
+  { code: "FR", name: "France",         region: "Europe" },
+  { code: "IT", name: "Italy",          region: "Europe" },
+  { code: "ES", name: "Spain",          region: "Europe" },
+  { code: "NL", name: "Netherlands",    region: "Europe" },
+  { code: "SE", name: "Sweden",         region: "Europe" },
+  { code: "NO", name: "Norway",         region: "Europe" },
   // Americas
-  { code: "US", name: "United States", region: "Americas" },
-  { code: "CA", name: "Canada",       region: "Americas" },
-  { code: "MX", name: "Mexico",       region: "Americas" },
-  { code: "BR", name: "Brazil",       region: "Americas" },
-  { code: "AR", name: "Argentina",    region: "Americas" },
+  { code: "US", name: "United States",  region: "Americas" },
+  { code: "CA", name: "Canada",         region: "Americas" },
+  { code: "MX", name: "Mexico",         region: "Americas" },
+  { code: "BR", name: "Brazil",         region: "Americas" },
+  { code: "AR", name: "Argentina",      region: "Americas" },
   // Oceania
-  { code: "AU", name: "Australia",    region: "Oceania" },
-  { code: "NZ", name: "New Zealand",  region: "Oceania" },
-  { code: "FJ", name: "Fiji",         region: "Oceania" },
+  { code: "AU", name: "Australia",      region: "Oceania" },
+  { code: "NZ", name: "New Zealand",    region: "Oceania" },
+  { code: "FJ", name: "Fiji",           region: "Oceania" },
 ]
 
 const REGIONS = ["Asia", "Middle East", "Europe", "Americas", "Oceania"]
 
-// ─── Fake Data ────────────────────────────────────────────────────────────────
-
-const INITIAL_ZONES: ShippingZone[] = [
-  {
-    id: "z1",
-    name: "Domestic (Maldives)",
-    countries: ["MV"],
-    methods: [
-      { id: "m1", name: "Standard Shipping", description: "3–5 business days", price: 5.00,  minOrder: null, minDays: 3, maxDays: 5,  active: true  },
-      { id: "m2", name: "Express Shipping",  description: "1–2 business days", price: 15.00, minOrder: null, minDays: 1, maxDays: 2,  active: true  },
-      { id: "m3", name: "Free Shipping",     description: "Orders over $100",  price: 0.00,  minOrder: 100,  minDays: 5, maxDays: 8,  active: true  },
-    ],
-  },
-  {
-    id: "z2",
-    name: "Asia",
-    countries: ["SG", "MY", "TH", "IN", "LK", "PH", "ID"],
-    methods: [
-      { id: "m4", name: "Standard International", description: "5–10 business days", price: 12.00, minOrder: null, minDays: 5,  maxDays: 10, active: true },
-      { id: "m5", name: "Express International",  description: "2–4 business days",  price: 25.00, minOrder: null, minDays: 2,  maxDays: 4,  active: true },
-    ],
-  },
-  {
-    id: "z3",
-    name: "Rest of World",
-    countries: ["US", "GB", "AU", "DE", "FR", "CA", "NL"],
-    methods: [
-      { id: "m6", name: "Standard International", description: "7–14 business days", price: 18.00, minOrder: null, minDays: 7,  maxDays: 14, active: true  },
-      { id: "m7", name: "Express International",  description: "3–7 business days",  price: 35.00, minOrder: null, minDays: 3,  maxDays: 7,  active: true  },
-      { id: "m8", name: "Economy Shipping",       description: "14–21 business days",price: 8.00,  minOrder: null, minDays: 14, maxDays: 21, active: false },
-    ],
-  },
-]
+function countryName(code: string) {
+  return ALL_COUNTRIES.find((c) => c.code === code)?.name ?? code
+}
 
 // ─── Country Picker ───────────────────────────────────────────────────────────
 
@@ -162,9 +134,7 @@ function CountryPicker({
   }
 
   function selectRegion(region: string) {
-    const codes = ALL_COUNTRIES
-      .filter((c) => c.region === region)
-      .map((c) => c.code)
+    const codes = ALL_COUNTRIES.filter((c) => c.region === region).map((c) => c.code)
     const allSelected = codes.every((c) => selected.includes(c))
     if (allSelected) {
       onChange(selected.filter((c) => !codes.includes(c)))
@@ -175,7 +145,6 @@ function CountryPicker({
 
   return (
     <div className="space-y-3">
-      {/* Selected tags */}
       {selected.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {selected.map((code) => {
@@ -199,7 +168,6 @@ function CountryPicker({
         </div>
       )}
 
-      {/* Search */}
       <div className="relative">
         <SearchIcon className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
         <Input
@@ -210,7 +178,6 @@ function CountryPicker({
         />
       </div>
 
-      {/* Country list */}
       <div className="max-h-56 overflow-y-auto rounded-lg border">
         {filteredByRegion.length === 0 ? (
           <p className="py-6 text-center text-sm text-muted-foreground">
@@ -221,13 +188,10 @@ function CountryPicker({
             const regionCodes = ALL_COUNTRIES
               .filter((c) => c.region === region)
               .map((c) => c.code)
-            const allRegionSelected = regionCodes.every((c) =>
-              selected.includes(c),
-            )
+            const allRegionSelected = regionCodes.every((c) => selected.includes(c))
             return (
               <div key={region}>
                 {gi > 0 && <div className="border-t" />}
-                {/* Region header */}
                 <div className="flex items-center justify-between bg-muted/30 px-3 py-1.5">
                   <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                     {region}
@@ -289,16 +253,20 @@ function CountryPicker({
 
 // ─── Zone Sheet ───────────────────────────────────────────────────────────────
 
+type ZoneFormValues = { name: string; countries: string[] }
+
 function ZoneSheet({
   zone,
   open,
   onOpenChange,
   onSave,
+  isSaving,
 }: {
   zone: ShippingZone | null
   open: boolean
   onOpenChange: (v: boolean) => void
-  onSave: (name: string, countries: string[], id?: string) => void
+  onSave: (values: ZoneFormValues) => void
+  isSaving: boolean
 }) {
   const [name, setName]           = React.useState("")
   const [countries, setCountries] = React.useState<string[]>([])
@@ -311,7 +279,7 @@ function ZoneSheet({
   }, [open, zone])
 
   const isEdit = !!zone
-  const canSave = name.trim().length > 0
+  const canSave = name.trim().length > 0 && !isSaving
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -353,12 +321,9 @@ function ZoneSheet({
           <Button
             disabled={!canSave}
             className="flex-1 bg-orange-700 text-white shadow-none hover:bg-orange-800 disabled:opacity-50"
-            onClick={() => {
-              onSave(name.trim(), countries, zone?.id)
-              onOpenChange(false)
-            }}
+            onClick={() => onSave({ name: name.trim(), countries })}
           >
-            {isEdit ? "Save changes" : "Add zone"}
+            {isSaving ? "Saving…" : isEdit ? "Save changes" : "Add zone"}
           </Button>
         </SheetFooter>
       </SheetContent>
@@ -368,68 +333,85 @@ function ZoneSheet({
 
 // ─── Method Sheet ─────────────────────────────────────────────────────────────
 
+type RateType = "flat_rate" | "free" | "calculated"
+
+type MethodFormValues = {
+  name: string
+  rateType: RateType
+  price: string
+  minOrderAmount: string
+  estimatedDaysMin: string
+  estimatedDaysMax: string
+  isActive: boolean
+}
+
+function methodDefaults(method: ShippingMethod | null): MethodFormValues {
+  if (!method) {
+    return {
+      name: "",
+      rateType: "flat_rate",
+      price: "",
+      minOrderAmount: "",
+      estimatedDaysMin: "3",
+      estimatedDaysMax: "7",
+      isActive: true,
+    }
+  }
+  return {
+    name: method.name,
+    rateType: method.rateType,
+    price: (method.price / 100).toFixed(2),
+    minOrderAmount:
+      method.minOrderAmount != null
+        ? (method.minOrderAmount / 100).toFixed(2)
+        : "",
+    estimatedDaysMin: method.estimatedDaysMin != null ? String(method.estimatedDaysMin) : "",
+    estimatedDaysMax: method.estimatedDaysMax != null ? String(method.estimatedDaysMax) : "",
+    isActive: method.isActive,
+  }
+}
+
 function MethodSheet({
   method,
   open,
   onOpenChange,
   onSave,
+  isSaving,
 }: {
   method: ShippingMethod | null
   open: boolean
   onOpenChange: (v: boolean) => void
-  onSave: (data: Omit<ShippingMethod, "id">, id?: string) => void
+  onSave: (values: MethodFormValues) => void
+  isSaving: boolean
 }) {
-  const [name, setName]           = React.useState("")
-  const [description, setDesc]    = React.useState("")
-  const [price, setPrice]         = React.useState("")
-  const [minOrder, setMinOrder]   = React.useState("")
-  const [minDays, setMinDays]     = React.useState("3")
-  const [maxDays, setMaxDays]     = React.useState("7")
-  const [active, setActive]       = React.useState(true)
+  const [form, setForm] = React.useState<MethodFormValues>(methodDefaults(null))
 
   React.useEffect(() => {
-    if (open) {
-      setName(method?.name ?? "")
-      setDesc(method?.description ?? "")
-      setPrice(method ? String(method.price) : "")
-      setMinOrder(method?.minOrder !== null && method?.minOrder !== undefined ? String(method.minOrder) : "")
-      setMinDays(method ? String(method.minDays) : "3")
-      setMaxDays(method ? String(method.maxDays) : "7")
-      setActive(method?.active ?? true)
-    }
+    if (open) setForm(methodDefaults(method))
   }, [open, method])
 
-  const isEdit = !!method
-  const canSave = name.trim().length > 0 && price.trim().length > 0
-
-  function handleSave() {
-    onSave(
-      {
-        name: name.trim(),
-        description: description.trim(),
-        price: parseFloat(price) || 0,
-        minOrder: minOrder.trim() === "" ? null : parseFloat(minOrder),
-        minDays: parseInt(minDays) || 1,
-        maxDays: parseInt(maxDays) || 7,
-        active,
-      },
-      method?.id,
-    )
-    onOpenChange(false)
+  function set<K extends keyof MethodFormValues>(key: K, value: MethodFormValues[K]) {
+    setForm((prev) => ({ ...prev, [key]: value }))
   }
+
+  const isEdit = !!method
+  const canSave = form.name.trim().length > 0 && form.price.trim().length > 0 && !isSaving
+
+  const rateTypeOptions: { value: RateType; label: string }[] = [
+    { value: "flat_rate",   label: "Flat rate" },
+    { value: "free",        label: "Free shipping" },
+    { value: "calculated",  label: "Calculated" },
+  ]
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="flex w-full flex-col sm:max-w-md">
         <SheetHeader className="border-b">
           <SheetTitle>{isEdit ? "Edit shipping method" : "Add shipping method"}</SheetTitle>
-          <SheetDescription>
-            Flat rate shipping for this zone.
-          </SheetDescription>
+          <SheetDescription>Configure a shipping rate for this zone.</SheetDescription>
         </SheetHeader>
 
         <div className="flex-1 overflow-y-auto px-4 py-5 space-y-5">
-
           <div className="space-y-1.5">
             <Label htmlFor="m-name">
               Method name <span className="text-destructive">*</span>
@@ -437,36 +419,42 @@ function MethodSheet({
             <Input
               id="m-name"
               placeholder="e.g. Standard Shipping"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="m-desc">
-              Description{" "}
-              <span className="text-xs font-normal text-muted-foreground">
-                (shown to customer)
-              </span>
-            </Label>
-            <Input
-              id="m-desc"
-              placeholder="e.g. 3–5 business days"
-              value={description}
-              onChange={(e) => setDesc(e.target.value)}
+              value={form.name}
+              onChange={(e) => set("name", e.target.value)}
             />
           </div>
 
           <Separator />
 
-          {/* Rate type — flat only for MVP */}
           <div className="space-y-1.5">
             <Label>Rate type</Label>
-            <div className="flex items-center gap-2 rounded-lg border bg-muted/20 px-3 py-2.5">
-              <div className="flex h-4 w-4 items-center justify-center rounded-full border-2 border-amber-500 bg-amber-500">
-                <div className="h-1.5 w-1.5 rounded-full bg-white" />
-              </div>
-              <span className="text-sm">Flat rate</span>
+            <div className="space-y-1.5">
+              {rateTypeOptions.map((opt) => (
+                <div
+                  key={opt.value}
+                  className={cn(
+                    "flex items-center gap-2 rounded-lg border px-3 py-2.5 cursor-pointer transition-colors",
+                    form.rateType === opt.value
+                      ? "border-amber-500 bg-amber-50 dark:bg-amber-950/20"
+                      : "bg-muted/20 hover:bg-muted/40",
+                  )}
+                  onClick={() => set("rateType", opt.value)}
+                >
+                  <div
+                    className={cn(
+                      "flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
+                      form.rateType === opt.value
+                        ? "border-amber-500 bg-amber-500"
+                        : "border-border",
+                    )}
+                  >
+                    {form.rateType === opt.value && (
+                      <div className="h-1.5 w-1.5 rounded-full bg-white" />
+                    )}
+                  </div>
+                  <span className="text-sm">{opt.label}</span>
+                </div>
+              ))}
             </div>
           </div>
 
@@ -482,8 +470,8 @@ function MethodSheet({
                 min={0}
                 step={0.01}
                 placeholder="0.00"
-                value={price}
-                onChange={(e) => setPrice(e.target.value)}
+                value={form.price}
+                onChange={(e) => set("price", e.target.value)}
                 className="w-32"
               />
             </div>
@@ -491,10 +479,8 @@ function MethodSheet({
 
           <div className="space-y-1.5">
             <Label htmlFor="m-min-order">
-              Minimum order for free shipping{" "}
-              <span className="text-xs font-normal text-muted-foreground">
-                (optional)
-              </span>
+              Minimum order amount{" "}
+              <span className="text-xs font-normal text-muted-foreground">(optional)</span>
             </Label>
             <div className="flex items-center gap-2">
               <span className="text-sm text-muted-foreground">$</span>
@@ -504,8 +490,8 @@ function MethodSheet({
                 min={0}
                 step={0.01}
                 placeholder="e.g. 100.00"
-                value={minOrder}
-                onChange={(e) => setMinOrder(e.target.value)}
+                value={form.minOrderAmount}
+                onChange={(e) => set("minOrderAmount", e.target.value)}
                 className="w-36"
               />
             </div>
@@ -516,23 +502,24 @@ function MethodSheet({
 
           <Separator />
 
-          {/* Delivery estimate */}
           <div className="space-y-2">
             <Label>Estimated delivery</Label>
             <div className="flex items-center gap-2">
               <Input
                 type="number"
-                min={1}
-                value={minDays}
-                onChange={(e) => setMinDays(e.target.value)}
+                min={0}
+                placeholder="min"
+                value={form.estimatedDaysMin}
+                onChange={(e) => set("estimatedDaysMin", e.target.value)}
                 className="w-20 text-center"
               />
               <span className="text-sm text-muted-foreground">to</span>
               <Input
                 type="number"
-                min={1}
-                value={maxDays}
-                onChange={(e) => setMaxDays(e.target.value)}
+                min={0}
+                placeholder="max"
+                value={form.estimatedDaysMax}
+                onChange={(e) => set("estimatedDaysMax", e.target.value)}
                 className="w-20 text-center"
               />
               <span className="text-sm text-muted-foreground">days</span>
@@ -541,22 +528,21 @@ function MethodSheet({
 
           <Separator />
 
-          {/* Active toggle */}
           <label className="flex cursor-pointer items-start justify-between gap-4">
             <div>
               <p className="text-sm font-medium">Active</p>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                {active
+                {form.isActive
                   ? "This method is shown to customers at checkout."
                   : "This method is hidden from customers."}
               </p>
             </div>
             <button
               type="button"
-              onClick={() => setActive((v) => !v)}
+              onClick={() => set("isActive", !form.isActive)}
               className={cn(
                 "relative mt-0.5 h-5 w-9 shrink-0 rounded-full border-2 transition-colors",
-                active
+                form.isActive
                   ? "border-amber-500 bg-amber-500"
                   : "border-border bg-transparent",
               )}
@@ -564,14 +550,13 @@ function MethodSheet({
               <span
                 className={cn(
                   "absolute top-0.5 h-3 w-3 rounded-full transition-transform duration-200",
-                  active
+                  form.isActive
                     ? "left-0.5 translate-x-4 bg-white"
                     : "left-0.5 translate-x-0 bg-muted-foreground/40",
                 )}
               />
             </button>
           </label>
-
         </div>
 
         <SheetFooter className="border-t">
@@ -581,9 +566,9 @@ function MethodSheet({
           <Button
             disabled={!canSave}
             className="flex-1 bg-orange-700 text-white shadow-none hover:bg-orange-800 disabled:opacity-50"
-            onClick={handleSave}
+            onClick={() => onSave(form)}
           >
-            {isEdit ? "Save changes" : "Add method"}
+            {isSaving ? "Saving…" : isEdit ? "Save changes" : "Add method"}
           </Button>
         </SheetFooter>
       </SheetContent>
@@ -591,7 +576,7 @@ function MethodSheet({
   )
 }
 
-// ─── Zone Card ────────────────────────────────────────────────────────────────
+// ─── Active Badge ─────────────────────────────────────────────────────────────
 
 function ActiveDot({ active }: { active: boolean }) {
   return (
@@ -609,31 +594,117 @@ function ActiveDot({ active }: { active: boolean }) {
   )
 }
 
-function countryName(code: string) {
-  return ALL_COUNTRIES.find((c) => c.code === code)?.name ?? code
-}
+// ─── Zone Card ────────────────────────────────────────────────────────────────
+
+type MethodSheetState = { method: ShippingMethod | null; open: boolean }
 
 function ZoneCard({
   zone,
   defaultExpanded,
   onEditZone,
-  onAddMethod,
-  onEditMethod,
+  onDeleteZone,
 }: {
   zone: ShippingZone
   defaultExpanded?: boolean
   onEditZone: () => void
-  onAddMethod: () => void
-  onEditMethod: (method: ShippingMethod) => void
+  onDeleteZone: () => void
 }) {
-  const [expanded, setExpanded] = React.useState(defaultExpanded ?? false)
+  const queryClient = useQueryClient()
+  const [expanded, setExpanded]           = React.useState(defaultExpanded ?? false)
+  const [confirmDelete, setConfirmDelete] = React.useState(false)
+  const [confirmDeleteMethodId, setConfirmDeleteMethodId] = React.useState<string | null>(null)
+  const [methodSheet, setMethodSheet]     = React.useState<MethodSheetState>({ method: null, open: false })
+  const [methodError, setMethodError]     = React.useState<string | null>(null)
+
+  const methodsQuery = useQuery({
+    ...shippingMethodsQueryOptions(zone.id),
+    enabled: expanded,
+  })
+
+  const methods = methodsQuery.data ?? []
+
+  const createMethodMutation = useMutation({
+    mutationFn: (values: MethodFormValues) =>
+      createShippingMethodServerFn({
+        data: {
+          zoneId: zone.id,
+          name: values.name,
+          rateType: values.rateType,
+          price: Math.round(parseFloat(values.price) * 100) || 0,
+          minOrderAmount: values.minOrderAmount
+            ? Math.round(parseFloat(values.minOrderAmount) * 100)
+            : undefined,
+          estimatedDaysMin: values.estimatedDaysMin
+            ? parseInt(values.estimatedDaysMin)
+            : undefined,
+          estimatedDaysMax: values.estimatedDaysMax
+            ? parseInt(values.estimatedDaysMax)
+            : undefined,
+          isActive: values.isActive,
+        },
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries(shippingMethodsQueryOptions(zone.id))
+      setMethodSheet({ method: null, open: false })
+      setMethodError(null)
+    },
+    onError: (err: Error) => setMethodError(err.message),
+  })
+
+  const updateMethodMutation = useMutation({
+    mutationFn: ({ id, values }: { id: string; values: MethodFormValues }) =>
+      updateShippingMethodServerFn({
+        data: {
+          id,
+          name: values.name,
+          rateType: values.rateType,
+          price: Math.round(parseFloat(values.price) * 100) || 0,
+          minOrderAmount: values.minOrderAmount
+            ? Math.round(parseFloat(values.minOrderAmount) * 100)
+            : undefined,
+          estimatedDaysMin: values.estimatedDaysMin
+            ? parseInt(values.estimatedDaysMin)
+            : undefined,
+          estimatedDaysMax: values.estimatedDaysMax
+            ? parseInt(values.estimatedDaysMax)
+            : undefined,
+          isActive: values.isActive,
+        },
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries(shippingMethodsQueryOptions(zone.id))
+      setMethodSheet({ method: null, open: false })
+      setMethodError(null)
+    },
+    onError: (err: Error) => setMethodError(err.message),
+  })
+
+  const deleteMethodMutation = useMutation({
+    mutationFn: (id: string) =>
+      deleteShippingMethodServerFn({ data: { id } }),
+    onSuccess: () => {
+      queryClient.invalidateQueries(shippingMethodsQueryOptions(zone.id))
+      setConfirmDeleteMethodId(null)
+    },
+  })
+
+  function handleMethodSave(values: MethodFormValues) {
+    if (methodSheet.method) {
+      updateMethodMutation.mutate({ id: methodSheet.method.id, values })
+    } else {
+      createMethodMutation.mutate(values)
+    }
+  }
+
+  const isSavingMethod =
+    createMethodMutation.isPending || updateMethodMutation.isPending
 
   const displayCountries = zone.countries.slice(0, 4)
   const extraCount = zone.countries.length - displayCountries.length
 
   return (
     <div className="rounded-lg border bg-card">
-      {/* ── Zone header ─────────────────────────────────────────────────────── */}
+      {/* Zone header */}
       <div className="flex items-center gap-3 px-5 py-4">
         <button
           type="button"
@@ -655,29 +726,55 @@ function ZoneCard({
                 ? "No countries"
                 : displayCountries.map((c) => countryName(c)).join(", ") +
                   (extraCount > 0 ? ` + ${extraCount} more` : "")}
-              {" · "}
-              {zone.methods.length === 0
-                ? "No methods"
-                : `${zone.methods.length} method${zone.methods.length !== 1 ? "s" : ""}`}
             </p>
           )}
         </div>
 
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-8 shrink-0 gap-1.5 text-xs"
-          onClick={onEditZone}
-        >
-          <PencilIcon className="h-3 w-3" />
-          Edit zone
-        </Button>
+        {confirmDelete ? (
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">Delete this zone?</span>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 px-2.5 text-xs"
+              onClick={() => setConfirmDelete(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              className="h-7 bg-destructive px-2.5 text-xs text-destructive-foreground hover:bg-destructive/90"
+              onClick={onDeleteZone}
+            >
+              Delete
+            </Button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 shrink-0 gap-1.5 text-xs"
+              onClick={onEditZone}
+            >
+              <PencilIcon className="h-3 w-3" />
+              Edit zone
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+              onClick={() => setConfirmDelete(true)}
+            >
+              <Trash2Icon className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        )}
       </div>
 
-      {/* ── Expanded content ─────────────────────────────────────────────────── */}
+      {/* Expanded content */}
       {expanded && (
         <div className="border-t px-5 pb-5 pt-4 space-y-5">
-
           {/* Countries */}
           <div>
             <div className="mb-2 flex items-center gap-1.5">
@@ -687,9 +784,7 @@ function ZoneCard({
               </span>
             </div>
             {zone.countries.length === 0 ? (
-              <p className="text-xs text-muted-foreground italic">
-                No countries added yet.
-              </p>
+              <p className="text-xs text-muted-foreground italic">No countries added yet.</p>
             ) : (
               <div className="flex flex-wrap gap-1.5">
                 {zone.countries.map((code) => (
@@ -717,21 +812,31 @@ function ZoneCard({
                 variant="outline"
                 size="sm"
                 className="h-7 gap-1 px-2.5 text-xs"
-                onClick={onAddMethod}
+                onClick={() => {
+                  setMethodError(null)
+                  setMethodSheet({ method: null, open: true })
+                }}
               >
                 <PlusIcon className="h-3 w-3" />
                 Add method
               </Button>
             </div>
 
-            {zone.methods.length === 0 ? (
+            {methodError && (
+              <p className="rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                {methodError}
+              </p>
+            )}
+
+            {methodsQuery.isLoading ? (
+              <p className="py-4 text-center text-sm text-muted-foreground">Loading…</p>
+            ) : methods.length === 0 ? (
               <p className="rounded-lg border border-dashed py-6 text-center text-sm text-muted-foreground">
                 No shipping methods. Add one to start accepting orders in this zone.
               </p>
             ) : (
               <div className="overflow-hidden rounded-lg border">
-                {/* Header */}
-                <div className="grid grid-cols-[1fr_100px_110px_80px_64px] items-center bg-muted/20 px-4 py-2 text-xs font-medium text-muted-foreground">
+                <div className="grid grid-cols-[1fr_110px_110px_80px_80px] items-center bg-muted/20 px-4 py-2 text-xs font-medium text-muted-foreground">
                   <span>Method</span>
                   <span>Rate</span>
                   <span>Delivery</span>
@@ -739,62 +844,103 @@ function ZoneCard({
                   <span />
                 </div>
 
-                {zone.methods.map((method, i) => (
+                {methods.map((method, i) => (
                   <div
                     key={method.id}
                     className={cn(
-                      "grid grid-cols-[1fr_100px_110px_80px_64px] items-center px-4 py-3 transition-colors hover:bg-muted/20",
-                      i < zone.methods.length - 1 && "border-b border-border/50",
+                      "grid grid-cols-[1fr_110px_110px_80px_80px] items-center px-4 py-3 transition-colors hover:bg-muted/20",
+                      i < methods.length - 1 && "border-b border-border/50",
                     )}
                   >
-                    {/* Name + description */}
                     <div className="min-w-0">
                       <p className="text-sm font-medium leading-none">{method.name}</p>
-                      <p className="mt-0.5 text-xs text-muted-foreground">{method.description}</p>
+                      <p className="mt-0.5 text-xs text-muted-foreground capitalize">
+                        {method.rateType.replace("_", " ")}
+                      </p>
                     </div>
 
-                    {/* Rate */}
                     <div className="text-sm font-semibold tabular-nums">
-                      {method.price === 0 && method.minOrder
-                        ? <span className="text-emerald-600 dark:text-emerald-400">Free</span>
-                        : `$${method.price.toFixed(2)}`}
-                      {method.minOrder !== null && (
+                      {method.rateType === "free" ? (
+                        <span className="text-emerald-600 dark:text-emerald-400">Free</span>
+                      ) : (
+                        `$${(method.price / 100).toFixed(2)}`
+                      )}
+                      {method.minOrderAmount != null && (
                         <p className="text-[10px] font-normal text-muted-foreground">
-                          min ${method.minOrder}
+                          min ${(method.minOrderAmount / 100).toFixed(2)}
                         </p>
                       )}
                     </div>
 
-                    {/* Delivery */}
                     <span className="text-sm text-muted-foreground">
-                      {method.minDays}–{method.maxDays} days
+                      {method.estimatedDaysMin != null && method.estimatedDaysMax != null
+                        ? `${method.estimatedDaysMin}–${method.estimatedDaysMax} days`
+                        : "—"}
                     </span>
 
-                    {/* Status */}
                     <div className="flex justify-center">
-                      <ActiveDot active={method.active} />
+                      <ActiveDot active={method.isActive} />
                     </div>
 
-                    {/* Edit */}
-                    <div className="flex justify-end">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
-                        onClick={() => onEditMethod(method)}
-                      >
-                        <PencilIcon className="h-3 w-3" />
-                        Edit
-                      </Button>
+                    <div className="flex items-center justify-end gap-1">
+                      {confirmDeleteMethodId === method.id ? (
+                        <>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 px-1.5 text-[11px]"
+                            onClick={() => setConfirmDeleteMethodId(null)}
+                          >
+                            Cancel
+                          </Button>
+                          <Button
+                            size="sm"
+                            className="h-6 bg-destructive px-1.5 text-[11px] text-destructive-foreground hover:bg-destructive/90"
+                            onClick={() => deleteMethodMutation.mutate(method.id)}
+                          >
+                            Delete
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
+                            onClick={() => {
+                              setMethodError(null)
+                              setMethodSheet({ method, open: true })
+                            }}
+                          >
+                            <PencilIcon className="h-3 w-3" />
+                            Edit
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                            onClick={() => setConfirmDeleteMethodId(method.id)}
+                          >
+                            <Trash2Icon className="h-3 w-3" />
+                          </Button>
+                        </>
+                      )}
                     </div>
                   </div>
                 ))}
               </div>
             )}
           </div>
-
         </div>
       )}
+
+      <MethodSheet
+        method={methodSheet.method}
+        open={methodSheet.open}
+        onOpenChange={(v) => setMethodSheet((s) => ({ ...s, open: v }))}
+        onSave={handleMethodSave}
+        isSaving={isSavingMethod}
+      />
     </div>
   )
 }
@@ -802,68 +948,58 @@ function ZoneCard({
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 type ZoneSheetState = { zone: ShippingZone | null; open: boolean }
-type MethodSheetState = { zoneId: string; method: ShippingMethod | null; open: boolean }
-
-let nextId = 100
 
 function ShippingPage() {
-  const [zones, setZones] = React.useState<ShippingZone[]>(INITIAL_ZONES)
+  const queryClient = useQueryClient()
+  const { data: zones } = useSuspenseQuery(shippingZonesQueryOptions())
 
-  const [zoneSheet, setZoneSheet]     = React.useState<ZoneSheetState>({ zone: null, open: false })
-  const [methodSheet, setMethodSheet] = React.useState<MethodSheetState>({ zoneId: "", method: null, open: false })
+  const [zoneSheet, setZoneSheet] = React.useState<ZoneSheetState>({ zone: null, open: false })
+  const [zoneError, setZoneError] = React.useState<string | null>(null)
 
-  function openAddZone() {
-    setZoneSheet({ zone: null, open: true })
-  }
+  const createZoneMutation = useMutation({
+    mutationFn: (values: ZoneFormValues) =>
+      createShippingZoneServerFn({
+        data: { name: values.name, countries: values.countries, isDefault: false },
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries(shippingZonesQueryOptions())
+      setZoneSheet({ zone: null, open: false })
+      setZoneError(null)
+    },
+    onError: (err: Error) => setZoneError(err.message),
+  })
 
-  function openEditZone(zone: ShippingZone) {
-    setZoneSheet({ zone, open: true })
-  }
+  const updateZoneMutation = useMutation({
+    mutationFn: ({ id, values }: { id: string; values: ZoneFormValues }) =>
+      updateShippingZoneServerFn({
+        data: { id, name: values.name, countries: values.countries },
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries(shippingZonesQueryOptions())
+      setZoneSheet({ zone: null, open: false })
+      setZoneError(null)
+    },
+    onError: (err: Error) => setZoneError(err.message),
+  })
 
-  function openAddMethod(zoneId: string) {
-    setMethodSheet({ zoneId, method: null, open: true })
-  }
+  const deleteZoneMutation = useMutation({
+    mutationFn: (id: string) => deleteShippingZoneServerFn({ data: { id } }),
+    onSuccess: () => queryClient.invalidateQueries(shippingZonesQueryOptions()),
+  })
 
-  function openEditMethod(zoneId: string, method: ShippingMethod) {
-    setMethodSheet({ zoneId, method, open: true })
-  }
-
-  function handleSaveZone(name: string, countries: string[], id?: string) {
-    if (id) {
-      setZones((prev) =>
-        prev.map((z) => (z.id === id ? { ...z, name, countries } : z)),
-      )
+  function handleSaveZone(values: ZoneFormValues) {
+    if (zoneSheet.zone) {
+      updateZoneMutation.mutate({ id: zoneSheet.zone.id, values })
     } else {
-      setZones((prev) => [
-        ...prev,
-        { id: `z${nextId++}`, name, countries, methods: [] },
-      ])
+      createZoneMutation.mutate(values)
     }
   }
 
-  function handleSaveMethod(data: Omit<ShippingMethod, "id">, id?: string) {
-    const { zoneId } = methodSheet
-    setZones((prev) =>
-      prev.map((z) => {
-        if (z.id !== zoneId) return z
-        if (id) {
-          return {
-            ...z,
-            methods: z.methods.map((m) => (m.id === id ? { ...m, ...data } : m)),
-          }
-        }
-        return {
-          ...z,
-          methods: [...z.methods, { id: `m${nextId++}`, ...data }],
-        }
-      }),
-    )
-  }
+  const isSavingZone = createZoneMutation.isPending || updateZoneMutation.isPending
 
   return (
     <div className="space-y-6">
-
-      {/* ── Header ────────────────────────────────────────────────────────────── */}
+      {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold">Shipping</h1>
@@ -873,14 +1009,23 @@ function ShippingPage() {
         </div>
         <Button
           className="gap-2 bg-orange-700 px-5 py-2.5 text-white shadow-none hover:bg-orange-800"
-          onClick={openAddZone}
+          onClick={() => {
+            setZoneError(null)
+            setZoneSheet({ zone: null, open: true })
+          }}
         >
           <PlusIcon className="h-4 w-4" />
           Add zone
         </Button>
       </div>
 
-      {/* ── Zone list ─────────────────────────────────────────────────────────── */}
+      {zoneError && (
+        <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {zoneError}
+        </p>
+      )}
+
+      {/* Zone list */}
       <div className="space-y-3">
         {zones.length === 0 ? (
           <div className="rounded-lg border border-dashed py-16 text-center">
@@ -895,29 +1040,23 @@ function ShippingPage() {
               key={zone.id}
               zone={zone}
               defaultExpanded={i === 0}
-              onEditZone={() => openEditZone(zone)}
-              onAddMethod={() => openAddMethod(zone.id)}
-              onEditMethod={(method) => openEditMethod(zone.id, method)}
+              onEditZone={() => {
+                setZoneError(null)
+                setZoneSheet({ zone, open: true })
+              }}
+              onDeleteZone={() => deleteZoneMutation.mutate(zone.id)}
             />
           ))
         )}
       </div>
 
-      {/* ── Sheets ────────────────────────────────────────────────────────────── */}
       <ZoneSheet
         zone={zoneSheet.zone}
         open={zoneSheet.open}
         onOpenChange={(v) => setZoneSheet((s) => ({ ...s, open: v }))}
         onSave={handleSaveZone}
+        isSaving={isSavingZone}
       />
-
-      <MethodSheet
-        method={methodSheet.method}
-        open={methodSheet.open}
-        onOpenChange={(v) => setMethodSheet((s) => ({ ...s, open: v }))}
-        onSave={handleSaveMethod}
-      />
-
     </div>
   )
 }
