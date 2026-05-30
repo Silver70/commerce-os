@@ -1,33 +1,40 @@
-import * as React from "react"
-import { createFileRoute, Link } from "@tanstack/react-router"
-import { useSuspenseQuery } from "@tanstack/react-query"
-import { EyeIcon, PlusIcon } from "lucide-react"
+import * as React from "react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useSuspenseQuery } from "@tanstack/react-query";
+import { EyeIcon, PlusIcon } from "lucide-react";
 
-import { Button } from "~/components/ui/button"
-import { Badge } from "~/components/ui/badge"
-import { DataTable, type DataTableColumn, type DataTableFilter } from "~/components/data-table"
-import { ordersQueryOptions } from "~/queries/orders"
-import { getOrdersServerFn } from "~/server/orders"
-import { formatMoney } from "~/lib/money"
-import type { Order, OrderStatus } from "~/types/api"
+import { Button } from "~/components/ui/button";
+import { Badge } from "~/components/ui/badge";
+import {
+  DataTable,
+  type DataTableColumn,
+  type DataTableFilter,
+} from "~/components/data-table";
+import { ordersQueryOptions } from "~/queries/orders";
+import { getOrdersServerFn } from "~/server/orders";
+import { formatMoney } from "~/lib/money";
+import type { Order, OrderStatus } from "~/types/api";
 
 export const Route = createFileRoute("/admin/orders_/")({
   loader: ({ context }) =>
     context.queryClient.ensureQueryData(ordersQueryOptions()),
   component: OrdersPage,
-})
+});
 
 // ─── Status Badge ─────────────────────────────────────────────────────────────
 
 export const ORDER_STATUS_STYLES: Record<OrderStatus, string> = {
-  pending:    "text-amber-700 border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-900/50 dark:text-amber-400",
-  paid:       "text-emerald-700 border-emerald-200 bg-emerald-50 dark:bg-emerald-950/20 dark:border-emerald-900/50 dark:text-emerald-400",
-  processing: "text-blue-700 border-blue-200 bg-blue-50 dark:bg-blue-950/20 dark:border-blue-900/50 dark:text-blue-400",
-  shipped:    "text-violet-700 border-violet-200 bg-violet-50 dark:bg-violet-950/20 dark:border-violet-900/50 dark:text-violet-400",
-  delivered:  "text-muted-foreground border-border bg-muted/40",
-  cancelled:  "text-destructive border-destructive/20 bg-destructive/10",
-  refunded:   "text-destructive border-destructive/30 bg-transparent",
-}
+  pending:
+    "text-amber-700 border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-900/50 dark:text-amber-400",
+  paid: "text-emerald-700 border-emerald-200 bg-emerald-50 dark:bg-emerald-950/20 dark:border-emerald-900/50 dark:text-emerald-400",
+  processing:
+    "text-blue-700 border-blue-200 bg-blue-50 dark:bg-blue-950/20 dark:border-blue-900/50 dark:text-blue-400",
+  shipped:
+    "text-violet-700 border-violet-200 bg-violet-50 dark:bg-violet-950/20 dark:border-violet-900/50 dark:text-violet-400",
+  delivered: "text-muted-foreground border-border bg-muted/40",
+  cancelled: "text-destructive border-destructive/20 bg-destructive/10",
+  refunded: "text-destructive border-destructive/30 bg-transparent",
+};
 
 export function OrderStatusBadge({ status }: { status: OrderStatus }) {
   return (
@@ -37,7 +44,7 @@ export function OrderStatusBadge({ status }: { status: OrderStatus }) {
     >
       {status}
     </Badge>
-  )
+  );
 }
 
 // ─── Column Definitions ───────────────────────────────────────────────────────
@@ -66,7 +73,9 @@ const COLUMNS: DataTableColumn<Order>[] = [
     render: (row) => (
       <div>
         <p className="text-sm font-medium">{row.customerName}</p>
-        <p className="mt-0.5 text-xs text-muted-foreground">{row.customerEmail}</p>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          {row.customerEmail}
+        </p>
       </div>
     ),
   },
@@ -82,7 +91,9 @@ const COLUMNS: DataTableColumn<Order>[] = [
     align: "center",
     className: "w-20",
     render: (row) => (
-      <span className="text-sm tabular-nums text-muted-foreground">{row.lineItems.length}</span>
+      <span className="text-sm tabular-nums text-muted-foreground">
+        {row.lineItems?.length ?? "—"}
+      </span>
     ),
   },
   {
@@ -114,7 +125,7 @@ const COLUMNS: DataTableColumn<Order>[] = [
       </Button>
     ),
   },
-]
+];
 
 // ─── Filters ──────────────────────────────────────────────────────────────────
 
@@ -123,39 +134,41 @@ const FILTERS: DataTableFilter[] = [
     key: "status",
     placeholder: "All statuses",
     options: [
-      { label: "Pending",    value: "pending"    },
-      { label: "Paid",       value: "paid"       },
+      { label: "Pending", value: "pending" },
+      { label: "Paid", value: "paid" },
       { label: "Processing", value: "processing" },
-      { label: "Shipped",    value: "shipped"    },
-      { label: "Delivered",  value: "delivered"  },
-      { label: "Cancelled",  value: "cancelled"  },
-      { label: "Refunded",   value: "refunded"   },
+      { label: "Shipped", value: "shipped" },
+      { label: "Delivered", value: "delivered" },
+      { label: "Cancelled", value: "cancelled" },
+      { label: "Refunded", value: "refunded" },
     ],
   },
-]
+];
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 function OrdersPage() {
-  const { data: page } = useSuspenseQuery(ordersQueryOptions())
-  const [items, setItems] = React.useState<Order[]>(page.orders)
-  const [nextCursor, setNextCursor] = React.useState<string | null>(page.nextCursor)
-  const [loadingMore, setLoadingMore] = React.useState(false)
+  const { data: page } = useSuspenseQuery(ordersQueryOptions());
+  const [items, setItems] = React.useState<Order[]>(page.orders);
+  const [nextCursor, setNextCursor] = React.useState<string | null>(
+    page.nextCursor,
+  );
+  const [loadingMore, setLoadingMore] = React.useState(false);
 
   React.useEffect(() => {
-    setItems(page.orders)
-    setNextCursor(page.nextCursor)
-  }, [page])
+    setItems(page.orders);
+    setNextCursor(page.nextCursor);
+  }, [page]);
 
   async function loadMore() {
-    if (!nextCursor || loadingMore) return
-    setLoadingMore(true)
+    if (!nextCursor || loadingMore) return;
+    setLoadingMore(true);
     try {
-      const more = await getOrdersServerFn({ data: { cursor: nextCursor } })
-      setItems((prev) => [...prev, ...more.orders])
-      setNextCursor(more.nextCursor)
+      const more = await getOrdersServerFn({ data: { cursor: nextCursor } });
+      setItems((prev) => [...prev, ...more.orders]);
+      setNextCursor(more.nextCursor);
     } finally {
-      setLoadingMore(false)
+      setLoadingMore(false);
     }
   }
 
@@ -196,5 +209,5 @@ function OrdersPage() {
         </div>
       )}
     </div>
-  )
+  );
 }

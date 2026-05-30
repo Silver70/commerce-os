@@ -1,5 +1,11 @@
-import * as React from "react"
-import { createFileRoute, Link } from "@tanstack/react-router"
+import * as React from "react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import {
+  useSuspenseQuery,
+  useMutation,
+  useQueryClient,
+} from "@tanstack/react-query";
+import { z } from "zod";
 import {
   ArrowLeftIcon,
   ChevronRightIcon,
@@ -11,183 +17,182 @@ import {
   CheckCircleIcon,
   PlusIcon,
   AlertTriangleIcon,
-} from "lucide-react"
+} from "lucide-react";
 
-import { cn } from "~/lib/utils"
-import { Button } from "~/components/ui/button"
-import { Input } from "~/components/ui/input"
-import { Label } from "~/components/ui/label"
-import { Badge } from "~/components/ui/badge"
-import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card"
-import { Separator } from "~/components/ui/separator"
+import { cn } from "~/lib/utils";
+import { Button } from "~/components/ui/button";
+import { Input } from "~/components/ui/input";
+import { Label } from "~/components/ui/label";
+import { Badge } from "~/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
+import { Separator } from "~/components/ui/separator";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "~/components/ui/select"
-import { ORDER_STATUS_STYLES } from "~/routes/admin/orders_/index"
+} from "~/components/ui/select";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "~/components/ui/sheet";
+import { ORDER_STATUS_STYLES } from "~/routes/admin/orders_/index";
+import { orderQueryOptions } from "~/queries/orders";
+import {
+  updateOrderStatusServerFn,
+  addOrderNoteServerFn,
+  refundOrderServerFn,
+  createShipmentServerFn,
+} from "~/server/orders";
+import { formatMoney } from "~/lib/money";
+import { parseApiError } from "~/lib/errors";
+import type { OrderStatus } from "~/types/api";
 
 export const Route = createFileRoute("/admin/orders_/$orderId")({
+  loader: ({ context, params }) =>
+    context.queryClient.ensureQueryData(orderQueryOptions(params.orderId)),
   component: OrderDetailPage,
-})
+});
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// ─── Zod Schemas ──────────────────────────────────────────────────────────────
 
-type OrderStatus =
-  | "pending"
-  | "paid"
-  | "processing"
-  | "shipped"
-  | "delivered"
-  | "cancelled"
-  | "refunded"
+const refundSchema = z.object({
+  amount: z.coerce.number().positive("Amount must be positive"),
+  reason: z.string().optional(),
+});
 
-type LineItem = {
-  id: string
-  product: string
-  variant: string
-  sku: string
-  gradient: string
-  qty: number
-  unitPrice: number
+const shipmentSchema = z.object({
+  carrier: z.string().min(1, "Carrier is required"),
+  trackingNumber: z.string().min(1, "Tracking number is required"),
+  trackingUrl: z.string().url("Invalid URL").optional().or(z.literal("")),
+});
+
+// ─── Timeline helpers ─────────────────────────────────────────────────────────
+
+function timelineDotClass(eventType: string | undefined): string {
+  if (!eventType) return "bg-blue-500";
+  if (eventType.includes("note")) return "bg-muted-foreground/50";
+  if (eventType.includes("shipment")) return "bg-violet-500";
+  if (
+    eventType.includes("payment") ||
+    eventType.includes("placed") ||
+    eventType.includes("created") ||
+    eventType.includes("manually")
+  )
+    return "bg-emerald-500";
+  return "bg-blue-500";
 }
 
-type TimelineEvent = {
-  id: string
-  eventType: "placed" | "payment" | "status" | "note" | "shipment"
-  title: string
-  description: string
-  actorType: "system" | "admin" | "customer"
-  actorId: string | null
-  actorName: string        // resolved display name, included by backend
-  time: string
-}
-
-type Address = {
-  name: string
-  line1: string
-  line2?: string
-  city: string
-  region: string
-  zip: string
-  country: string
-}
-
-// ─── Fake Data ────────────────────────────────────────────────────────────────
-
-const SEED_ORDER = {
-  number: "ORD-20260519-0025",
-  placedAt: "May 19, 2026 at 2:34 PM",
-  status: "paid" as OrderStatus,
-  paymentStatus: "Captured",
-  fulfillmentStatus: "Unfulfilled",
-  customer: {
-    name: "John Smith",
-    email: "john@email.com",
-    phone: "+960 773-1234",
-  },
-  shipping: {
-    name: "John Smith",
-    line1: "123 Beach Road",
-    city: "Malé",
-    region: "Kaafu Atoll",
-    zip: "20001",
-    country: "Maldives",
-  } as Address,
-  billingSameAsShipping: true,
-  items: [
-    {
-      id: "1",
-      product: "Wave Board Pro",
-      variant: "S / Red",
-      sku: "WAVE-S-RED",
-      gradient: "from-blue-400 via-blue-500 to-indigo-700",
-      qty: 1,
-      unitPrice: 149.99,
-    },
-  ] as LineItem[],
-  subtotal:     149.99,
-  shippingCost:  10.00,
-  tax:           12.00,
-  discount:       0.00,
-  total:        171.99,
-  payment: {
-    provider:  "Stripe",
-    intentId:  "pi_3O8cXqLmNp789xyz",
-    status:    "Captured",
-    cardBrand: "Visa",
-    cardLast4: "4242",
-    amount:   171.99,
-  },
-  timeline: [
-    { id: "1", eventType: "placed"  as const, title: "Order placed",     description: "Customer placed the order via the storefront.",   actorType: "customer", actorId: "cust_01JOHNSMITH", actorName: "John Smith", time: "May 19, 2026 at 2:34 PM" },
-    { id: "2", eventType: "payment" as const, title: "Payment captured", description: "Stripe captured $171.99 from Visa ending 4242.", actorType: "system",   actorId: null,               actorName: "System",     time: "May 19, 2026 at 2:35 PM" },
-    { id: "3", eventType: "status"  as const, title: "Status updated",   description: "Order status changed: pending → paid.",          actorType: "system",   actorId: null,               actorName: "System",     time: "May 19, 2026 at 2:35 PM" },
-  ] as TimelineEvent[],
-}
-
-// ─── Timeline dot styles ──────────────────────────────────────────────────────
-
-const TIMELINE_DOT: Record<TimelineEvent["eventType"], string> = {
-  placed:   "bg-emerald-500",
-  payment:  "bg-emerald-500",
-  status:   "bg-blue-500",
-  note:     "bg-muted-foreground/50",
-  shipment: "bg-violet-500",
+function timelineTitle(eventType: string | undefined): string {
+  if (!eventType) return "Event";
+  const titles: Record<string, string> = {
+    status_changed: "Status changed",
+    note_added: "Note added",
+    payment_received: "Payment received",
+    refund_issued: "Refund issued",
+    shipment_created: "Shipment created",
+    manually_created: "Order created manually",
+  };
+  return (
+    titles[eventType] ??
+    eventType.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
+  );
 }
 
 // ─── Refund Modal ─────────────────────────────────────────────────────────────
 
 function RefundModal({
-  total,
+  totalCents,
+  currency,
   orderNumber,
+  orderId,
   onClose,
 }: {
-  total: number
-  orderNumber: string
-  onClose: () => void
+  totalCents: number;
+  currency: string;
+  orderNumber: string;
+  orderId: string;
+  onClose: () => void;
 }) {
-  const [amount, setAmount] = React.useState(total.toFixed(2))
-  const [reason, setReason] = React.useState("")
-  const [restock, setRestock] = React.useState(true)
-  const [note, setNote] = React.useState("")
+  const queryClient = useQueryClient();
+  const [amount, setAmount] = React.useState((totalCents / 100).toFixed(2));
+  const [reason, setReason] = React.useState("");
+  const [error, setError] = React.useState<string | null>(null);
+
+  const mutation = useMutation({
+    mutationFn: (payload: { amount: number; reason: string }) =>
+      refundOrderServerFn({
+        data: { orderId, amount: payload.amount, reason: payload.reason },
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: orderQueryOptions(orderId).queryKey,
+      });
+      onClose();
+    },
+    onError: (err) => {
+      const msg = parseApiError(err).message;
+      setError(Array.isArray(msg) ? msg[0] : msg);
+    },
+  });
+
+  function handleSubmit() {
+    setError(null);
+    const result = refundSchema.safeParse({
+      amount,
+      reason: reason || undefined,
+    });
+    if (!result.success) {
+      setError(result.error.issues[0].message);
+      return;
+    }
+    mutation.mutate({
+      amount: Math.round(result.data.amount * 100),
+      reason: result.data.reason ?? "",
+    });
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <Card className="w-full max-w-md shadow-2xl">
         <CardHeader className="border-b pb-4">
-          <CardTitle className="text-base font-semibold">Issue Refund</CardTitle>
+          <CardTitle className="text-base font-semibold">
+            Issue Refund
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-5 pt-5">
           <div className="space-y-0.5 text-sm text-muted-foreground">
-            <p>Order: <span className="font-mono font-medium text-foreground">{orderNumber}</span></p>
-            <p>Total paid: <span className="font-semibold text-foreground">${total.toFixed(2)}</span></p>
+            <p>
+              Order:{" "}
+              <span className="font-mono font-medium text-foreground">
+                {orderNumber}
+              </span>
+            </p>
+            <p>
+              Total paid:{" "}
+              <span className="font-semibold text-foreground">
+                {formatMoney(totalCents, currency)}
+              </span>
+            </p>
           </div>
 
           <div className="space-y-1.5">
             <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
               Refund amount <span className="text-destructive">*</span>
             </Label>
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">$</span>
-                <Input
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  className="h-9 pl-6 text-sm"
-                />
-              </div>
-              <Select defaultValue="full">
-                <SelectTrigger className="h-9 w-36 text-sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="full">Full refund</SelectItem>
-                  <SelectItem value="partial">Partial refund</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                $
+              </span>
+              <Input
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                className="h-9 pl-6 text-sm"
+              />
             </div>
           </div>
 
@@ -200,7 +205,9 @@ function RefundModal({
                 <SelectValue placeholder="Select a reason…" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="customer_request">Customer request</SelectItem>
+                <SelectItem value="customer_request">
+                  Customer request
+                </SelectItem>
                 <SelectItem value="defective">Defective item</SelectItem>
                 <SelectItem value="not_received">Item not received</SelectItem>
                 <SelectItem value="other">Other</SelectItem>
@@ -208,109 +215,223 @@ function RefundModal({
             </Select>
           </div>
 
-          <label className="flex cursor-pointer items-center gap-2.5">
-            <input
-              type="checkbox"
-              checked={restock}
-              onChange={(e) => setRestock(e.target.checked)}
-              className="h-4 w-4 rounded border-border accent-amber-500"
-            />
-            <span className="text-sm">Restock items</span>
-          </label>
-
-          <div className="space-y-1.5">
-            <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Note (optional)
-            </Label>
-            <textarea
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              rows={2}
-              className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none placeholder:text-muted-foreground transition-[border-color,box-shadow] focus:border-ring focus:ring-3 focus:ring-ring/50"
-              placeholder="Internal note about this refund…"
-            />
-          </div>
+          {error && <p className="text-sm text-destructive">{error}</p>}
 
           <div className="flex items-start gap-2.5 rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2.5">
             <AlertTriangleIcon className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
             <p className="text-xs leading-relaxed text-destructive/80">
-              This will refund <strong>${amount}</strong> to the customer's original payment method via Stripe. This action cannot be undone.
+              This will refund <strong>${amount}</strong> to the customer via
+              Stripe. This action cannot be undone.
             </p>
           </div>
 
           <div className="flex items-center justify-end gap-2 pt-1">
-            <Button variant="outline" size="sm" className="h-9" onClick={onClose}>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9"
+              onClick={onClose}
+              disabled={mutation.isPending}
+            >
               Cancel
             </Button>
             <Button
               size="sm"
               className="h-9 bg-destructive px-4 text-white shadow-none hover:bg-destructive/90"
-              onClick={onClose}
+              onClick={handleSubmit}
+              disabled={mutation.isPending}
             >
-              Issue refund
+              {mutation.isPending ? "Processing…" : "Issue refund"}
             </Button>
           </div>
         </CardContent>
       </Card>
     </div>
-  )
+  );
+}
+
+// ─── Shipment Sheet ───────────────────────────────────────────────────────────
+
+function ShipmentSheet({
+  orderId,
+  open,
+  onClose,
+}: {
+  orderId: string;
+  open: boolean;
+  onClose: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const [carrier, setCarrier] = React.useState("");
+  const [trackingNumber, setTrackingNumber] = React.useState("");
+  const [trackingUrl, setTrackingUrl] = React.useState("");
+  const [error, setError] = React.useState<string | null>(null);
+
+  const mutation = useMutation({
+    mutationFn: (payload: {
+      carrier: string;
+      trackingNumber: string;
+      trackingUrl?: string;
+    }) => createShipmentServerFn({ data: { orderId, ...payload } }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: orderQueryOptions(orderId).queryKey,
+      });
+      onClose();
+    },
+    onError: (err) => {
+      const msg = parseApiError(err).message;
+      setError(Array.isArray(msg) ? msg[0] : msg);
+    },
+  });
+
+  function handleSubmit() {
+    setError(null);
+    const result = shipmentSchema.safeParse({
+      carrier,
+      trackingNumber,
+      trackingUrl: trackingUrl || undefined,
+    });
+    if (!result.success) {
+      setError(result.error.issues[0].message);
+      return;
+    }
+    mutation.mutate({
+      carrier: result.data.carrier,
+      trackingNumber: result.data.trackingNumber,
+      trackingUrl: result.data.trackingUrl || undefined,
+    });
+  }
+
+  return (
+    <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
+      <SheetContent>
+        <SheetHeader>
+          <SheetTitle>Create Shipment</SheetTitle>
+          <SheetDescription>
+            Enter tracking details for this shipment.
+          </SheetDescription>
+        </SheetHeader>
+        <div className="mt-6 space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="carrier">
+              Carrier <span className="text-destructive">*</span>
+            </Label>
+            <Input
+              id="carrier"
+              value={carrier}
+              onChange={(e) => setCarrier(e.target.value)}
+              placeholder="e.g. UPS, FedEx, USPS"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="trackingNumber">
+              Tracking number <span className="text-destructive">*</span>
+            </Label>
+            <Input
+              id="trackingNumber"
+              value={trackingNumber}
+              onChange={(e) => setTrackingNumber(e.target.value)}
+              placeholder="e.g. 1Z999AA10123456784"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="trackingUrl">Tracking URL (optional)</Label>
+            <Input
+              id="trackingUrl"
+              value={trackingUrl}
+              onChange={(e) => setTrackingUrl(e.target.value)}
+              placeholder="https://…"
+            />
+          </div>
+          {error && <p className="text-sm text-destructive">{error}</p>}
+          <div className="flex gap-2 pt-2">
+            <Button
+              onClick={handleSubmit}
+              disabled={mutation.isPending}
+              className="flex-1 bg-violet-600 text-white shadow-none hover:bg-violet-700"
+            >
+              {mutation.isPending ? "Creating…" : "Create shipment"}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={onClose}
+              disabled={mutation.isPending}
+            >
+              Cancel
+            </Button>
+          </div>
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 function OrderDetailPage() {
-  const [status, setStatus]           = React.useState<OrderStatus>(SEED_ORDER.status)
-  const [timeline, setTimeline]       = React.useState<TimelineEvent[]>(SEED_ORDER.timeline)
-  const [showRefund, setShowRefund]   = React.useState(false)
-  const [showNote, setShowNote]       = React.useState(false)
-  const [noteText, setNoteText]       = React.useState("")
+  const { orderId } = Route.useParams();
+  const queryClient = useQueryClient();
+  const { data: order } = useSuspenseQuery(orderQueryOptions(orderId));
 
-  const order = SEED_ORDER
+  const [showRefund, setShowRefund] = React.useState(false);
+  const [showShipment, setShowShipment] = React.useState(false);
+  const [showNote, setShowNote] = React.useState(false);
+  const [noteText, setNoteText] = React.useState("");
+  const [statusError, setStatusError] = React.useState<string | null>(null);
+  const [noteError, setNoteError] = React.useState<string | null>(null);
 
-  function markAs(newStatus: OrderStatus, label: string) {
-    const prev = status
-    setStatus(newStatus)
-    setTimeline((t) => [
-      ...t,
-      {
-        id: String(Date.now()),
-        eventType: "status" as const,
-        title: "Status updated",
-        description: `Order status changed: ${prev} → ${newStatus}.`,
-        actorType: "admin" as const,
-        actorId: null,
-        actorName: "You",
-        time: "Just now",
-      },
-    ])
-  }
+  const statusMutation = useMutation({
+    mutationFn: (status: OrderStatus) =>
+      updateOrderStatusServerFn({ data: { orderId, status } }),
+    onSuccess: () => {
+      setStatusError(null);
+      queryClient.invalidateQueries({
+        queryKey: orderQueryOptions(orderId).queryKey,
+      });
+    },
+    onError: (err) => {
+      const msg = parseApiError(err).message;
+      setStatusError(Array.isArray(msg) ? msg[0] : msg);
+    },
+  });
 
-  function addNote() {
-    if (!noteText.trim()) return
-    setTimeline((t) => [
-      ...t,
-      {
-        id: String(Date.now()),
-        eventType: "note" as const,
-        title: "Note added",
-        description: noteText.trim(),
-        actorType: "admin" as const,
-        actorId: null,
-        actorName: "You",
-        time: "Just now",
-      },
-    ])
-    setNoteText("")
-    setShowNote(false)
+  const noteMutation = useMutation({
+    mutationFn: (note: string) =>
+      addOrderNoteServerFn({ data: { orderId, note } }),
+    onSuccess: () => {
+      setNoteText("");
+      setShowNote(false);
+      setNoteError(null);
+      queryClient.invalidateQueries({
+        queryKey: orderQueryOptions(orderId).queryKey,
+      });
+    },
+    onError: (err) => {
+      const msg = parseApiError(err).message;
+      setNoteError(Array.isArray(msg) ? msg[0] : msg);
+    },
+  });
+
+  function handleAddNote() {
+    if (!noteText.trim()) return;
+    noteMutation.mutate(noteText.trim());
   }
 
   function copyToClipboard(text: string) {
-    navigator.clipboard.writeText(text).catch(() => {})
+    navigator.clipboard.writeText(text).catch(() => {});
   }
+
+  const canRefund =
+    order.status !== "pending" &&
+    order.status !== "cancelled" &&
+    order.status !== "refunded";
+
+  const isTerminal =
+    order.status === "cancelled" || order.status === "refunded";
 
   return (
     <div className="space-y-6 pb-10">
-
       {/* ── Page header ───────────────────────────────────────────────────────── */}
       <div>
         <div className="mb-2 flex items-center gap-1.5 text-sm text-muted-foreground">
@@ -322,20 +443,22 @@ function OrderDetailPage() {
             Orders
           </Link>
           <ChevronRightIcon className="h-3.5 w-3.5" />
-          <span className="font-mono text-foreground">{order.number}</span>
+          <span className="font-mono text-foreground">{order.orderNumber}</span>
         </div>
 
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-semibold">{order.number}</h1>
+            <h1 className="text-2xl font-semibold">{order.orderNumber}</h1>
             <div className="mt-1.5 flex items-center gap-2.5">
               <Badge
                 variant="outline"
-                className={`px-2 py-0 text-[11px] font-medium capitalize ${ORDER_STATUS_STYLES[status]}`}
+                className={`px-2 py-0 text-[11px] font-medium capitalize ${ORDER_STATUS_STYLES[order.status]}`}
               >
-                {status}
+                {order.status}
               </Badge>
-              <span className="text-xs text-muted-foreground">Placed {order.placedAt}</span>
+              <span className="text-xs text-muted-foreground">
+                Placed {new Date(order.createdAt).toLocaleString()}
+              </span>
             </div>
           </div>
         </div>
@@ -343,45 +466,33 @@ function OrderDetailPage() {
 
       {/* ── Two-column grid ───────────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[3fr_2fr]">
-
         {/* ── Left column ─────────────────────────────────────────────────────── */}
         <div className="space-y-5">
-
           {/* Status card */}
           <Card>
             <CardHeader className="border-b pb-4">
               <CardTitle className="text-sm font-semibold">Status</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4 pt-4">
-              <div className="grid grid-cols-3 gap-4">
+            <CardContent className="space-y-3 pt-4">
+              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Order</p>
-                  <Select value={status} onValueChange={(v) => setStatus(v as OrderStatus)}>
-                    <SelectTrigger className="h-8 text-sm">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="pending">Pending</SelectItem>
-                      <SelectItem value="paid">Paid</SelectItem>
-                      <SelectItem value="processing">Processing</SelectItem>
-                      <SelectItem value="shipped">Shipped</SelectItem>
-                      <SelectItem value="delivered">Delivered</SelectItem>
-                      <SelectItem value="cancelled">Cancelled</SelectItem>
-                      <SelectItem value="refunded">Refunded</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Order
+                  </p>
+                  <Badge
+                    variant="outline"
+                    className={`px-2 py-0 text-[11px] font-medium capitalize ${ORDER_STATUS_STYLES[order.status]}`}
+                  >
+                    {order.status}
+                  </Badge>
                 </div>
                 <div className="space-y-1">
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Payment</p>
-                  <div className="flex h-8 items-center">
-                    <span className="text-sm font-medium text-emerald-600">{order.paymentStatus}</span>
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Fulfillment</p>
-                  <div className="flex h-8 items-center">
-                    <span className="text-sm font-medium text-muted-foreground">{order.fulfillmentStatus}</span>
-                  </div>
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Fulfillment
+                  </p>
+                  <span className="text-sm font-medium capitalize text-muted-foreground">
+                    {order.fulfillmentStatus}
+                  </span>
                 </div>
               </div>
             </CardContent>
@@ -390,21 +501,44 @@ function OrderDetailPage() {
           {/* Line items card */}
           <Card>
             <CardHeader className="border-b pb-4">
-              <CardTitle className="text-sm font-semibold">Line items</CardTitle>
+              <CardTitle className="text-sm font-semibold">
+                Line items
+              </CardTitle>
             </CardHeader>
             <CardContent className="pt-4">
               <div className="space-y-4">
-                {order.items.map((item) => (
+                {(order.lineItems ?? []).map((item) => (
                   <div key={item.id} className="flex items-start gap-3">
-                    <div className={`h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-gradient-to-br ${item.gradient}`} />
+                    {item.imageUrl ? (
+                      <img
+                        src={item.imageUrl}
+                        alt={item.productName}
+                        className="h-14 w-14 shrink-0 rounded-lg object-cover"
+                      />
+                    ) : (
+                      <div className="h-14 w-14 shrink-0 rounded-lg bg-muted" />
+                    )}
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium leading-snug">{item.product}</p>
-                      <p className="text-xs text-muted-foreground">{item.variant}</p>
-                      <p className="mt-0.5 font-mono text-xs text-muted-foreground/70">{item.sku}</p>
+                      <p className="text-sm font-medium leading-snug">
+                        {item.productName}
+                      </p>
+                      {item.variantName && (
+                        <p className="text-xs text-muted-foreground">
+                          {item.variantName}
+                        </p>
+                      )}
+                      <p className="mt-0.5 font-mono text-xs text-muted-foreground/70">
+                        {item.sku}
+                      </p>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm font-semibold tabular-nums">${(item.qty * item.unitPrice).toFixed(2)}</p>
-                      <p className="text-xs text-muted-foreground">{item.qty} × ${item.unitPrice.toFixed(2)}</p>
+                      <p className="text-sm font-semibold tabular-nums">
+                        {formatMoney(item.totalPrice, order.currency)}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {item.quantity} ×{" "}
+                        {formatMoney(item.unitPrice, order.currency)}
+                      </p>
                     </div>
                   </div>
                 ))}
@@ -415,26 +549,36 @@ function OrderDetailPage() {
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between text-muted-foreground">
                   <span>Subtotal</span>
-                  <span className="tabular-nums">${order.subtotal.toFixed(2)}</span>
+                  <span className="tabular-nums">
+                    {formatMoney(order.subtotal, order.currency)}
+                  </span>
                 </div>
                 <div className="flex justify-between text-muted-foreground">
                   <span>Shipping</span>
-                  <span className="tabular-nums">${order.shippingCost.toFixed(2)}</span>
+                  <span className="tabular-nums">
+                    {formatMoney(order.shippingAmount, order.currency)}
+                  </span>
                 </div>
                 <div className="flex justify-between text-muted-foreground">
-                  <span>Tax (GST 6%)</span>
-                  <span className="tabular-nums">${order.tax.toFixed(2)}</span>
+                  <span>Tax</span>
+                  <span className="tabular-nums">
+                    {formatMoney(order.taxAmount, order.currency)}
+                  </span>
                 </div>
-                {order.discount > 0 && (
+                {order.discountAmount > 0 && (
                   <div className="flex justify-between text-emerald-600">
                     <span>Discount</span>
-                    <span className="tabular-nums">−${order.discount.toFixed(2)}</span>
+                    <span className="tabular-nums">
+                      −{formatMoney(order.discountAmount, order.currency)}
+                    </span>
                   </div>
                 )}
                 <Separator />
                 <div className="flex justify-between font-semibold">
                   <span>Total</span>
-                  <span className="tabular-nums">${order.total.toFixed(2)}</span>
+                  <span className="tabular-nums">
+                    {formatMoney(order.total, order.currency)}
+                  </span>
                 </div>
               </div>
             </CardContent>
@@ -447,99 +591,64 @@ function OrderDetailPage() {
             </CardHeader>
             <CardContent className="space-y-3 pt-4">
               <div>
-                <p className="text-sm font-medium">{order.customer.name}</p>
-                <p className="text-sm text-muted-foreground">{order.customer.email}</p>
-                <p className="text-sm text-muted-foreground">{order.customer.phone}</p>
+                <p className="text-sm font-medium">{order.customerName}</p>
+                <p className="text-sm text-muted-foreground">
+                  {order.customerEmail}
+                </p>
               </div>
-              <Button variant="outline" size="sm" className="h-8 text-xs">
-                View customer profile
-              </Button>
-            </CardContent>
-          </Card>
-
-          {/* Shipping address */}
-          <Card>
-            <CardHeader className="border-b pb-4">
-              <CardTitle className="text-sm font-semibold">Shipping address</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-4">
-              <address className="not-italic space-y-0.5 text-sm text-muted-foreground">
-                <p className="font-medium text-foreground">{order.shipping.name}</p>
-                <p>{order.shipping.line1}</p>
-                {order.shipping.line2 && <p>{order.shipping.line2}</p>}
-                <p>{order.shipping.city}{order.shipping.region ? `, ${order.shipping.region}` : ""} {order.shipping.zip}</p>
-                <p>{order.shipping.country}</p>
-              </address>
-            </CardContent>
-          </Card>
-
-          {/* Billing address */}
-          <Card>
-            <CardHeader className="border-b pb-4">
-              <CardTitle className="text-sm font-semibold">Billing address</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-4">
-              {order.billingSameAsShipping ? (
-                <p className="text-sm text-muted-foreground">Same as shipping address</p>
-              ) : (
-                <address className="not-italic space-y-0.5 text-sm text-muted-foreground">
-                  <p className="font-medium text-foreground">{order.shipping.name}</p>
-                  <p>{order.shipping.line1}</p>
-                  <p>{order.shipping.city}, {order.shipping.zip}</p>
-                  <p>{order.shipping.country}</p>
-                </address>
-              )}
             </CardContent>
           </Card>
         </div>
 
         {/* ── Right column ────────────────────────────────────────────────────── */}
         <div className="space-y-5">
-
           {/* Actions card */}
           <Card>
             <CardHeader className="border-b pb-4">
               <CardTitle className="text-sm font-semibold">Actions</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2.5 pt-4">
-              {status === "paid" && (
+              {order.status === "paid" && (
                 <Button
                   className="w-full justify-start gap-2.5 bg-orange-700 text-white shadow-none hover:bg-orange-800"
-                  onClick={() => markAs("processing", "Mark as processing")}
+                  disabled={statusMutation.isPending}
+                  onClick={() => statusMutation.mutate("processing")}
                 >
                   <PackageIcon className="h-4 w-4" />
                   Mark as processing
                 </Button>
               )}
-              {status === "processing" && (
+              {order.status === "processing" && (
                 <Button
                   className="w-full justify-start gap-2.5 bg-violet-600 text-white shadow-none hover:bg-violet-700"
-                  onClick={() => markAs("shipped", "Create shipment")}
+                  onClick={() => setShowShipment(true)}
                 >
                   <TruckIcon className="h-4 w-4" />
                   Create shipment
                 </Button>
               )}
-              {status === "shipped" && (
+              {order.status === "shipped" && (
                 <Button
                   className="w-full justify-start gap-2.5 bg-emerald-600 text-white shadow-none hover:bg-emerald-700"
-                  onClick={() => markAs("delivered", "Mark as delivered")}
+                  disabled={statusMutation.isPending}
+                  onClick={() => statusMutation.mutate("delivered")}
                 >
                   <CheckCircleIcon className="h-4 w-4" />
                   Mark as delivered
                 </Button>
               )}
-              {status === "pending" && (
+              {order.status === "pending" && (
                 <Button
                   variant="outline"
                   className="w-full justify-start gap-2.5 text-destructive hover:text-destructive hover:border-destructive/50"
-                  onClick={() => markAs("cancelled", "Cancel order")}
+                  disabled={statusMutation.isPending}
+                  onClick={() => statusMutation.mutate("cancelled")}
                 >
                   <XCircleIcon className="h-4 w-4" />
                   Cancel order
                 </Button>
               )}
-              {status !== "pending" && status !== "cancelled" && status !== "refunded" && (
+              {canRefund && (
                 <Button
                   variant="outline"
                   className="w-full justify-start gap-2.5 text-destructive hover:text-destructive hover:border-destructive/50"
@@ -549,8 +658,13 @@ function OrderDetailPage() {
                   Issue refund
                 </Button>
               )}
-              {(status === "cancelled" || status === "refunded" || status === "delivered") && (
-                <p className="text-center text-xs text-muted-foreground pt-1">No further actions available.</p>
+              {isTerminal && (
+                <p className="pt-1 text-center text-xs text-muted-foreground">
+                  No further actions available.
+                </p>
+              )}
+              {statusError && (
+                <p className="text-sm text-destructive">{statusError}</p>
               )}
             </CardContent>
           </Card>
@@ -562,20 +676,32 @@ function OrderDetailPage() {
             </CardHeader>
             <CardContent className="pt-4">
               <div className="space-y-0">
-                {timeline.map((event, i) => (
-                  <div key={event.id} className="relative flex gap-3 pb-5 last:pb-0">
-                    {/* Vertical connector */}
-                    {i < timeline.length - 1 && (
+                {(order.timeline ?? []).map((event, i) => (
+                  <div
+                    key={event.id}
+                    className="relative flex gap-3 pb-5 last:pb-0"
+                  >
+                    {i < (order.timeline ?? []).length - 1 && (
                       <div className="absolute left-[7px] top-4 h-full w-px bg-border" />
                     )}
-                    {/* Dot */}
-                    <div className={cn("mt-1 h-3.5 w-3.5 shrink-0 rounded-full ring-2 ring-background", TIMELINE_DOT[event.eventType])} />
-                    {/* Content */}
+                    <div
+                      className={cn(
+                        "mt-1 h-3.5 w-3.5 shrink-0 rounded-full ring-2 ring-background",
+                        timelineDotClass(event.eventType),
+                      )}
+                    />
                     <div className="min-w-0 flex-1 space-y-0.5">
-                      <p className="text-sm font-medium leading-snug">{event.title}</p>
-                      <p className="text-xs text-muted-foreground leading-relaxed">{event.description}</p>
+                      <p className="text-sm font-medium leading-snug">
+                        {timelineTitle(event.eventType)}
+                      </p>
+                      {event.message && (
+                        <p className="text-xs leading-relaxed text-muted-foreground">
+                          {event.message}
+                        </p>
+                      )}
                       <p className="text-[11px] text-muted-foreground/60">
-                        {event.actorName} · {event.time}
+                        {event.actorId ?? "System"} ·{" "}
+                        {new Date(event.createdAt).toLocaleString()}
                       </p>
                     </div>
                   </div>
@@ -594,11 +720,28 @@ function OrderDetailPage() {
                     placeholder="Add an internal note…"
                     className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none placeholder:text-muted-foreground transition-[border-color,box-shadow] focus:border-ring focus:ring-3 focus:ring-ring/50"
                   />
+                  {noteError && (
+                    <p className="text-sm text-destructive">{noteError}</p>
+                  )}
                   <div className="flex items-center gap-2">
-                    <Button size="sm" className="h-8 bg-orange-700 px-3 text-white shadow-none hover:bg-orange-800" onClick={addNote}>
-                      Save note
+                    <Button
+                      size="sm"
+                      className="h-8 bg-orange-700 px-3 text-white shadow-none hover:bg-orange-800"
+                      disabled={noteMutation.isPending}
+                      onClick={handleAddNote}
+                    >
+                      {noteMutation.isPending ? "Saving…" : "Save note"}
                     </Button>
-                    <Button variant="ghost" size="sm" className="h-8 text-muted-foreground" onClick={() => { setShowNote(false); setNoteText("") }}>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 text-muted-foreground"
+                      onClick={() => {
+                        setShowNote(false);
+                        setNoteText("");
+                        setNoteError(null);
+                      }}
+                    >
                       Cancel
                     </Button>
                   </div>
@@ -616,61 +759,26 @@ function OrderDetailPage() {
               )}
             </CardContent>
           </Card>
-
-          {/* Payment card */}
-          <Card>
-            <CardHeader className="border-b pb-4">
-              <CardTitle className="text-sm font-semibold">Payment</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3 pt-4">
-              <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
-                <div>
-                  <p className="text-xs text-muted-foreground">Provider</p>
-                  <p className="font-medium">{order.payment.provider}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Status</p>
-                  <p className="font-medium text-emerald-600">{order.payment.status}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Method</p>
-                  <p className="font-medium">{order.payment.cardBrand} ···· {order.payment.cardLast4}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Amount</p>
-                  <p className="font-semibold tabular-nums">${order.payment.amount.toFixed(2)}</p>
-                </div>
-              </div>
-
-              <Separator />
-
-              <div>
-                <p className="mb-1 text-xs text-muted-foreground">Payment intent</p>
-                <div className="flex items-center gap-2 rounded-md border border-border bg-muted/30 px-2.5 py-1.5">
-                  <span className="flex-1 truncate font-mono text-xs">{order.payment.intentId}</span>
-                  <button
-                    type="button"
-                    onClick={() => copyToClipboard(order.payment.intentId)}
-                    className="shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    <CopyIcon className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
         </div>
       </div>
 
       {/* ── Refund modal ──────────────────────────────────────────────────────── */}
       {showRefund && (
         <RefundModal
-          total={order.total}
-          orderNumber={order.number}
+          totalCents={order.total}
+          currency={order.currency}
+          orderNumber={order.orderNumber}
+          orderId={orderId}
           onClose={() => setShowRefund(false)}
         />
       )}
+
+      {/* ── Shipment sheet ────────────────────────────────────────────────────── */}
+      <ShipmentSheet
+        orderId={orderId}
+        open={showShipment}
+        onClose={() => setShowShipment(false)}
+      />
     </div>
-  )
+  );
 }

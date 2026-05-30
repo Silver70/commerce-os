@@ -128,18 +128,20 @@ export type OrderLineItem = {
   id: string;
   productName: string;
   variantName: string | null;
-  sku: string;
-  price: number;
+  sku: string | null;
+  unitPrice: number;
+  totalPrice: number;
   quantity: number;
   imageUrl: string | null;
 };
 
 export type OrderTimelineEvent = {
   id: string;
-  type: string;
-  note: string | null;
+  eventType: string;
+  message: string;
+  actorType: string | null;
+  actorId: string | null;
   createdAt: string;
-  createdBy: string | null;
 };
 
 export type Order = {
@@ -155,8 +157,9 @@ export type Order = {
   shippingAmount: number;
   total: number;
   currency: string;
-  lineItems: OrderLineItem[];
-  timeline: OrderTimelineEvent[];
+  // only present on detail endpoint responses
+  lineItems?: OrderLineItem[];
+  timeline?: OrderTimelineEvent[];
   createdAt: string;
 };
 

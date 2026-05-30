@@ -1,5 +1,5 @@
-import * as React from "react"
-import { createFileRoute, Link } from "@tanstack/react-router"
+import * as React from "react";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   ArrowLeftIcon,
   ChevronRightIcon,
@@ -12,114 +12,284 @@ import {
   FileTextIcon,
   PackageIcon,
   TagIcon,
-} from "lucide-react"
+} from "lucide-react";
 
-import { cn } from "~/lib/utils"
-import { Button } from "~/components/ui/button"
-import { Input } from "~/components/ui/input"
-import { Label } from "~/components/ui/label"
-import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card"
-import { Separator } from "~/components/ui/separator"
+import { cn } from "~/lib/utils";
+import { Button } from "~/components/ui/button";
+import { Input } from "~/components/ui/input";
+import { Label } from "~/components/ui/label";
+import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
+import { Separator } from "~/components/ui/separator";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "~/components/ui/select"
+} from "~/components/ui/select";
 
 export const Route = createFileRoute("/admin/orders_/new")({
   component: OrderCreatePage,
-})
+});
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type CatalogProduct = {
-  id: string
-  product: string
-  variant: string
-  sku: string
-  price: number
-  stock: number
-  gradient: string
-}
+  id: string;
+  product: string;
+  variant: string;
+  sku: string;
+  price: number;
+  stock: number;
+  gradient: string;
+};
 
 type CatalogCustomer = {
-  id: string
-  name: string
-  email: string
-  phone: string
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
   address: {
-    line1: string
-    city: string
-    region: string
-    zip: string
-    country: string
-  }
-}
+    line1: string;
+    city: string;
+    region: string;
+    zip: string;
+    country: string;
+  };
+};
 
 type LineItem = {
-  id: string
-  catalogId: string
-  product: string
-  variant: string
-  sku: string
-  gradient: string
-  qty: number
-  unitPrice: number
-}
+  id: string;
+  catalogId: string;
+  product: string;
+  variant: string;
+  sku: string;
+  gradient: string;
+  qty: number;
+  unitPrice: number;
+};
 
 // ─── Fake Catalog ─────────────────────────────────────────────────────────────
 
 const PRODUCT_CATALOG: CatalogProduct[] = [
-  { id: "p1",  product: "Wave Board Pro",        variant: "S / Red",   sku: "WAVE-S-RED",   price: 149.99, stock: 12,  gradient: "from-blue-400 via-blue-500 to-indigo-700"    },
-  { id: "p2",  product: "Wave Board Pro",        variant: "M / Blue",  sku: "WAVE-M-BLUE",  price: 149.99, stock: 20,  gradient: "from-blue-400 via-blue-500 to-indigo-700"    },
-  { id: "p3",  product: "Wave Board Pro",        variant: "L / Red",   sku: "WAVE-L-RED",   price: 159.99, stock: 6,   gradient: "from-blue-400 via-blue-500 to-indigo-700"    },
-  { id: "p4",  product: "Blue Rashguard",        variant: "S / Blue",  sku: "RASH-S-BLUE",  price: 49.99,  stock: 14,  gradient: "from-cyan-400 via-teal-500 to-cyan-700"      },
-  { id: "p5",  product: "Blue Rashguard",        variant: "M / Blue",  sku: "RASH-M-BLUE",  price: 49.99,  stock: 3,   gradient: "from-cyan-400 via-teal-500 to-cyan-700"      },
-  { id: "p6",  product: "Merino Wool Crewneck",  variant: "M / Slate", sku: "APP-0231-M",   price: 89.00,  stock: 87,  gradient: "from-violet-400 via-violet-500 to-violet-700" },
-  { id: "p7",  product: "Merino Wool Crewneck",  variant: "L / Slate", sku: "APP-0231-L",   price: 89.00,  stock: 62,  gradient: "from-violet-400 via-violet-500 to-violet-700" },
-  { id: "p8",  product: "Canvas Tote Bag",       variant: "Natural",   sku: "ACC-0045-N",   price: 24.00,  stock: 385, gradient: "from-rose-400 via-rose-500 to-rose-700"      },
-  { id: "p9",  product: "USB-C Hub 7-in-1",      variant: "",          sku: "ELC-0312",     price: 59.99,  stock: 180, gradient: "from-slate-500 via-slate-600 to-slate-800"   },
-  { id: "p10", product: "Minimalist Desk Lamp",  variant: "Black",     sku: "HOM-0076-BK",  price: 79.00,  stock: 29,  gradient: "from-amber-400 via-amber-500 to-orange-600"  },
-  { id: "p11", product: "Classic White Sneakers",variant: "EU 42",     sku: "FTW-0203-42",  price: 89.00,  stock: 18,  gradient: "from-gray-200 via-gray-300 to-gray-400"      },
-  { id: "p12", product: "Organic Face Serum",    variant: "30 ml",     sku: "BTY-0033-30",  price: 54.00,  stock: 98,  gradient: "from-pink-400 via-pink-500 to-rose-600"      },
-]
+  {
+    id: "p1",
+    product: "Wave Board Pro",
+    variant: "S / Red",
+    sku: "WAVE-S-RED",
+    price: 149.99,
+    stock: 12,
+    gradient: "from-blue-400 via-blue-500 to-indigo-700",
+  },
+  {
+    id: "p2",
+    product: "Wave Board Pro",
+    variant: "M / Blue",
+    sku: "WAVE-M-BLUE",
+    price: 149.99,
+    stock: 20,
+    gradient: "from-blue-400 via-blue-500 to-indigo-700",
+  },
+  {
+    id: "p3",
+    product: "Wave Board Pro",
+    variant: "L / Red",
+    sku: "WAVE-L-RED",
+    price: 159.99,
+    stock: 6,
+    gradient: "from-blue-400 via-blue-500 to-indigo-700",
+  },
+  {
+    id: "p4",
+    product: "Blue Rashguard",
+    variant: "S / Blue",
+    sku: "RASH-S-BLUE",
+    price: 49.99,
+    stock: 14,
+    gradient: "from-cyan-400 via-teal-500 to-cyan-700",
+  },
+  {
+    id: "p5",
+    product: "Blue Rashguard",
+    variant: "M / Blue",
+    sku: "RASH-M-BLUE",
+    price: 49.99,
+    stock: 3,
+    gradient: "from-cyan-400 via-teal-500 to-cyan-700",
+  },
+  {
+    id: "p6",
+    product: "Merino Wool Crewneck",
+    variant: "M / Slate",
+    sku: "APP-0231-M",
+    price: 89.0,
+    stock: 87,
+    gradient: "from-violet-400 via-violet-500 to-violet-700",
+  },
+  {
+    id: "p7",
+    product: "Merino Wool Crewneck",
+    variant: "L / Slate",
+    sku: "APP-0231-L",
+    price: 89.0,
+    stock: 62,
+    gradient: "from-violet-400 via-violet-500 to-violet-700",
+  },
+  {
+    id: "p8",
+    product: "Canvas Tote Bag",
+    variant: "Natural",
+    sku: "ACC-0045-N",
+    price: 24.0,
+    stock: 385,
+    gradient: "from-rose-400 via-rose-500 to-rose-700",
+  },
+  {
+    id: "p9",
+    product: "USB-C Hub 7-in-1",
+    variant: "",
+    sku: "ELC-0312",
+    price: 59.99,
+    stock: 180,
+    gradient: "from-slate-500 via-slate-600 to-slate-800",
+  },
+  {
+    id: "p10",
+    product: "Minimalist Desk Lamp",
+    variant: "Black",
+    sku: "HOM-0076-BK",
+    price: 79.0,
+    stock: 29,
+    gradient: "from-amber-400 via-amber-500 to-orange-600",
+  },
+  {
+    id: "p11",
+    product: "Classic White Sneakers",
+    variant: "EU 42",
+    sku: "FTW-0203-42",
+    price: 89.0,
+    stock: 18,
+    gradient: "from-gray-200 via-gray-300 to-gray-400",
+  },
+  {
+    id: "p12",
+    product: "Organic Face Serum",
+    variant: "30 ml",
+    sku: "BTY-0033-30",
+    price: 54.0,
+    stock: 98,
+    gradient: "from-pink-400 via-pink-500 to-rose-600",
+  },
+];
 
 const CUSTOMER_CATALOG: CatalogCustomer[] = [
-  { id: "c1", name: "John Smith",   email: "john@email.com",   phone: "+960 773-1234", address: { line1: "123 Beach Road",  city: "Malé",  region: "Kaafu Atoll", zip: "20001", country: "Maldives"      } },
-  { id: "c2", name: "Sara Johnson", email: "sara@email.com",   phone: "+1 555-0100",   address: { line1: "45 Ocean Drive",  city: "Miami", region: "FL",           zip: "33101", country: "United States" } },
-  { id: "c3", name: "Ali Hassan",   email: "ali@surf.com",     phone: "+960 773-9876", address: { line1: "8 Coral Street",  city: "Malé",  region: "Kaafu Atoll", zip: "20002", country: "Maldives"      } },
-  { id: "c4", name: "Nina Park",    email: "nina@waves.com",   phone: "+82 10-1234",   address: { line1: "12 Hangang Rd",   city: "Seoul", region: "Seoul",        zip: "04524", country: "South Korea"   } },
-  { id: "c5", name: "Mike Torres",  email: "mike@example.com", phone: "+1 555-0199",   address: { line1: "78 Sunset Blvd", city: "LA",    region: "CA",           zip: "90028", country: "United States" } },
-]
+  {
+    id: "c1",
+    name: "John Smith",
+    email: "john@email.com",
+    phone: "+960 773-1234",
+    address: {
+      line1: "123 Beach Road",
+      city: "Malé",
+      region: "Kaafu Atoll",
+      zip: "20001",
+      country: "Maldives",
+    },
+  },
+  {
+    id: "c2",
+    name: "Sara Johnson",
+    email: "sara@email.com",
+    phone: "+1 555-0100",
+    address: {
+      line1: "45 Ocean Drive",
+      city: "Miami",
+      region: "FL",
+      zip: "33101",
+      country: "United States",
+    },
+  },
+  {
+    id: "c3",
+    name: "Ali Hassan",
+    email: "ali@surf.com",
+    phone: "+960 773-9876",
+    address: {
+      line1: "8 Coral Street",
+      city: "Malé",
+      region: "Kaafu Atoll",
+      zip: "20002",
+      country: "Maldives",
+    },
+  },
+  {
+    id: "c4",
+    name: "Nina Park",
+    email: "nina@waves.com",
+    phone: "+82 10-1234",
+    address: {
+      line1: "12 Hangang Rd",
+      city: "Seoul",
+      region: "Seoul",
+      zip: "04524",
+      country: "South Korea",
+    },
+  },
+  {
+    id: "c5",
+    name: "Mike Torres",
+    email: "mike@example.com",
+    phone: "+1 555-0199",
+    address: {
+      line1: "78 Sunset Blvd",
+      city: "LA",
+      region: "CA",
+      zip: "90028",
+      country: "United States",
+    },
+  },
+];
 
-const DISCOUNT_CODES: Record<string, { type: "percent" | "fixed"; value: number; label: string }> = {
-  SUMMER20: { type: "percent", value: 20, label: "Summer Sale — 20% off"  },
-  WAVE10:   { type: "fixed",   value: 10, label: "WAVE10 — $10 off"       },
-  VIP2026:  { type: "percent", value: 15, label: "VIP Member — 15% off"   },
-}
+const DISCOUNT_CODES: Record<
+  string,
+  { type: "percent" | "fixed"; value: number; label: string }
+> = {
+  SUMMER20: { type: "percent", value: 20, label: "Summer Sale — 20% off" },
+  WAVE10: { type: "fixed", value: 10, label: "WAVE10 — $10 off" },
+  VIP2026: { type: "percent", value: 15, label: "VIP Member — 15% off" },
+};
 
 const SHIPPING_METHODS = [
-  { id: "standard", label: "Standard Shipping",  sub: "5–7 business days", price: 10.00 },
-  { id: "express",  label: "Express Shipping",   sub: "1–2 business days", price: 25.00 },
-  { id: "free",     label: "Free Shipping",      sub: "7–14 business days", price: 0.00 },
-]
+  {
+    id: "standard",
+    label: "Standard Shipping",
+    sub: "5–7 business days",
+    price: 10.0,
+  },
+  {
+    id: "express",
+    label: "Express Shipping",
+    sub: "1–2 business days",
+    price: 25.0,
+  },
+  { id: "free", label: "Free Shipping", sub: "7–14 business days", price: 0.0 },
+];
 
 // ─── Product Search ───────────────────────────────────────────────────────────
 
 function ProductSearch({ onAdd }: { onAdd: (p: CatalogProduct) => void }) {
-  const [query, setQuery]     = React.useState("")
-  const [focused, setFocused] = React.useState(false)
+  const [query, setQuery] = React.useState("");
+  const [focused, setFocused] = React.useState(false);
 
-  const results = query.length > 0
-    ? PRODUCT_CATALOG.filter(
-        (p) =>
-          p.product.toLowerCase().includes(query.toLowerCase()) ||
-          p.sku.toLowerCase().includes(query.toLowerCase()) ||
-          p.variant.toLowerCase().includes(query.toLowerCase()),
-      )
-    : []
+  const results =
+    query.length > 0
+      ? PRODUCT_CATALOG.filter(
+          (p) =>
+            p.product.toLowerCase().includes(query.toLowerCase()) ||
+            p.sku.toLowerCase().includes(query.toLowerCase()) ||
+            p.variant.toLowerCase().includes(query.toLowerCase()),
+        )
+      : [];
 
   return (
     <div className="relative">
@@ -140,19 +310,29 @@ function ProductSearch({ onAdd }: { onAdd: (p: CatalogProduct) => void }) {
               <button
                 key={p.id}
                 type="button"
-                onMouseDown={() => { onAdd(p); setQuery("") }}
+                onMouseDown={() => {
+                  onAdd(p);
+                  setQuery("");
+                }}
                 className="flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-muted/60"
               >
-                <div className={cn("h-9 w-9 shrink-0 rounded-md bg-gradient-to-br", p.gradient)} />
+                <div
+                  className={cn(
+                    "h-9 w-9 shrink-0 rounded-md bg-gradient-to-br",
+                    p.gradient,
+                  )}
+                />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium">{p.product}</p>
                   <p className="text-xs text-muted-foreground">
                     {p.variant && `${p.variant} · `}
                     <span className="font-mono">{p.sku}</span>
                     {" · "}
-                    {p.stock > 0
-                      ? `${p.stock} in stock`
-                      : <span className="text-destructive">Out of stock</span>}
+                    {p.stock > 0 ? (
+                      `${p.stock} in stock`
+                    ) : (
+                      <span className="text-destructive">Out of stock</span>
+                    )}
                   </p>
                 </div>
                 <span className="shrink-0 text-sm font-semibold tabular-nums">
@@ -162,13 +342,15 @@ function ProductSearch({ onAdd }: { onAdd: (p: CatalogProduct) => void }) {
             ))
           ) : (
             <div className="px-4 py-6 text-center">
-              <p className="text-sm text-muted-foreground">No products match "{query}"</p>
+              <p className="text-sm text-muted-foreground">
+                No products match "{query}"
+              </p>
             </div>
           )}
         </div>
       )}
     </div>
-  )
+  );
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -176,114 +358,174 @@ function ProductSearch({ onAdd }: { onAdd: (p: CatalogProduct) => void }) {
 function OrderCreatePage() {
   // Line items
   const [items, setItems] = React.useState<LineItem[]>([
-    { id: "seed1", catalogId: "p1",  product: "Wave Board Pro",       variant: "S / Red",   sku: "WAVE-S-RED",  gradient: "from-blue-400 via-blue-500 to-indigo-700",    qty: 1, unitPrice: 149.99 },
-    { id: "seed2", catalogId: "p4",  product: "Blue Rashguard",       variant: "S / Blue",  sku: "RASH-S-BLUE", gradient: "from-cyan-400 via-teal-500 to-cyan-700",      qty: 2, unitPrice: 49.99  },
-    { id: "seed3", catalogId: "p8",  product: "Canvas Tote Bag",      variant: "Natural",   sku: "ACC-0045-N",  gradient: "from-rose-400 via-rose-500 to-rose-700",      qty: 1, unitPrice: 24.00  },
-  ])
+    {
+      id: "seed1",
+      catalogId: "p1",
+      product: "Wave Board Pro",
+      variant: "S / Red",
+      sku: "WAVE-S-RED",
+      gradient: "from-blue-400 via-blue-500 to-indigo-700",
+      qty: 1,
+      unitPrice: 149.99,
+    },
+    {
+      id: "seed2",
+      catalogId: "p4",
+      product: "Blue Rashguard",
+      variant: "S / Blue",
+      sku: "RASH-S-BLUE",
+      gradient: "from-cyan-400 via-teal-500 to-cyan-700",
+      qty: 2,
+      unitPrice: 49.99,
+    },
+    {
+      id: "seed3",
+      catalogId: "p8",
+      product: "Canvas Tote Bag",
+      variant: "Natural",
+      sku: "ACC-0045-N",
+      gradient: "from-rose-400 via-rose-500 to-rose-700",
+      qty: 1,
+      unitPrice: 24.0,
+    },
+  ]);
 
   // Customer
-  const [customer, setCustomer]       = React.useState<CatalogCustomer | null>(CUSTOMER_CATALOG[0])
-  const [custQuery, setCustQuery]     = React.useState("")
-  const [custFocused, setCustFocused] = React.useState(false)
+  const [customer, setCustomer] = React.useState<CatalogCustomer | null>(
+    CUSTOMER_CATALOG[0],
+  );
+  const [custQuery, setCustQuery] = React.useState("");
+  const [custFocused, setCustFocused] = React.useState(false);
 
   // Shipping address (pre-filled from selected customer)
-  const [addrName, setAddrName]       = React.useState(CUSTOMER_CATALOG[0].name)
-  const [addrLine1, setAddrLine1]     = React.useState(CUSTOMER_CATALOG[0].address.line1)
-  const [addrCity, setAddrCity]       = React.useState(CUSTOMER_CATALOG[0].address.city)
-  const [addrRegion, setAddrRegion]   = React.useState(CUSTOMER_CATALOG[0].address.region)
-  const [addrZip, setAddrZip]         = React.useState(CUSTOMER_CATALOG[0].address.zip)
-  const [addrCountry, setAddrCountry] = React.useState(CUSTOMER_CATALOG[0].address.country)
+  const [addrName, setAddrName] = React.useState(CUSTOMER_CATALOG[0].name);
+  const [addrLine1, setAddrLine1] = React.useState(
+    CUSTOMER_CATALOG[0].address.line1,
+  );
+  const [addrCity, setAddrCity] = React.useState(
+    CUSTOMER_CATALOG[0].address.city,
+  );
+  const [addrRegion, setAddrRegion] = React.useState(
+    CUSTOMER_CATALOG[0].address.region,
+  );
+  const [addrZip, setAddrZip] = React.useState(CUSTOMER_CATALOG[0].address.zip);
+  const [addrCountry, setAddrCountry] = React.useState(
+    CUSTOMER_CATALOG[0].address.country,
+  );
 
   // Order options
-  const [shipping, setShipping]               = React.useState("standard")
-  const [paymentType, setPaymentType]         = React.useState<"paid" | "invoice">("paid")
-  const [paymentMethod, setPaymentMethod]     = React.useState("cash")
-  const [discountCode, setDiscountCode]       = React.useState("")
-  const [appliedDiscount, setAppliedDiscount] = React.useState<typeof DISCOUNT_CODES[string] | null>(null)
-  const [discountError, setDiscountError]     = React.useState("")
-  const [note, setNote]                       = React.useState("")
+  const [shipping, setShipping] = React.useState("standard");
+  const [paymentType, setPaymentType] = React.useState<"paid" | "invoice">(
+    "paid",
+  );
+  const [paymentMethod, setPaymentMethod] = React.useState("cash");
+  const [discountCode, setDiscountCode] = React.useState("");
+  const [appliedDiscount, setAppliedDiscount] = React.useState<
+    (typeof DISCOUNT_CODES)[string] | null
+  >(null);
+  const [discountError, setDiscountError] = React.useState("");
+  const [note, setNote] = React.useState("");
 
   // ─── Computed totals ─────────────────────────────────────────────────────
 
-  const subtotal       = items.reduce((s, i) => s + i.qty * i.unitPrice, 0)
-  const shippingCost   = SHIPPING_METHODS.find((m) => m.id === shipping)?.price ?? 0
+  const subtotal = items.reduce((s, i) => s + i.qty * i.unitPrice, 0);
+  const shippingCost =
+    SHIPPING_METHODS.find((m) => m.id === shipping)?.price ?? 0;
   const discountAmount = appliedDiscount
     ? appliedDiscount.type === "percent"
       ? subtotal * (appliedDiscount.value / 100)
       : Math.min(appliedDiscount.value, subtotal)
-    : 0
-  const tax   = (subtotal - discountAmount) * 0.06
-  const total = subtotal + shippingCost - discountAmount + tax
+    : 0;
+  const tax = (subtotal - discountAmount) * 0.06;
+  const total = subtotal + shippingCost - discountAmount + tax;
 
   // ─── Actions ─────────────────────────────────────────────────────────────
 
   function addItem(p: CatalogProduct) {
     setItems((prev) => {
-      const existing = prev.find((i) => i.catalogId === p.id)
-      if (existing) return prev.map((i) => i.catalogId === p.id ? { ...i, qty: i.qty + 1 } : i)
+      const existing = prev.find((i) => i.catalogId === p.id);
+      if (existing)
+        return prev.map((i) =>
+          i.catalogId === p.id ? { ...i, qty: i.qty + 1 } : i,
+        );
       return [
         ...prev,
-        { id: String(Date.now()), catalogId: p.id, product: p.product, variant: p.variant, sku: p.sku, gradient: p.gradient, qty: 1, unitPrice: p.price },
-      ]
-    })
+        {
+          id: String(Date.now()),
+          catalogId: p.id,
+          product: p.product,
+          variant: p.variant,
+          sku: p.sku,
+          gradient: p.gradient,
+          qty: 1,
+          unitPrice: p.price,
+        },
+      ];
+    });
   }
 
   function setQty(id: string, qty: number) {
-    if (qty < 1) return
-    setItems((prev) => prev.map((i) => i.id === id ? { ...i, qty } : i))
+    if (qty < 1) return;
+    setItems((prev) => prev.map((i) => (i.id === id ? { ...i, qty } : i)));
   }
 
   function setPrice(id: string, raw: string) {
-    const n = parseFloat(raw)
-    if (!isNaN(n) && n >= 0) setItems((prev) => prev.map((i) => i.id === id ? { ...i, unitPrice: n } : i))
+    const n = parseFloat(raw);
+    if (!isNaN(n) && n >= 0)
+      setItems((prev) =>
+        prev.map((i) => (i.id === id ? { ...i, unitPrice: n } : i)),
+      );
   }
 
   function removeItem(id: string) {
-    setItems((prev) => prev.filter((i) => i.id !== id))
+    setItems((prev) => prev.filter((i) => i.id !== id));
   }
 
   function selectCustomer(c: CatalogCustomer) {
-    setCustomer(c)
-    setAddrName(c.name)
-    setAddrLine1(c.address.line1)
-    setAddrCity(c.address.city)
-    setAddrRegion(c.address.region)
-    setAddrZip(c.address.zip)
-    setAddrCountry(c.address.country)
-    setCustQuery("")
+    setCustomer(c);
+    setAddrName(c.name);
+    setAddrLine1(c.address.line1);
+    setAddrCity(c.address.city);
+    setAddrRegion(c.address.region);
+    setAddrZip(c.address.zip);
+    setAddrCountry(c.address.country);
+    setCustQuery("");
   }
 
   function applyDiscount() {
-    const key = discountCode.trim().toUpperCase()
+    const key = discountCode.trim().toUpperCase();
     if (DISCOUNT_CODES[key]) {
-      setAppliedDiscount(DISCOUNT_CODES[key])
-      setDiscountError("")
+      setAppliedDiscount(DISCOUNT_CODES[key]);
+      setDiscountError("");
     } else {
-      setAppliedDiscount(null)
-      setDiscountError("Invalid or expired code.")
+      setAppliedDiscount(null);
+      setDiscountError("Invalid or expired code.");
     }
   }
 
-  const custResults = custQuery.length > 0
-    ? CUSTOMER_CATALOG.filter(
-        (c) =>
-          c.name.toLowerCase().includes(custQuery.toLowerCase()) ||
-          c.email.toLowerCase().includes(custQuery.toLowerCase()),
-      )
-    : []
+  const custResults =
+    custQuery.length > 0
+      ? CUSTOMER_CATALOG.filter(
+          (c) =>
+            c.name.toLowerCase().includes(custQuery.toLowerCase()) ||
+            c.email.toLowerCase().includes(custQuery.toLowerCase()),
+        )
+      : [];
 
-  const canCreate = items.length > 0 && customer !== null
+  const canCreate = items.length > 0 && customer !== null;
 
   // ─── Render ──────────────────────────────────────────────────────────────
 
   return (
     <div className="space-y-6 pb-10">
-
       {/* Page header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <div className="mb-2 flex items-center gap-1.5 text-sm text-muted-foreground">
-            <Link to="/admin/orders" className="flex items-center gap-1 transition-colors hover:text-foreground">
+            <Link
+              to="/admin/orders"
+              className="flex items-center gap-1 transition-colors hover:text-foreground"
+            >
               <ArrowLeftIcon className="h-3.5 w-3.5" />
               Orders
             </Link>
@@ -311,14 +553,14 @@ function OrderCreatePage() {
 
       {/* Two-column grid */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[3fr_2fr]">
-
         {/* ── Left: product search + line items + note ──────────────────── */}
         <div className="space-y-5">
-
           {/* Product search */}
           <Card>
             <CardHeader className="border-b pb-4">
-              <CardTitle className="text-sm font-semibold">Add products</CardTitle>
+              <CardTitle className="text-sm font-semibold">
+                Add products
+              </CardTitle>
             </CardHeader>
             <CardContent className="pt-4">
               <ProductSearch onAdd={addItem} />
@@ -339,7 +581,9 @@ function OrderCreatePage() {
             {items.length === 0 ? (
               <div className="flex flex-col items-center justify-center border-t py-12 text-center">
                 <PackageIcon className="mb-3 h-8 w-8 text-muted-foreground/25" />
-                <p className="text-sm font-medium text-muted-foreground">No items yet</p>
+                <p className="text-sm font-medium text-muted-foreground">
+                  No items yet
+                </p>
                 <p className="mt-0.5 text-xs text-muted-foreground/60">
                   Search for products above to add them.
                 </p>
@@ -363,9 +607,16 @@ function OrderCreatePage() {
                   >
                     {/* Product info */}
                     <div className="flex min-w-0 flex-1 items-center gap-3">
-                      <div className={cn("h-10 w-10 shrink-0 rounded-lg bg-gradient-to-br", item.gradient)} />
+                      <div
+                        className={cn(
+                          "h-10 w-10 shrink-0 rounded-lg bg-gradient-to-br",
+                          item.gradient,
+                        )}
+                      />
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-medium leading-snug">{item.product}</p>
+                        <p className="truncate text-sm font-medium leading-snug">
+                          {item.product}
+                        </p>
                         <p className="truncate text-xs text-muted-foreground">
                           {item.variant && `${item.variant} · `}
                           <span className="font-mono">{item.sku}</span>
@@ -446,7 +697,6 @@ function OrderCreatePage() {
 
         {/* ── Right: customer, address, shipping, payment, summary ──────── */}
         <div className="space-y-5">
-
           {/* Customer */}
           <Card>
             <CardHeader className="border-b pb-4">
@@ -460,8 +710,12 @@ function OrderCreatePage() {
                   </div>
                   <div className="min-w-0 flex-1 space-y-0.5">
                     <p className="text-sm font-medium">{customer.name}</p>
-                    <p className="text-xs text-muted-foreground">{customer.email}</p>
-                    <p className="text-xs text-muted-foreground">{customer.phone}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {customer.email}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {customer.phone}
+                    </p>
                   </div>
                   <button
                     type="button"
@@ -497,13 +751,17 @@ function OrderCreatePage() {
                             </div>
                             <div>
                               <p className="text-sm font-medium">{c.name}</p>
-                              <p className="text-xs text-muted-foreground">{c.email}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {c.email}
+                              </p>
                             </div>
                           </button>
                         ))
                       ) : (
                         <div className="px-4 py-5 text-center">
-                          <p className="text-sm text-muted-foreground">No customers found.</p>
+                          <p className="text-sm text-muted-foreground">
+                            No customers found.
+                          </p>
                         </div>
                       )}
                     </div>
@@ -516,33 +774,61 @@ function OrderCreatePage() {
           {/* Shipping address */}
           <Card>
             <CardHeader className="border-b pb-4">
-              <CardTitle className="text-sm font-semibold">Shipping address</CardTitle>
+              <CardTitle className="text-sm font-semibold">
+                Shipping address
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3 pt-4">
               <div className="space-y-1.5">
                 <Label className="text-xs">Full name</Label>
-                <Input value={addrName} onChange={(e) => setAddrName(e.target.value)} className="h-8 text-sm" placeholder="Recipient name" />
+                <Input
+                  value={addrName}
+                  onChange={(e) => setAddrName(e.target.value)}
+                  className="h-8 text-sm"
+                  placeholder="Recipient name"
+                />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">Address</Label>
-                <Input value={addrLine1} onChange={(e) => setAddrLine1(e.target.value)} className="h-8 text-sm" placeholder="Street address" />
+                <Input
+                  value={addrLine1}
+                  onChange={(e) => setAddrLine1(e.target.value)}
+                  className="h-8 text-sm"
+                  placeholder="Street address"
+                />
               </div>
               <div className="grid grid-cols-2 gap-2.5">
                 <div className="space-y-1.5">
                   <Label className="text-xs">City</Label>
-                  <Input value={addrCity} onChange={(e) => setAddrCity(e.target.value)} className="h-8 text-sm" />
+                  <Input
+                    value={addrCity}
+                    onChange={(e) => setAddrCity(e.target.value)}
+                    className="h-8 text-sm"
+                  />
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs">ZIP / Postal</Label>
-                  <Input value={addrZip} onChange={(e) => setAddrZip(e.target.value)} className="h-8 text-sm" />
+                  <Input
+                    value={addrZip}
+                    onChange={(e) => setAddrZip(e.target.value)}
+                    className="h-8 text-sm"
+                  />
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs">Region / State</Label>
-                  <Input value={addrRegion} onChange={(e) => setAddrRegion(e.target.value)} className="h-8 text-sm" />
+                  <Input
+                    value={addrRegion}
+                    onChange={(e) => setAddrRegion(e.target.value)}
+                    className="h-8 text-sm"
+                  />
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs">Country</Label>
-                  <Input value={addrCountry} onChange={(e) => setAddrCountry(e.target.value)} className="h-8 text-sm" />
+                  <Input
+                    value={addrCountry}
+                    onChange={(e) => setAddrCountry(e.target.value)}
+                    className="h-8 text-sm"
+                  />
                 </div>
               </div>
             </CardContent>
@@ -551,7 +837,9 @@ function OrderCreatePage() {
           {/* Shipping method */}
           <Card>
             <CardHeader className="border-b pb-4">
-              <CardTitle className="text-sm font-semibold">Shipping method</CardTitle>
+              <CardTitle className="text-sm font-semibold">
+                Shipping method
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2 pt-4">
               {SHIPPING_METHODS.map((m) => (
@@ -566,11 +854,17 @@ function OrderCreatePage() {
                       : "border-border hover:bg-muted/40",
                   )}
                 >
-                  <div className={cn(
-                    "flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
-                    shipping === m.id ? "border-amber-500" : "border-muted-foreground/40",
-                  )}>
-                    {shipping === m.id && <div className="h-2 w-2 rounded-full bg-amber-500" />}
+                  <div
+                    className={cn(
+                      "flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
+                      shipping === m.id
+                        ? "border-amber-500"
+                        : "border-muted-foreground/40",
+                    )}
+                  >
+                    {shipping === m.id && (
+                      <div className="h-2 w-2 rounded-full bg-amber-500" />
+                    )}
                   </div>
                   <div className="flex-1">
                     <p className="text-sm font-medium">{m.label}</p>
@@ -605,9 +899,15 @@ function OrderCreatePage() {
                         : "text-muted-foreground hover:bg-muted/40",
                     )}
                   >
-                    {type === "paid"
-                      ? <><CreditCardIcon className="h-3.5 w-3.5" /> Mark as paid</>
-                      : <><FileTextIcon  className="h-3.5 w-3.5" /> Send invoice</>}
+                    {type === "paid" ? (
+                      <>
+                        <CreditCardIcon className="h-3.5 w-3.5" /> Mark as paid
+                      </>
+                    ) : (
+                      <>
+                        <FileTextIcon className="h-3.5 w-3.5" /> Send invoice
+                      </>
+                    )}
                   </button>
                 ))}
               </div>
@@ -617,14 +917,21 @@ function OrderCreatePage() {
                   <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                     Payment method
                   </Label>
-                  <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                  <Select
+                    value={paymentMethod}
+                    onValueChange={setPaymentMethod}
+                  >
                     <SelectTrigger className="h-9 text-sm">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="cash">Cash</SelectItem>
-                      <SelectItem value="bank_transfer">Bank transfer</SelectItem>
-                      <SelectItem value="card_manual">Card (manual entry)</SelectItem>
+                      <SelectItem value="bank_transfer">
+                        Bank transfer
+                      </SelectItem>
+                      <SelectItem value="card_manual">
+                        Card (manual entry)
+                      </SelectItem>
                       <SelectItem value="cheque">Cheque</SelectItem>
                       <SelectItem value="other">Other</SelectItem>
                     </SelectContent>
@@ -648,7 +955,9 @@ function OrderCreatePage() {
           {/* Order summary */}
           <Card>
             <CardHeader className="border-b pb-4">
-              <CardTitle className="text-sm font-semibold">Order summary</CardTitle>
+              <CardTitle className="text-sm font-semibold">
+                Order summary
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 pt-4">
               {/* Discount */}
@@ -661,9 +970,9 @@ function OrderCreatePage() {
                   <Input
                     value={discountCode}
                     onChange={(e) => {
-                      setDiscountCode(e.target.value)
-                      setDiscountError("")
-                      if (appliedDiscount) setAppliedDiscount(null)
+                      setDiscountCode(e.target.value);
+                      setDiscountError("");
+                      if (appliedDiscount) setAppliedDiscount(null);
                     }}
                     onKeyDown={(e) => e.key === "Enter" && applyDiscount()}
                     placeholder="e.g. SUMMER20"
@@ -684,7 +993,10 @@ function OrderCreatePage() {
                     <span>{appliedDiscount.label}</span>
                     <button
                       type="button"
-                      onClick={() => { setAppliedDiscount(null); setDiscountCode("") }}
+                      onClick={() => {
+                        setAppliedDiscount(null);
+                        setDiscountCode("");
+                      }}
                       className="ml-auto text-muted-foreground hover:text-foreground"
                     >
                       <XIcon className="h-3.5 w-3.5" />
@@ -707,13 +1019,17 @@ function OrderCreatePage() {
                 <div className="flex justify-between text-muted-foreground">
                   <span>Shipping</span>
                   <span className="tabular-nums">
-                    {shippingCost === 0 ? "Free" : `$${shippingCost.toFixed(2)}`}
+                    {shippingCost === 0
+                      ? "Free"
+                      : `$${shippingCost.toFixed(2)}`}
                   </span>
                 </div>
                 {discountAmount > 0 && (
                   <div className="flex justify-between text-emerald-600">
                     <span>Discount</span>
-                    <span className="tabular-nums">−${discountAmount.toFixed(2)}</span>
+                    <span className="tabular-nums">
+                      −${discountAmount.toFixed(2)}
+                    </span>
                   </div>
                 )}
                 <div className="flex justify-between text-muted-foreground">
@@ -743,9 +1059,8 @@ function OrderCreatePage() {
               )}
             </CardContent>
           </Card>
-
         </div>
       </div>
     </div>
-  )
+  );
 }
