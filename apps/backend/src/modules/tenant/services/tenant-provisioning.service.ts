@@ -2,9 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { TenantCreatedEvent } from '../../../shared/events/events';
 import { TenantService } from './tenant.service';
-import { StoreService } from './store.service';
 import { WorkosAuthService } from '../../auth/services/workos-auth.service';
-import { ApiKeyService } from '../../auth/services/api-key.service';
 
 @Injectable()
 export class TenantProvisioningService {
@@ -12,9 +10,7 @@ export class TenantProvisioningService {
 
   constructor(
     private readonly tenantService: TenantService,
-    private readonly storeService: StoreService,
     private readonly workosAuth: WorkosAuthService,
-    private readonly apiKeyService: ApiKeyService,
   ) {}
 
   @OnEvent('tenant.created')
@@ -37,20 +33,11 @@ export class TenantProvisioningService {
         name: event.name,
       });
 
-      const store = await this.storeService.create(org.id, {
-        name: 'Default Store',
-      });
-
-      const { rawKey } = await this.apiKeyService.generate(
-        org.id,
-        store.id,
-        'Default API Key',
-        event.userId,
-      );
-
-      this.logger.log(
-        `Tenant provisioned: orgId=${org.id} storeId=${store.id} — save this API key: ${rawKey}`,
-      );
+      // No default store is created here. With multi-store support, the user
+      // creates their first store during onboarding (and its storefront API
+      // key) — see apps/frontend onboarding step1/step3. The login flow routes
+      // users with zero stores into that onboarding flow.
+      this.logger.log(`Tenant provisioned: orgId=${org.id}`);
     } catch (error) {
       this.logger.error(
         `Failed to provision tenant for user ${event.userId}`,

@@ -224,12 +224,13 @@ export const createApiKeyServerFn = createServerFn({ method: "POST" })
       const res = await apiClient.post<{
         id: string;
         name: string;
-        key: string;
+        rawKey: string;
         lastUsedAt: string | null;
       }>(`/api/admin/stores/${storeId}/api-keys`, data, {
         headers: { cookie: incomingCookie(), "X-Store-Id": storeId },
       });
-      return res.data;
+      const { rawKey, ...rest } = res.data;
+      return { ...rest, key: rawKey };
     } catch (err) {
       throw new Error(getErrorMessage(err));
     }
