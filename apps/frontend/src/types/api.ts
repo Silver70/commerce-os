@@ -94,7 +94,7 @@ export type Product = {
   description: string | null;
   status: ProductStatus;
   vendor: string | null;
-  tags: string[];
+  tags: string[] | null;
   variants: ProductVariant[];
   options: ProductOption[];
   media: ProductMedia[];

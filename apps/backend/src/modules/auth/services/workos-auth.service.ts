@@ -13,6 +13,7 @@ interface WorkOsJwtPayload {
 export interface WorkOsLoginResult {
   user: User;
   accessToken: string;
+  refreshToken: string;
 }
 
 @Injectable()
@@ -61,6 +62,15 @@ export class WorkosAuthService {
       password,
       clientId: this.config.getOrThrow<string>('WORKOS_CLIENT_ID'),
     });
+    return result;
+  }
+
+  async refreshSession(refreshToken: string): Promise<WorkOsLoginResult> {
+    const result =
+      await this.workos.userManagement.authenticateWithRefreshToken({
+        refreshToken,
+        clientId: this.config.getOrThrow<string>('WORKOS_CLIENT_ID'),
+      });
     return result;
   }
 

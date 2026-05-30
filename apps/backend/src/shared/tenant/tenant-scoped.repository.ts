@@ -50,20 +50,20 @@ export abstract class TenantScopedRepository<TTable extends TenantTable> {
     // Drizzle's .from() has a conditional generic (TableLikeHasEmptySelection)
     // that can't be resolved when TTable is still generic — cast required here.
 
-    const rows = await this.db
+    const rows = (await this.db
       .select()
       .from(this.table as PgTable)
-      .where(and(...conditions));
-    return rows as InferSelectModel<TTable>[];
+      .where(and(...conditions))) as unknown as InferSelectModel<TTable>[];
+    return rows;
   }
 
   async findById(id: string): Promise<InferSelectModel<TTable> | null> {
-    const rows = await this.db
+    const rows = (await this.db
       .select()
       .from(this.table as PgTable)
       .where(and(eq(this.table.id, id), ...this.tenantFilters))
-      .limit(1);
-    return (rows[0] as InferSelectModel<TTable> | undefined) ?? null;
+      .limit(1)) as unknown as InferSelectModel<TTable>[];
+    return rows[0] ?? null;
   }
 
   async create(

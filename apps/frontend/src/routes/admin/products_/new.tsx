@@ -1,5 +1,7 @@
-import * as React from "react"
-import { createFileRoute, Link } from "@tanstack/react-router"
+import * as React from "react";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { z } from "zod";
 import {
   ArrowLeftIcon,
   PlusIcon,
@@ -14,101 +16,104 @@ import {
   XIcon,
   MoreHorizontalIcon,
   SearchIcon,
-} from "lucide-react"
+  LoaderCircleIcon,
+} from "lucide-react";
 
-import { cn } from "~/lib/utils"
-import { Button } from "~/components/ui/button"
-import { Input } from "~/components/ui/input"
-import { Label } from "~/components/ui/label"
-import { Badge } from "~/components/ui/badge"
-import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card"
-import { Separator } from "~/components/ui/separator"
+import { cn } from "~/lib/utils";
+import { Button } from "~/components/ui/button";
+import { Input } from "~/components/ui/input";
+import { Label } from "~/components/ui/label";
+import { Badge } from "~/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
+import { Separator } from "~/components/ui/separator";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "~/components/ui/select"
+} from "~/components/ui/select";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "~/components/ui/dropdown-menu"
+} from "~/components/ui/dropdown-menu";
+import { createProductServerFn, uploadMediaServerFn } from "~/server/products";
+import {
+  categoriesQueryOptions,
+  productsQueryOptions,
+  productQueryOptions,
+} from "~/queries/products";
+import type { Category } from "~/types/api";
 
 export const Route = createFileRoute("/admin/products_/new")({
-  component: ProductEditPage,
-})
+  component: ProductNewPage,
+});
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// ─── Local UI types ───────────────────────────────────────────────────────────
 
-type Variant = {
-  id: string
-  label: string
-  sku: string
-  price: string
-  compareAt: string
-  cost: string
-  stock: string
-  lowStockThreshold: string
-  weight: string
-  barcode: string
-  allowBackorder: boolean
-  active: boolean
-}
-
-type Category = {
-  id: string
-  label: string
-}
+type VariantDraft = {
+  id: string;
+  sku: string;
+  name: string;
+  price: string; // dollars, e.g. "149.99"
+  compareAt: string;
+  cost: string;
+  initialStock: string;
+  weight: string;
+  allowBackorder: boolean;
+  active: boolean;
+  optionValueIds: string[];
+};
 
 type OptionGroup = {
-  id: string
-  name: string
-  values: string[]
-}
+  id: string;
+  name: string;
+  values: string[];
+};
 
-// ─── Fake Data ────────────────────────────────────────────────────────────────
+type PendingFile = {
+  id: string;
+  file: File;
+  altText: string;
+  primary: boolean;
+};
 
-const SEED_VARIANTS: Variant[] = [
-  { id: "1", label: "S / Red",   sku: "WAVE-S-RED",   price: "149.99", compareAt: "",       cost: "75.00", stock: "12", lowStockThreshold: "5", weight: "350", barcode: "", allowBackorder: false, active: true  },
-  { id: "2", label: "S / Blue",  sku: "WAVE-S-BLUE",  price: "149.99", compareAt: "",       cost: "75.00", stock: "8",  lowStockThreshold: "5", weight: "350", barcode: "", allowBackorder: false, active: true  },
-  { id: "3", label: "M / Red",   sku: "WAVE-M-RED",   price: "149.99", compareAt: "",       cost: "75.00", stock: "15", lowStockThreshold: "5", weight: "360", barcode: "", allowBackorder: false, active: true  },
-  { id: "4", label: "M / Blue",  sku: "WAVE-M-BLUE",  price: "149.99", compareAt: "",       cost: "75.00", stock: "20", lowStockThreshold: "5", weight: "360", barcode: "", allowBackorder: false, active: true  },
-  { id: "5", label: "L / Red",   sku: "WAVE-L-RED",   price: "159.99", compareAt: "169.99", cost: "80.00", stock: "6",  lowStockThreshold: "5", weight: "370", barcode: "", allowBackorder: false, active: true  },
-  { id: "6", label: "L / Blue",  sku: "WAVE-L-BLUE",  price: "159.99", compareAt: "169.99", cost: "80.00", stock: "4",  lowStockThreshold: "5", weight: "370", barcode: "", allowBackorder: false, active: true  },
-  { id: "7", label: "XL / Red",  sku: "WAVE-XL-RED",  price: "169.99", compareAt: "",       cost: "85.00", stock: "2",  lowStockThreshold: "3", weight: "380", barcode: "", allowBackorder: false, active: false },
-  { id: "8", label: "XL / Blue", sku: "WAVE-XL-BLUE", price: "169.99", compareAt: "",       cost: "85.00", stock: "0",  lowStockThreshold: "3", weight: "380", barcode: "", allowBackorder: true,  active: false },
-]
+// ─── Zod schema (mirrors CreateProductDto) ────────────────────────────────────
 
-const ALL_CATEGORIES: Category[] = [
-  { id: "surf",         label: "Surfboards"   },
-  { id: "short",        label: "Shortboards"  },
-  { id: "long",         label: "Longboards"   },
-  { id: "body",         label: "Bodyboards"   },
-  { id: "apparel",      label: "Apparel"      },
-  { id: "rash",         label: "Rashguards"   },
-  { id: "wetsuits",     label: "Wetsuits"     },
-  { id: "boardshorts",  label: "Board Shorts" },
-  { id: "accessories",  label: "Accessories"  },
-  { id: "electronics",  label: "Electronics"  },
-  { id: "footwear",     label: "Footwear"     },
-  { id: "beauty",       label: "Beauty"       },
-]
+const createProductSchema = z.object({
+  name: z.string().min(1, "Product title is required"),
+  description: z.string().optional(),
+  status: z.enum(["draft", "active", "archived"]),
+  vendor: z.string().optional(),
+  tags: z.array(z.string()),
+  seoTitle: z.string().optional(),
+  seoDescription: z.string().optional(),
+  categoryIds: z.array(z.string()),
+  options: z.array(
+    z.object({
+      name: z.string().min(1),
+      values: z.array(z.string()),
+    }),
+  ),
+  variants: z.array(
+    z.object({
+      sku: z.string().min(1, "SKU is required"),
+      name: z.string().optional(),
+      price: z.number().int().min(0),
+      compareAtPrice: z.number().int().min(0).optional(),
+      costPrice: z.number().int().min(0).optional(),
+      weight: z.number().int().min(0).optional(),
+      isActive: z.boolean(),
+      optionValueIds: z.array(z.string()),
+      initialStock: z.number().int().min(0).optional(),
+    }),
+  ),
+});
 
-const FAKE_IMAGES = [
-  { id: "1", gradient: "from-blue-400 via-blue-500 to-indigo-700",  primary: true  },
-  { id: "2", gradient: "from-slate-500 via-slate-600 to-slate-800", primary: false },
-  { id: "3", gradient: "from-cyan-400 via-teal-500 to-cyan-700",    primary: false },
-]
-
-const INITIAL_DESCRIPTION = `The Wave Board Pro is engineered for intermediate to advanced surfers seeking a versatile, high-performance board. Constructed with our proprietary EPS foam core and wrapped in bio-resin fibreglass, it strikes the perfect balance between speed, control, and durability.
-
-Ideal for beach breaks and point breaks alike. Three-fin (thruster) setup for maximum drive through turns.`
-
-const INITIAL_SHORT = "High-performance surfboard for intermediate to advanced surfers. EPS core, bio-resin fibreglass."
+type CreateProductFormData = z.infer<typeof createProductSchema>;
 
 // ─── Description Editor ───────────────────────────────────────────────────────
 
@@ -116,8 +121,8 @@ function DescriptionEditor({
   value,
   onChange,
 }: {
-  value: string
-  onChange: (v: string) => void
+  value: string;
+  onChange: (v: string) => void;
 }) {
   const toolbar = [
     [BoldIcon, "Bold"],
@@ -126,7 +131,7 @@ function DescriptionEditor({
     null,
     [ListIcon, "Bullet list"],
     [LinkIcon, "Link"],
-  ] as const
+  ] as const;
 
   return (
     <div className="overflow-hidden rounded-lg border border-border">
@@ -134,8 +139,9 @@ function DescriptionEditor({
         {toolbar.map((item, i) =>
           item === null ? (
             <div key={`d-${i}`} className="mx-1 h-4 w-px bg-border" />
-          ) : (() => {
-              const Icon = item[0]
+          ) : (
+            (() => {
+              const Icon = item[0];
               return (
                 <button
                   key={item[1]}
@@ -145,8 +151,9 @@ function DescriptionEditor({
                 >
                   <Icon className="h-3.5 w-3.5" />
                 </button>
-              )
-            })(),
+              );
+            })()
+          ),
         )}
       </div>
       <textarea
@@ -157,28 +164,60 @@ function DescriptionEditor({
         placeholder="Describe your product…"
       />
     </div>
-  )
+  );
 }
 
 // ─── Media Gallery ────────────────────────────────────────────────────────────
 
-function MediaGallery() {
+function MediaGallery({
+  files,
+  onAdd,
+  onRemove,
+}: {
+  files: PendingFile[];
+  onAdd: (file: File) => void;
+  onRemove: (id: string) => void;
+}) {
+  const inputRef = React.useRef<HTMLInputElement>(null);
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const selected = Array.from(e.target.files ?? []);
+    selected.forEach((f) => onAdd(f));
+    e.target.value = "";
+  }
+
   return (
     <div className="space-y-3">
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        multiple
+        className="sr-only"
+        onChange={handleFileChange}
+      />
       <div className="flex flex-wrap gap-2.5">
-        {FAKE_IMAGES.map((img) => (
-          <div key={img.id} className="group relative h-[88px] w-[88px] cursor-move overflow-hidden rounded-lg">
-            <div className={`h-full w-full bg-gradient-to-br ${img.gradient}`} />
+        {files.map((pf, i) => (
+          <div
+            key={pf.id}
+            className="group relative h-[88px] w-[88px] overflow-hidden rounded-lg"
+          >
+            <img
+              src={URL.createObjectURL(pf.file)}
+              alt={pf.altText || pf.file.name}
+              className="h-full w-full object-cover"
+            />
             <div className="absolute left-1.5 top-1.5 opacity-0 transition-opacity group-hover:opacity-100">
               <GripVerticalIcon className="h-3.5 w-3.5 text-white drop-shadow" />
             </div>
             <button
               type="button"
+              onClick={() => onRemove(pf.id)}
               className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/50 text-white opacity-0 transition-opacity hover:bg-black/70 group-hover:opacity-100"
             >
               <XIcon className="h-3 w-3" />
             </button>
-            {img.primary && (
+            {i === 0 && (
               <div className="absolute inset-x-0 bottom-0 bg-black/55 py-0.5 text-center">
                 <span className="text-[9px] font-semibold uppercase tracking-wider text-white">
                   Primary
@@ -190,6 +229,7 @@ function MediaGallery() {
 
         <button
           type="button"
+          onClick={() => inputRef.current?.click()}
           className="flex h-[88px] w-[88px] flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-border text-muted-foreground transition-colors hover:border-amber-400 hover:bg-amber-50/40 hover:text-amber-600 dark:hover:bg-amber-950/10"
         >
           <ImagePlusIcon className="h-5 w-5" />
@@ -197,13 +237,21 @@ function MediaGallery() {
         </button>
       </div>
 
-      <div className="cursor-pointer rounded-lg border-2 border-dashed border-border bg-muted/20 py-6 text-center transition-colors hover:border-amber-400 hover:bg-amber-50/30 dark:hover:bg-amber-950/10">
+      <button
+        type="button"
+        onClick={() => inputRef.current?.click()}
+        className="w-full cursor-pointer rounded-lg border-2 border-dashed border-border bg-muted/20 py-6 text-center transition-colors hover:border-amber-400 hover:bg-amber-50/30 dark:hover:bg-amber-950/10"
+      >
         <ImagePlusIcon className="mx-auto mb-1.5 h-6 w-6 text-muted-foreground" />
-        <p className="text-sm font-medium text-muted-foreground">Drop images here, or click to upload</p>
-        <p className="mt-0.5 text-xs text-muted-foreground/60">JPEG, PNG, WebP · Max 5 MB each</p>
-      </div>
+        <p className="text-sm font-medium text-muted-foreground">
+          Drop images here, or click to upload
+        </p>
+        <p className="mt-0.5 text-xs text-muted-foreground/60">
+          JPEG, PNG, WebP · Max 5 MB each
+        </p>
+      </button>
     </div>
-  )
+  );
 }
 
 // ─── Variant Row ──────────────────────────────────────────────────────────────
@@ -213,15 +261,21 @@ function VariantRow({
   isOpen,
   onToggle,
   onUpdate,
+  onDelete,
 }: {
-  v: Variant
-  isOpen: boolean
-  onToggle: () => void
-  onUpdate: (patch: Partial<Variant>) => void
+  v: VariantDraft;
+  isOpen: boolean;
+  onToggle: () => void;
+  onUpdate: (patch: Partial<VariantDraft>) => void;
+  onDelete: () => void;
 }) {
-
   return (
-    <div className={cn("border-b border-border/50 last:border-0", isOpen && "bg-muted/10")}>
+    <div
+      className={cn(
+        "border-b border-border/50 last:border-0",
+        isOpen && "bg-muted/10",
+      )}
+    >
       {/* Summary row */}
       <div
         className="flex cursor-pointer items-center gap-3 px-4 py-3.5 transition-colors hover:bg-muted/20"
@@ -233,32 +287,31 @@ function VariantRow({
             isOpen && "rotate-90",
           )}
         />
-
-        {/* Label */}
-        <span className="min-w-0 flex-1 text-sm font-medium">{v.label}</span>
-
-        {/* SKU */}
+        <span className="min-w-0 flex-1 text-sm font-medium">
+          {v.name || v.sku || "Unnamed variant"}
+        </span>
         <span className="hidden w-32 truncate font-mono text-xs text-muted-foreground sm:block">
           {v.sku}
         </span>
-
-        {/* Price */}
-        <span className="w-20 text-right text-sm font-semibold tabular-nums">${v.price}</span>
-
-        {/* Stock */}
+        <span className="w-20 text-right text-sm font-semibold tabular-nums">
+          {v.price ? `$${v.price}` : "—"}
+        </span>
         <div className="w-24 text-right">
           <span className="text-sm tabular-nums text-muted-foreground">
-            {v.stock || "—"}
+            {v.initialStock || "—"}
           </span>
         </div>
-
-        {/* Active toggle */}
         <button
           type="button"
-          onClick={(e) => { e.stopPropagation(); onUpdate({ active: !v.active }) }}
+          onClick={(e) => {
+            e.stopPropagation();
+            onUpdate({ active: !v.active });
+          }}
           className={cn(
             "relative ml-3 h-5 w-9 shrink-0 rounded-full border-2 transition-colors",
-            v.active ? "border-amber-500 bg-amber-500" : "border-border bg-transparent",
+            v.active
+              ? "border-amber-500 bg-amber-500"
+              : "border-border bg-transparent",
           )}
         >
           <span
@@ -270,19 +323,22 @@ function VariantRow({
             )}
           />
         </button>
-
-        {/* Overflow menu */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-            <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 text-muted-foreground">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 shrink-0 text-muted-foreground"
+            >
               <MoreHorizontalIcon className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-36">
-            <DropdownMenuItem>Edit</DropdownMenuItem>
-            <DropdownMenuItem>Duplicate</DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-destructive focus:text-destructive">
+            <DropdownMenuItem
+              className="text-destructive focus:text-destructive"
+              onClick={() => onDelete()}
+            >
               Delete variant
             </DropdownMenuItem>
           </DropdownMenuContent>
@@ -309,52 +365,68 @@ function VariantRow({
                 Price <span className="text-destructive">*</span>
               </Label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">$</span>
-                <Input value={v.price} onChange={(e) => onUpdate({ price: e.target.value })} className="h-9 pl-6 text-sm" />
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                  $
+                </span>
+                <Input
+                  value={v.price}
+                  onChange={(e) => onUpdate({ price: e.target.value })}
+                  className="h-9 pl-6 text-sm"
+                />
               </div>
             </div>
 
             <div className="space-y-1.5">
               <Label className="text-xs font-medium">Compare-at price</Label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">$</span>
-                <Input value={v.compareAt} onChange={(e) => onUpdate({ compareAt: e.target.value })} className="h-9 pl-6 text-sm" placeholder="—" />
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                  $
+                </span>
+                <Input
+                  value={v.compareAt}
+                  onChange={(e) => onUpdate({ compareAt: e.target.value })}
+                  className="h-9 pl-6 text-sm"
+                  placeholder="—"
+                />
               </div>
             </div>
 
             <div className="space-y-1.5">
               <Label className="text-xs font-medium">Cost price</Label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">$</span>
-                <Input value={v.cost} onChange={(e) => onUpdate({ cost: e.target.value })} className="h-9 pl-6 text-sm" />
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                  $
+                </span>
+                <Input
+                  value={v.cost}
+                  onChange={(e) => onUpdate({ cost: e.target.value })}
+                  className="h-9 pl-6 text-sm"
+                />
               </div>
             </div>
 
             <div className="space-y-1.5">
               <Label className="text-xs font-medium">Weight (g)</Label>
-              <Input value={v.weight} onChange={(e) => onUpdate({ weight: e.target.value })} className="h-9 text-sm" />
+              <Input
+                value={v.weight}
+                onChange={(e) => onUpdate({ weight: e.target.value })}
+                className="h-9 text-sm"
+              />
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium">Barcode</Label>
-              <Input value={v.barcode} onChange={(e) => onUpdate({ barcode: e.target.value })} className="h-9 font-mono text-sm" placeholder="ISBN, UPC, GTIN…" />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label className="text-xs font-medium">Stock quantity</Label>
-              <Input value={v.stock} onChange={(e) => onUpdate({ stock: e.target.value })} className="h-9 text-sm" />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label className="text-xs font-medium">Low stock threshold</Label>
-              <Input value={v.lowStockThreshold} onChange={(e) => onUpdate({ lowStockThreshold: e.target.value })} className="h-9 text-sm" />
+              <Label className="text-xs font-medium">Initial stock</Label>
+              <Input
+                value={v.initialStock}
+                onChange={(e) => onUpdate({ initialStock: e.target.value })}
+                className="h-9 text-sm"
+              />
             </div>
           </div>
 
           <label className="mt-4 flex cursor-pointer items-center gap-2.5">
             <input
               type="checkbox"
-              id={`backorder-${v.id}`}
               checked={v.allowBackorder}
               onChange={(e) => onUpdate({ allowBackorder: e.target.checked })}
               className="h-4 w-4 rounded border-border accent-amber-500"
@@ -364,7 +436,7 @@ function VariantRow({
         </div>
       )}
     </div>
-  )
+  );
 }
 
 // ─── Variant Options Card ─────────────────────────────────────────────────────
@@ -374,44 +446,44 @@ function VariantOptionsCard({
   onChange,
   onGenerate,
 }: {
-  options: OptionGroup[]
-  onChange: (opts: OptionGroup[]) => void
-  onGenerate: () => void
+  options: OptionGroup[];
+  onChange: (opts: OptionGroup[]) => void;
+  onGenerate: () => void;
 }) {
-  const [inputs, setInputs] = React.useState<Record<string, string>>({})
+  const [inputs, setInputs] = React.useState<Record<string, string>>({});
 
   function updateOption(id: string, patch: Partial<OptionGroup>) {
-    onChange(options.map((o) => (o.id === id ? { ...o, ...patch } : o)))
+    onChange(options.map((o) => (o.id === id ? { ...o, ...patch } : o)));
   }
 
   function commitValue(optId: string) {
-    const raw = (inputs[optId] ?? "").trim().replace(/,+$/, "")
-    if (!raw) return
-    const opt = options.find((o) => o.id === optId)
-    if (!opt || opt.values.includes(raw)) return
-    updateOption(optId, { values: [...opt.values, raw] })
-    setInputs((prev) => ({ ...prev, [optId]: "" }))
+    const raw = (inputs[optId] ?? "").trim().replace(/,+$/, "");
+    if (!raw) return;
+    const opt = options.find((o) => o.id === optId);
+    if (!opt || opt.values.includes(raw)) return;
+    updateOption(optId, { values: [...opt.values, raw] });
+    setInputs((prev) => ({ ...prev, [optId]: "" }));
   }
 
   function removeValue(optId: string, value: string) {
-    const opt = options.find((o) => o.id === optId)
-    if (!opt) return
-    updateOption(optId, { values: opt.values.filter((v) => v !== value) })
+    const opt = options.find((o) => o.id === optId);
+    if (!opt) return;
+    updateOption(optId, { values: opt.values.filter((v) => v !== value) });
   }
 
   function removeOption(id: string) {
-    onChange(options.filter((o) => o.id !== id))
+    onChange(options.filter((o) => o.id !== id));
   }
 
   function addOption() {
-    onChange([...options, { id: String(Date.now()), name: "", values: [] }])
+    onChange([...options, { id: String(Date.now()), name: "", values: [] }]);
   }
 
   const totalCombinations = options
     .filter((o) => o.values.length > 0)
-    .reduce((acc, o) => acc * o.values.length, 1)
+    .reduce((acc, o) => acc * o.values.length, 1);
 
-  const canGenerate = options.some((o) => o.name.trim() && o.values.length > 0)
+  const canGenerate = options.some((o) => o.name.trim() && o.values.length > 0);
 
   return (
     <Card>
@@ -426,7 +498,6 @@ function VariantOptionsCard({
       <CardContent className="space-y-5 pt-5">
         {options.map((opt, i) => (
           <div key={opt.id} className="space-y-2">
-            {/* Option name row */}
             <div className="flex items-center gap-2">
               <span className="flex h-8 w-5 shrink-0 items-end justify-center pb-1.5 text-xs font-medium text-muted-foreground">
                 {i + 1}.
@@ -449,10 +520,15 @@ function VariantOptionsCard({
               )}
             </div>
 
-            {/* Tag input */}
             <div
               className="ml-7 flex min-h-[38px] cursor-text flex-wrap items-center gap-1.5 rounded-lg border border-border bg-background px-2.5 py-1.5 transition-[border-color,box-shadow] focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50"
-              onClick={(e) => (e.currentTarget.querySelector("input") as HTMLInputElement | null)?.focus()}
+              onClick={(e) =>
+                (
+                  e.currentTarget.querySelector(
+                    "input",
+                  ) as HTMLInputElement | null
+                )?.focus()
+              }
             >
               {opt.values.map((val) => (
                 <span
@@ -462,7 +538,10 @@ function VariantOptionsCard({
                   {val}
                   <button
                     type="button"
-                    onClick={(e) => { e.stopPropagation(); removeValue(opt.id, val) }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeValue(opt.id, val);
+                    }}
                     className="-mr-0.5 ml-0.5 rounded-full p-0.5 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
                   >
                     <XIcon className="h-3 w-3" />
@@ -471,17 +550,27 @@ function VariantOptionsCard({
               ))}
               <input
                 value={inputs[opt.id] ?? ""}
-                onChange={(e) => setInputs((prev) => ({ ...prev, [opt.id]: e.target.value }))}
+                onChange={(e) =>
+                  setInputs((prev) => ({ ...prev, [opt.id]: e.target.value }))
+                }
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === ",") {
-                    e.preventDefault()
-                    commitValue(opt.id)
-                  } else if (e.key === "Backspace" && !inputs[opt.id] && opt.values.length > 0) {
-                    removeValue(opt.id, opt.values[opt.values.length - 1])
+                    e.preventDefault();
+                    commitValue(opt.id);
+                  } else if (
+                    e.key === "Backspace" &&
+                    !inputs[opt.id] &&
+                    opt.values.length > 0
+                  ) {
+                    removeValue(opt.id, opt.values[opt.values.length - 1]);
                   }
                 }}
                 onBlur={() => commitValue(opt.id)}
-                placeholder={opt.values.length === 0 ? "Type a value, press Enter to add…" : "Add…"}
+                placeholder={
+                  opt.values.length === 0
+                    ? "Type a value, press Enter to add…"
+                    : "Add…"
+                }
                 className="min-w-[140px] flex-1 bg-transparent text-xs outline-none placeholder:text-muted-foreground"
               />
             </div>
@@ -521,56 +610,55 @@ function VariantOptionsCard({
         </div>
       </CardContent>
     </Card>
-  )
+  );
 }
 
 // ─── Variants Card ────────────────────────────────────────────────────────────
 
 function VariantsCard({
+  variants,
   options,
-  onDirty,
+  onUpdate,
+  onDelete,
   onEditOptions,
 }: {
-  options: OptionGroup[]
-  onDirty: () => void
-  onEditOptions: () => void
+  variants: VariantDraft[];
+  options: OptionGroup[];
+  onUpdate: (id: string, patch: Partial<VariantDraft>) => void;
+  onDelete: (id: string) => void;
+  onEditOptions: () => void;
 }) {
-  const [variants, setVariants] = React.useState<Variant[]>(SEED_VARIANTS)
-  const [openId, setOpenId] = React.useState<string | null>(null)
-
-  function updateVariant(id: string, patch: Partial<Variant>) {
-    setVariants((prev) => prev.map((v) => (v.id === id ? { ...v, ...patch } : v)))
-    onDirty()
-  }
+  const [openId, setOpenId] = React.useState<string | null>(null);
 
   return (
     <Card className="overflow-hidden gap-0 py-0">
-      {/* Card header */}
       <div className="flex items-center justify-between px-4 py-4">
         <div>
           <p className="text-sm font-semibold">Variants</p>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            {variants.length} variants · {options.map((o) => o.name).join(" × ")}
+            {variants.length} variants ·{" "}
+            {options.map((o) => o.name).join(" × ")}
           </p>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" className="h-8 text-xs">
             Bulk edit prices
           </Button>
-          <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
-            <PlusIcon className="h-3.5 w-3.5" />
-            Add variant
-          </Button>
         </div>
       </div>
 
       <Separator />
 
-      {/* Options pills */}
       <div className="flex flex-wrap items-center gap-2 bg-muted/30 px-4 py-3">
-        <span className="text-xs font-medium text-muted-foreground">Options:</span>
+        <span className="text-xs font-medium text-muted-foreground">
+          Options:
+        </span>
         {options.map((o) => (
-          <Badge key={o.id} variant="outline" className="bg-background text-xs font-medium">
+          <Badge
+            key={o.id}
+            variant="outline"
+            className="bg-background text-xs font-medium"
+          >
             {o.name}: {o.values.join(", ")}
           </Badge>
         ))}
@@ -586,20 +674,28 @@ function VariantsCard({
 
       <Separator />
 
-      {/* Table column headers */}
       <div className="flex items-center gap-3 bg-muted/20 px-4 py-2.5">
         <div className="w-4 shrink-0" />
-        <span className="flex-1 text-xs font-medium text-muted-foreground">Variant</span>
-        <span className="hidden w-32 text-xs font-medium text-muted-foreground sm:block">SKU</span>
-        <span className="w-20 text-right text-xs font-medium text-muted-foreground">Price</span>
-        <span className="w-24 text-right text-xs font-medium text-muted-foreground">Stock</span>
-        <span className="ml-3 w-9 text-center text-xs font-medium text-muted-foreground">Active</span>
+        <span className="flex-1 text-xs font-medium text-muted-foreground">
+          Variant
+        </span>
+        <span className="hidden w-32 text-xs font-medium text-muted-foreground sm:block">
+          SKU
+        </span>
+        <span className="w-20 text-right text-xs font-medium text-muted-foreground">
+          Price
+        </span>
+        <span className="w-24 text-right text-xs font-medium text-muted-foreground">
+          Stock
+        </span>
+        <span className="ml-3 w-9 text-center text-xs font-medium text-muted-foreground">
+          Active
+        </span>
         <div className="w-7 shrink-0" />
       </div>
 
       <Separator />
 
-      {/* Rows */}
       <div>
         {variants.map((v) => (
           <VariantRow
@@ -607,35 +703,44 @@ function VariantsCard({
             v={v}
             isOpen={openId === v.id}
             onToggle={() => setOpenId(openId === v.id ? null : v.id)}
-            onUpdate={(patch) => updateVariant(v.id, patch)}
+            onUpdate={(patch) => onUpdate(v.id, patch)}
+            onDelete={() => onDelete(v.id)}
           />
         ))}
       </div>
     </Card>
-  )
+  );
 }
 
 // ─── Categories Card ──────────────────────────────────────────────────────────
 
 function CategoriesCard({
+  allCategories,
   selected,
   onAdd,
   onRemove,
 }: {
-  selected: Category[]
-  onAdd: (cat: Category) => void
-  onRemove: (id: string) => void
+  allCategories: Category[];
+  selected: Category[];
+  onAdd: (cat: Category) => void;
+  onRemove: (id: string) => void;
 }) {
-  const [query, setQuery] = React.useState("")
-  const [focused, setFocused] = React.useState(false)
+  const [query, setQuery] = React.useState("");
+  const [focused, setFocused] = React.useState(false);
 
-  const suggestions = ALL_CATEGORIES.filter(
+  // Flatten tree for suggestions
+  function flattenCategories(cats: Category[]): Category[] {
+    return cats.flatMap((c) => [c, ...flattenCategories(c.children)]);
+  }
+  const flat = flattenCategories(allCategories);
+
+  const suggestions = flat.filter(
     (c) =>
       !selected.some((s) => s.id === c.id) &&
-      c.label.toLowerCase().includes(query.toLowerCase()),
-  )
+      c.name.toLowerCase().includes(query.toLowerCase()),
+  );
 
-  const showDropdown = focused && suggestions.length > 0
+  const showDropdown = focused && suggestions.length > 0;
 
   return (
     <Card>
@@ -643,7 +748,6 @@ function CategoriesCard({
         <CardTitle className="text-sm font-semibold">Categories</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3 pt-4">
-        {/* Search input */}
         <div className="relative">
           <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -655,25 +759,26 @@ function CategoriesCard({
             className="h-9 pl-8 text-sm"
           />
 
-          {/* Dropdown */}
           {showDropdown && (
             <div className="absolute z-10 mt-1 w-full overflow-hidden rounded-lg border border-border bg-popover py-1 shadow-md">
               {suggestions.map((cat) => (
                 <button
                   key={cat.id}
                   type="button"
-                  onMouseDown={() => { onAdd(cat); setQuery("") }}
+                  onMouseDown={() => {
+                    onAdd(cat);
+                    setQuery("");
+                  }}
                   className="flex w-full items-center gap-2 px-3 py-2 text-sm transition-colors hover:bg-muted/60"
                 >
                   <PlusIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                  {cat.label}
+                  {cat.name}
                 </button>
               ))}
             </div>
           )}
         </div>
 
-        {/* Selected badges */}
         {selected.length > 0 ? (
           <div className="flex flex-wrap gap-1.5">
             {selected.map((cat) => (
@@ -681,7 +786,7 @@ function CategoriesCard({
                 key={cat.id}
                 className="group inline-flex items-center gap-1 rounded-md border border-border bg-muted/40 px-2 py-0.5 text-xs font-medium"
               >
-                {cat.label}
+                {cat.name}
                 <button
                   type="button"
                   onClick={() => onRemove(cat.id)}
@@ -693,76 +798,271 @@ function CategoriesCard({
             ))}
           </div>
         ) : (
-          <p className="text-xs text-muted-foreground">No categories selected.</p>
+          <p className="text-xs text-muted-foreground">
+            No categories selected.
+          </p>
         )}
       </CardContent>
     </Card>
-  )
+  );
 }
 
-// ─── Status badge helper ──────────────────────────────────────────────────────
+// ─── Status styles ────────────────────────────────────────────────────────────
 
 const STATUS_STYLES: Record<string, string> = {
-  active:   "text-amber-700 border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-900/50 dark:text-amber-400",
-  draft:    "text-muted-foreground border-border bg-muted/40",
+  active:
+    "text-amber-700 border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-900/50 dark:text-amber-400",
+  draft: "text-muted-foreground border-border bg-muted/40",
   archived: "text-destructive border-destructive/20 bg-destructive/10",
-}
+};
 
 const STATUS_HINTS: Record<string, string> = {
-  active:   "Visible and purchasable in your storefront.",
-  draft:    "Hidden from the storefront. Still editable.",
+  active: "Visible and purchasable in your storefront.",
+  draft: "Hidden from the storefront. Still editable.",
   archived: "Hidden from the storefront and locked from edits.",
+};
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function toCents(dollars: string): number {
+  const n = parseFloat(dollars);
+  if (isNaN(n) || n < 0) return 0;
+  return Math.round(n * 100);
+}
+
+function toIntOrUndefined(s: string): number | undefined {
+  const n = parseInt(s, 10);
+  return isNaN(n) || n < 0 ? undefined : n;
+}
+
+// Generate variant combinations from option groups
+function generateVariantDrafts(options: OptionGroup[]): VariantDraft[] {
+  const filled = options.filter((o) => o.name.trim() && o.values.length > 0);
+  if (filled.length === 0) return [];
+
+  const combinations: string[][] = filled.reduce<string[][]>(
+    (acc, opt) =>
+      acc.length === 0
+        ? opt.values.map((v) => [v])
+        : acc.flatMap((combo) => opt.values.map((v) => [...combo, v])),
+    [],
+  );
+
+  return combinations.map((combo, i) => ({
+    id: `gen-${Date.now()}-${i}`,
+    sku: "",
+    name: combo.join(" / "),
+    price: "",
+    compareAt: "",
+    cost: "",
+    initialStock: "",
+    weight: "",
+    allowBackorder: false,
+    active: true,
+    optionValueIds: [],
+  }));
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-function ProductEditPage() {
-  const [title, setTitle]         = React.useState("Wave Board Pro")
-  const [description, setDesc]    = React.useState(INITIAL_DESCRIPTION)
-  const [shortDesc, setShortDesc] = React.useState(INITIAL_SHORT)
-  const [status, setStatus]       = React.useState("active")
-  const [featured, setFeatured]   = React.useState(false)
-  const [selectedCats, setCats]   = React.useState<Category[]>([
-    { id: "surf",  label: "Surfboards"  },
-    { id: "short", label: "Shortboards" },
-  ])
-  const [slug, setSlug]           = React.useState("wave-board-pro")
-  const [metaTitle, setMetaTitle] = React.useState("Wave Board Pro — Surfboards")
-  const [metaDesc, setMetaDesc]   = React.useState(INITIAL_SHORT)
-  const [variantOptions, setVariantOptions] = React.useState<OptionGroup[]>([
-    { id: "size",  name: "Size",  values: ["S", "M", "L", "XL"] },
-    { id: "color", name: "Color", values: ["Red", "Blue"]        },
-  ])
-  const [variantsGenerated, setVariantsGenerated] = React.useState(true)
-  const [isDirty, setIsDirty]     = React.useState(false)
+function ProductNewPage() {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
-  const dirty = () => setIsDirty(true)
+  // Form state
+  const [title, setTitle] = React.useState("");
+  const [description, setDesc] = React.useState("");
+  const [shortDesc, setShortDesc] = React.useState("");
+  const [status, setStatus] = React.useState<"draft" | "active" | "archived">(
+    "draft",
+  );
+  const [vendor, setVendor] = React.useState("");
+  const [tags, setTags] = React.useState<string[]>([]);
+  const [tagInput, setTagInput] = React.useState("");
+  const [selectedCats, setCats] = React.useState<Category[]>([]);
+  const [slug, setSlug] = React.useState("");
+  const [metaTitle, setMetaTitle] = React.useState("");
+  const [metaDesc, setMetaDesc] = React.useState("");
+  const [variantOptions, setVariantOptions] = React.useState<OptionGroup[]>([
+    { id: "opt-1", name: "", values: [] },
+  ]);
+  const [variants, setVariants] = React.useState<VariantDraft[]>([]);
+  const [variantsGenerated, setVariantsGenerated] = React.useState(false);
+  const [pendingFiles, setPendingFiles] = React.useState<PendingFile[]>([]);
+  const [errors, setErrors] = React.useState<Record<string, string>>({});
+  const [isDirty, setIsDirty] = React.useState(false);
+
+  // Categories from API
+  const { data: categories = [] } = useQuery({
+    ...categoriesQueryOptions(),
+    // Don't suspend — show empty gracefully until loaded
+  });
+
+  const dirty = () => setIsDirty(true);
 
   function wrap<T>(setter: (v: T) => void) {
-    return (v: T) => { setter(v); dirty() }
+    return (v: T) => {
+      setter(v);
+      dirty();
+    };
   }
 
   function addCat(cat: Category) {
-    setCats((prev) => [...prev, cat])
-    dirty()
+    setCats((prev) => [...prev, cat]);
+    dirty();
   }
 
   function removeCat(id: string) {
-    setCats((prev) => prev.filter((c) => c.id !== id))
-    dirty()
+    setCats((prev) => prev.filter((c) => c.id !== id));
+    dirty();
   }
 
-  function handleSave() {
-    setIsDirty(false)
+  function addTag() {
+    const raw = tagInput.trim();
+    if (!raw || tags.includes(raw)) return;
+    setTags((prev) => [...prev, raw]);
+    setTagInput("");
+    dirty();
   }
+
+  function removeTag(t: string) {
+    setTags((prev) => prev.filter((x) => x !== t));
+    dirty();
+  }
+
+  function updateVariant(id: string, patch: Partial<VariantDraft>) {
+    setVariants((prev) =>
+      prev.map((v) => (v.id === id ? { ...v, ...patch } : v)),
+    );
+    dirty();
+  }
+
+  function deleteVariant(id: string) {
+    setVariants((prev) => prev.filter((v) => v.id !== id));
+    dirty();
+  }
+
+  function addPendingFile(file: File) {
+    setPendingFiles((prev) => [
+      ...prev,
+      {
+        id: `pf-${Date.now()}-${Math.random()}`,
+        file,
+        altText: "",
+        primary: prev.length === 0,
+      },
+    ]);
+    dirty();
+  }
+
+  function removePendingFile(id: string) {
+    setPendingFiles((prev) => prev.filter((f) => f.id !== id));
+    dirty();
+  }
+
+  // Create mutation
+  const createMutation = useMutation({
+    mutationFn: async (payload: CreateProductFormData) => {
+      const product = await createProductServerFn({ data: payload });
+
+      // Upload queued media after product is created
+      for (let i = 0; i < pendingFiles.length; i++) {
+        const pf = pendingFiles[i];
+        const arrayBuffer = await pf.file.arrayBuffer();
+        const base64 = btoa(
+          new Uint8Array(arrayBuffer).reduce(
+            (data, byte) => data + String.fromCharCode(byte),
+            "",
+          ),
+        );
+        await uploadMediaServerFn({
+          data: {
+            productId: product.id,
+            fileBase64: base64,
+            mimeType: pf.file.type,
+            fileName: pf.file.name,
+            altText: pf.altText || undefined,
+            position: i,
+          },
+        });
+      }
+
+      return product;
+    },
+    onSuccess: (product) => {
+      queryClient.invalidateQueries({
+        queryKey: productsQueryOptions().queryKey,
+      });
+      queryClient.invalidateQueries({
+        queryKey: productQueryOptions(product.id).queryKey,
+      });
+      navigate({
+        to: "/admin/products/$productId",
+        params: { productId: product.id },
+      });
+    },
+    onError: (err) => {
+      setErrors({
+        _root: err instanceof Error ? err.message : "Failed to create product",
+      });
+    },
+  });
+
+  function handleSave(targetStatus: "draft" | "active") {
+    setStatus(targetStatus);
+    // Use a microtask so state update settles before reading
+    Promise.resolve().then(() => {
+      const raw: CreateProductFormData = {
+        name: title.trim(),
+        description: description.trim() || undefined,
+        status: targetStatus,
+        vendor: vendor.trim() || undefined,
+        tags,
+        seoTitle: metaTitle.trim() || undefined,
+        seoDescription: metaDesc.trim() || undefined,
+        categoryIds: selectedCats.map((c) => c.id),
+        options: variantsGenerated
+          ? variantOptions
+              .filter((o) => o.name.trim() && o.values.length > 0)
+              .map((o) => ({ name: o.name, values: o.values }))
+          : [],
+        variants: variantsGenerated
+          ? variants.map((v) => ({
+              sku: v.sku,
+              name: v.name || undefined,
+              price: toCents(v.price),
+              compareAtPrice: v.compareAt ? toCents(v.compareAt) : undefined,
+              costPrice: v.cost ? toCents(v.cost) : undefined,
+              weight: toIntOrUndefined(v.weight),
+              isActive: v.active,
+              optionValueIds: v.optionValueIds,
+              initialStock: toIntOrUndefined(v.initialStock),
+            }))
+          : [],
+      };
+
+      const result = createProductSchema.safeParse(raw);
+      if (!result.success) {
+        const fieldErrors: Record<string, string> = {};
+        for (const issue of result.error.issues) {
+          const key = issue.path.join(".");
+          fieldErrors[key] = issue.message;
+        }
+        setErrors(fieldErrors);
+        return;
+      }
+      setErrors({});
+      createMutation.mutate(result.data);
+    });
+  }
+
+  const isPending = createMutation.isPending;
 
   return (
     <div className="space-y-6 pb-28">
-
       {/* ── Page header ───────────────────────────────────────────────────────── */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          {/* Breadcrumb */}
           <div className="mb-2 flex items-center gap-1.5 text-sm text-muted-foreground">
             <Link
               to="/admin/products"
@@ -786,35 +1086,63 @@ function ProductEditPage() {
             >
               {status}
             </Badge>
-            <span className="text-xs text-muted-foreground">8 variants</span>
+            {variantsGenerated && (
+              <span className="text-xs text-muted-foreground">
+                {variants.length} variants
+              </span>
+            )}
           </div>
         </div>
 
-        {/* Header actions */}
         <div className="flex shrink-0 items-center gap-2">
           <Button variant="outline" size="lg" className="h-9 px-4" asChild>
             <Link to="/admin/products">Discard</Link>
           </Button>
           <Button
+            variant="outline"
+            size="lg"
+            className="h-9 px-4"
+            onClick={() => handleSave("draft")}
+            disabled={isPending}
+          >
+            {isPending ? (
+              <LoaderCircleIcon className="h-4 w-4 animate-spin" />
+            ) : (
+              "Save draft"
+            )}
+          </Button>
+          <Button
             size="lg"
             className="h-9 px-5 bg-orange-700 text-white shadow-none hover:bg-orange-800"
-            onClick={handleSave}
+            onClick={() => handleSave("active")}
+            disabled={isPending}
           >
-            Save product
+            {isPending ? (
+              <LoaderCircleIcon className="h-4 w-4 animate-spin" />
+            ) : (
+              "Publish"
+            )}
           </Button>
         </div>
       </div>
 
+      {/* Root error */}
+      {errors._root && (
+        <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          {errors._root}
+        </div>
+      )}
+
       {/* ── Two-column grid ───────────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-
         {/* ── Left column (2 / 3) ─────────────────────────────────────────────── */}
         <div className="space-y-6 lg:col-span-2">
-
           {/* Basic information */}
           <Card>
             <CardHeader className="border-b pb-4">
-              <CardTitle className="text-sm font-semibold">Basic information</CardTitle>
+              <CardTitle className="text-sm font-semibold">
+                Basic information
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-5 pt-5">
               <div className="space-y-1.5">
@@ -824,23 +1152,36 @@ function ProductEditPage() {
                 <Input
                   value={title}
                   onChange={(e) => wrap(setTitle)(e.target.value)}
-                  className="h-10 text-sm"
+                  className={cn(
+                    "h-10 text-sm",
+                    errors.name && "border-destructive",
+                  )}
                   placeholder="e.g. Wave Board Pro"
                 />
+                {errors.name && (
+                  <p className="text-xs text-destructive">{errors.name}</p>
+                )}
               </div>
 
               <div className="space-y-1.5">
                 <Label className="text-sm font-medium">Description</Label>
-                <DescriptionEditor value={description} onChange={wrap(setDesc)} />
+                <DescriptionEditor
+                  value={description}
+                  onChange={wrap(setDesc)}
+                />
               </div>
 
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <Label className="text-sm font-medium">Short description</Label>
+                  <Label className="text-sm font-medium">
+                    Short description
+                  </Label>
                   <span
                     className={cn(
                       "text-xs tabular-nums",
-                      shortDesc.length > 480 ? "text-destructive" : "text-muted-foreground",
+                      shortDesc.length > 480
+                        ? "text-destructive"
+                        : "text-muted-foreground",
                     )}
                   >
                     {shortDesc.length} / 500
@@ -855,6 +1196,68 @@ function ProductEditPage() {
                   placeholder="Brief summary shown in search results and product cards…"
                 />
               </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-sm font-medium">Vendor</Label>
+                <Input
+                  value={vendor}
+                  onChange={(e) => wrap(setVendor)(e.target.value)}
+                  className="h-9 text-sm"
+                  placeholder="e.g. Acme Corp"
+                />
+              </div>
+
+              {/* Tags */}
+              <div className="space-y-1.5">
+                <Label className="text-sm font-medium">Tags</Label>
+                <div
+                  className="flex flex-wrap gap-1.5 rounded-lg border border-border bg-background px-2.5 py-1.5 min-h-[38px] cursor-text"
+                  onClick={(e) =>
+                    (
+                      e.currentTarget.querySelector(
+                        "input",
+                      ) as HTMLInputElement | null
+                    )?.focus()
+                  }
+                >
+                  {tags.map((t) => (
+                    <span
+                      key={t}
+                      className="group inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-xs font-medium"
+                    >
+                      {t}
+                      <button
+                        type="button"
+                        onClick={() => removeTag(t)}
+                        className="-mr-0.5 ml-0.5 rounded-full p-0.5 text-muted-foreground opacity-0 hover:text-foreground group-hover:opacity-100"
+                      >
+                        <XIcon className="h-3 w-3" />
+                      </button>
+                    </span>
+                  ))}
+                  <input
+                    value={tagInput}
+                    onChange={(e) => setTagInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === ",") {
+                        e.preventDefault();
+                        addTag();
+                      } else if (
+                        e.key === "Backspace" &&
+                        !tagInput &&
+                        tags.length > 0
+                      ) {
+                        removeTag(tags[tags.length - 1]);
+                      }
+                    }}
+                    onBlur={addTag}
+                    placeholder={
+                      tags.length === 0 ? "Type a tag, press Enter…" : "Add…"
+                    }
+                    className="min-w-[120px] flex-1 bg-transparent text-xs outline-none placeholder:text-muted-foreground"
+                  />
+                </div>
+              </div>
             </CardContent>
           </Card>
 
@@ -864,29 +1267,39 @@ function ProductEditPage() {
               <CardTitle className="text-sm font-semibold">Media</CardTitle>
             </CardHeader>
             <CardContent className="pt-5">
-              <MediaGallery />
+              <MediaGallery
+                files={pendingFiles}
+                onAdd={addPendingFile}
+                onRemove={removePendingFile}
+              />
             </CardContent>
           </Card>
 
           {/* Variants */}
           {variantsGenerated ? (
             <VariantsCard
+              variants={variants}
               options={variantOptions}
-              onDirty={dirty}
+              onUpdate={updateVariant}
+              onDelete={deleteVariant}
               onEditOptions={() => setVariantsGenerated(false)}
             />
           ) : (
             <VariantOptionsCard
               options={variantOptions}
               onChange={setVariantOptions}
-              onGenerate={() => { setVariantsGenerated(true); dirty() }}
+              onGenerate={() => {
+                const generated = generateVariantDrafts(variantOptions);
+                setVariants(generated);
+                setVariantsGenerated(true);
+                dirty();
+              }}
             />
           )}
         </div>
 
         {/* ── Right column (1 / 3) ────────────────────────────────────────────── */}
         <div className="space-y-5">
-
           {/* Status */}
           <Card>
             <CardHeader className="border-b pb-4">
@@ -897,7 +1310,13 @@ function ProductEditPage() {
                 <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   Visibility
                 </Label>
-                <Select value={status} onValueChange={(v) => { setStatus(v); dirty() }}>
+                <Select
+                  value={status}
+                  onValueChange={(v) => {
+                    setStatus(v as "draft" | "active" | "archived");
+                    dirty();
+                  }}
+                >
                   <SelectTrigger className="h-9 text-sm">
                     <SelectValue />
                   </SelectTrigger>
@@ -907,30 +1326,16 @@ function ProductEditPage() {
                     <SelectItem value="archived">Archived</SelectItem>
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-muted-foreground">{STATUS_HINTS[status]}</p>
+                <p className="text-xs text-muted-foreground">
+                  {STATUS_HINTS[status]}
+                </p>
               </div>
-
-              <Separator />
-
-              <label className="group flex cursor-pointer items-start gap-3">
-                <input
-                  type="checkbox"
-                  checked={featured}
-                  onChange={(e) => { setFeatured(e.target.checked); dirty() }}
-                  className="mt-0.5 h-4 w-4 shrink-0 rounded border-border accent-amber-500"
-                />
-                <div>
-                  <p className="text-sm font-medium">Featured product</p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">
-                    Pinned in your storefront's featured section.
-                  </p>
-                </div>
-              </label>
             </CardContent>
           </Card>
 
           {/* Categories */}
           <CategoriesCard
+            allCategories={categories}
             selected={selectedCats}
             onAdd={addCat}
             onRemove={removeCat}
@@ -942,7 +1347,6 @@ function ProductEditPage() {
               <CardTitle className="text-sm font-semibold">SEO</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 pt-4">
-              {/* URL slug */}
               <div className="space-y-1.5">
                 <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   URL slug
@@ -954,18 +1358,28 @@ function ProductEditPage() {
                   <input
                     value={slug}
                     onChange={(e) => wrap(setSlug)(e.target.value)}
+                    placeholder="auto-generated"
                     className="min-w-0 flex-1 bg-background px-3 text-sm outline-none"
                   />
                 </div>
+                <p className="text-xs text-muted-foreground">
+                  Leave blank to auto-generate from title.
+                </p>
               </div>
 
-              {/* Meta title */}
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
                   <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                     Meta title
                   </Label>
-                  <span className={cn("text-xs tabular-nums", metaTitle.length > 55 ? "text-amber-600" : "text-muted-foreground")}>
+                  <span
+                    className={cn(
+                      "text-xs tabular-nums",
+                      metaTitle.length > 55
+                        ? "text-amber-600"
+                        : "text-muted-foreground",
+                    )}
+                  >
                     {metaTitle.length} / 60
                   </span>
                 </div>
@@ -977,13 +1391,19 @@ function ProductEditPage() {
                 />
               </div>
 
-              {/* Meta description */}
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
                   <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                     Meta description
                   </Label>
-                  <span className={cn("text-xs tabular-nums", metaDesc.length > 145 ? "text-amber-600" : "text-muted-foreground")}>
+                  <span
+                    className={cn(
+                      "text-xs tabular-nums",
+                      metaDesc.length > 145
+                        ? "text-amber-600"
+                        : "text-muted-foreground",
+                    )}
+                  >
                     {metaDesc.length} / 160
                   </span>
                 </div>
@@ -997,9 +1417,10 @@ function ProductEditPage() {
                 />
               </div>
 
-              {/* SERP preview */}
               <div className="rounded-lg border border-border/50 bg-muted/20 p-3 space-y-0.5">
-                <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-1.5">Preview</p>
+                <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-1.5">
+                  Preview
+                </p>
                 <p className="text-sm font-medium text-blue-600 truncate leading-snug">
                   {metaTitle || title || "Untitled"}
                 </p>
@@ -1027,21 +1448,35 @@ function ProductEditPage() {
                 variant="outline"
                 size="sm"
                 className="h-8"
-                onClick={() => setIsDirty(false)}
+                onClick={() => navigate({ to: "/admin/products" })}
+                disabled={isPending}
               >
                 Discard
               </Button>
               <Button
+                variant="outline"
+                size="sm"
+                className="h-8"
+                onClick={() => handleSave("draft")}
+                disabled={isPending}
+              >
+                Save draft
+              </Button>
+              <Button
                 size="sm"
                 className="h-8 bg-orange-700 px-4 text-white shadow-none hover:bg-orange-800"
-                onClick={handleSave}
+                onClick={() => handleSave("active")}
+                disabled={isPending}
               >
-                Save product
+                {isPending ? (
+                  <LoaderCircleIcon className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                ) : null}
+                Publish
               </Button>
             </div>
           </div>
         </div>
       )}
     </div>
-  )
+  );
 }

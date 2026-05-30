@@ -5,10 +5,12 @@ import {
   Delete,
   Body,
   Param,
+  Req,
   Res,
   HttpCode,
   HttpStatus,
   UseGuards,
+  UnauthorizedException,
   ParseUUIDPipe,
 } from '@nestjs/common';
 import {
@@ -19,7 +21,7 @@ import {
 } from '@nestjs/swagger';
 import { IsString, IsNotEmpty, MaxLength } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 import { WorkosAuthService } from '../services/workos-auth.service';
 import { ApiKeyService } from '../services/api-key.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -78,15 +80,59 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ) {
     const result = await this.workosAuth.login(dto.email, dto.password);
+    this.setSessionCookies(res, result.accessToken, result.refreshToken);
+    return { user: result.user, accessToken: result.accessToken };
+  }
 
-    res.cookie('wos-session', result.accessToken, {
+  @Post('refresh')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Exchange the refresh token cookie for a fresh access token',
+  })
+  async refresh(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const refreshToken = (req.cookies as Record<string, string> | undefined)?.[
+      'wos-refresh'
+    ];
+    if (!refreshToken) {
+      this.clearSessionCookies(res);
+      throw new UnauthorizedException('No refresh token');
+    }
+    try {
+      const result = await this.workosAuth.refreshSession(refreshToken);
+      this.setSessionCookies(res, result.accessToken, result.refreshToken);
+      return { ok: true };
+    } catch {
+      this.clearSessionCookies(res);
+      throw new UnauthorizedException('Session refresh failed');
+    }
+  }
+
+  private setSessionCookies(
+    res: Response,
+    accessToken: string,
+    refreshToken: string,
+  ): void {
+    const secure = process.env.NODE_ENV === 'production';
+    res.cookie('wos-session', accessToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure,
       sameSite: 'lax',
       maxAge: 15 * 60 * 1000,
     });
+    res.cookie('wos-refresh', refreshToken, {
+      httpOnly: true,
+      secure,
+      sameSite: 'lax',
+      maxAge: 30 * 24 * 60 * 60 * 1000,
+    });
+  }
 
-    return { user: result.user, accessToken: result.accessToken };
+  private clearSessionCookies(res: Response): void {
+    res.clearCookie('wos-session');
+    res.clearCookie('wos-refresh');
   }
 
   @Post('verify-email')
@@ -110,9 +156,9 @@ export class AuthController {
 
   @Post('logout')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Logout and clear session cookie' })
+  @ApiOperation({ summary: 'Logout and clear session cookies' })
   logout(@Res({ passthrough: true }) res: Response) {
-    res.clearCookie('wos-session');
+    this.clearSessionCookies(res);
   }
 
   @Get('me')

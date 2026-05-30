@@ -33,19 +33,9 @@ import type { Store } from "~/types/api"
 export const Route = createFileRoute("/admin")({
   beforeLoad: async ({ context }) => {
     const user = await context.queryClient.ensureQueryData(meQueryOptions())
-    console.log(
-      "[admin guard] typeof window:",
-      typeof window,
-      "| user:",
-      user ? user.email : user,
-    )
-    if (!user) {
-      console.log("[admin guard] no user → redirecting to /auth/login")
-      throw redirect({ to: "/auth/login" })
-    }
+    if (!user) throw redirect({ to: "/auth/login" })
 
     const step = await getOnboardingStepServerFn()
-    console.log("[admin guard] onboarding step:", step)
     if (step === "1") throw redirect({ to: "/onboarding/step1" })
     if (step === "2") throw redirect({ to: "/onboarding/step2" })
     if (step === "3") throw redirect({ to: "/onboarding/step3" })
