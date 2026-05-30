@@ -1,145 +1,89 @@
 import * as React from "react"
 import { createFileRoute, Link } from "@tanstack/react-router"
+import { useSuspenseQuery, useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import {
   ArrowLeftIcon,
   ChevronRightIcon,
-  PlusIcon,
   HomeIcon,
   BuildingIcon,
-  PencilIcon,
-  TrashIcon,
-  StarIcon,
 } from "lucide-react"
 
 import { cn } from "~/lib/utils"
 import { Button } from "~/components/ui/button"
-import { Badge } from "~/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card"
 import { Separator } from "~/components/ui/separator"
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "~/components/ui/select"
-import {
   CustomerAvatar,
   CustomerStatusBadge,
-  CUSTOMER_STATUS_STYLES,
   fullName,
-  type CustomerStatus,
 } from "~/routes/admin/customers_/index"
 import { OrderStatusBadge } from "~/routes/admin/orders_/index"
+import { formatMoney } from "~/lib/money"
+import { customerQueryOptions, customersQueryOptions } from "~/queries/customers"
+import { ordersQueryOptions } from "~/queries/orders"
+import { updateCustomerStatusServerFn } from "~/server/customers"
+import type { CustomerAddress, CustomerStatus, Order } from "~/types/api"
+import { Badge } from "~/components/ui/badge"
 
 export const Route = createFileRoute("/admin/customers_/$customerId")({
+  loader: ({ context, params }) =>
+    context.queryClient.ensureQueryData(customerQueryOptions(params.customerId)),
   component: CustomerDetailPage,
 })
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-type Address = {
-  id: string
-  label: string
-  firstName: string
-  lastName: string
-  addressLine1: string
-  addressLine2?: string
-  city: string
-  state: string
-  postalCode: string
-  countryCode: string
-  phone?: string
-  isDefaultBilling: boolean
-  isDefaultShipping: boolean
-}
-
-type OrderRow = {
-  id: string
-  number: string
-  date: string
-  total: number
-  status: "pending" | "paid" | "processing" | "shipped" | "delivered" | "cancelled" | "refunded"
-}
-
-// ─── Fake Data ────────────────────────────────────────────────────────────────
-
-const SEED_CUSTOMER = {
-  id: "1",
-  firstName: "John",
-  lastName: "Smith",
-  email: "john@email.com",
-  phone: "+960 773-1234",
-  status: "active" as CustomerStatus,
-  marketingOptIn: true,
-  lastLogin: "May 11, 2026",
-  since: "Jan 15, 2026",
-  stats: {
-    totalOrders: 8,
-    totalSpent: 124700,   // cents
-    avgOrder: 15588,      // cents
-  },
-}
-
-const SEED_ADDRESSES: Address[] = [
-  {
-    id: "a1",
-    label: "Home",
-    firstName: "John",
-    lastName: "Smith",
-    addressLine1: "123 Beach Road",
-    city: "Malé",
-    state: "Kaafu Atoll",
-    postalCode: "20001",
-    countryCode: "MV",
-    phone: "+960 773-1234",
-    isDefaultBilling: true,
-    isDefaultShipping: true,
-  },
-  {
-    id: "a2",
-    label: "Office",
-    firstName: "John",
-    lastName: "Smith",
-    addressLine1: "45 Orchid Magu",
-    city: "Malé",
-    state: "Kaafu Atoll",
-    postalCode: "20002",
-    countryCode: "MV",
-    isDefaultBilling: false,
-    isDefaultShipping: false,
-  },
-]
-
-const ORDER_HISTORY: OrderRow[] = [
-  { id: "o1", number: "ORD-20260519-0025", date: "May 19, 2026", total: 171.99, status: "paid"      },
-  { id: "o2", number: "ORD-20260512-0018", date: "May 12, 2026", total: 89.50,  status: "delivered" },
-  { id: "o3", number: "ORD-20260505-0015", date: "May 5, 2026",  total: 234.00, status: "delivered" },
-  { id: "o4", number: "ORD-20260428-0012", date: "Apr 28, 2026", total: 89.00,  status: "delivered" },
-  { id: "o5", number: "ORD-20260421-0009", date: "Apr 21, 2026", total: 149.99, status: "delivered" },
-  { id: "o6", number: "ORD-20260414-0006", date: "Apr 14, 2026", total: 178.00, status: "delivered" },
-  { id: "o7", number: "ORD-20260407-0003", date: "Apr 7, 2026",  total: 149.99, status: "delivered" },
-  { id: "o8", number: "ORD-20260401-0001", date: "Apr 1, 2026",  total: 184.52, status: "delivered" },
-]
-
 // ─── Stat tile ────────────────────────────────────────────────────────────────
 
-function StatTile({
-  label,
-  value,
-  sub,
-}: {
-  label: string
-  value: string
-  sub?: string
-}) {
+function StatTile({ label, value }: { label: string; value: string }) {
   return (
     <div className="space-y-0.5">
       <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
         {label}
       </p>
       <p className="text-xl font-semibold tabular-nums">{value}</p>
-      {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
+    </div>
+  )
+}
+
+// ─── Address row ──────────────────────────────────────────────────────────────
+
+function AddressRow({ addr }: { addr: CustomerAddress }) {
+  const displayName = [addr.firstName, addr.lastName].filter(Boolean).join(" ")
+  return (
+    <div className="flex items-start gap-4 py-4">
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted">
+        {addr.isDefault ? (
+          <HomeIcon className="h-4 w-4 text-muted-foreground" />
+        ) : (
+          <BuildingIcon className="h-4 w-4 text-muted-foreground" />
+        )}
+      </div>
+
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2 flex-wrap">
+          <p className="text-sm font-medium">{addr.isDefault ? "Default address" : "Address"}</p>
+          {addr.isDefault && (
+            <Badge
+              variant="outline"
+              className="px-1.5 py-0 text-[10px] font-medium text-amber-700 border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-900/50 dark:text-amber-400"
+            >
+              Default
+            </Badge>
+          )}
+        </div>
+        <address className="mt-1 not-italic space-y-0 text-xs text-muted-foreground leading-relaxed">
+          {displayName && <p>{displayName}</p>}
+          <p>
+            {addr.line1}
+            {addr.line2 ? `, ${addr.line2}` : ""}
+          </p>
+          <p>
+            {addr.city}
+            {addr.state ? `, ${addr.state}` : ""} {addr.postalCode}
+          </p>
+          <p>{addr.countryCode}</p>
+          {addr.phone && <p>{addr.phone}</p>}
+        </address>
+      </div>
     </div>
   )
 }
@@ -147,30 +91,50 @@ function StatTile({
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 function CustomerDetailPage() {
-  const [status, setStatus]     = React.useState<CustomerStatus>(SEED_CUSTOMER.status)
-  const [marketing, setMkt]     = React.useState(SEED_CUSTOMER.marketingOptIn)
-  const [addresses, setAddresses] = React.useState<Address[]>(SEED_ADDRESSES)
+  const { customerId } = Route.useParams()
+  const queryClient = useQueryClient()
 
-  const customer = SEED_CUSTOMER
+  const { data: customer } = useSuspenseQuery(customerQueryOptions(customerId))
+  const { data: ordersData } = useQuery(ordersQueryOptions({ customerId }))
 
-  function setDefault(id: string) {
-    setAddresses((prev) =>
-      prev.map((a) => ({
-        ...a,
-        isDefaultBilling: a.id === id,
-        isDefaultShipping: a.id === id,
-      })),
-    )
-  }
+  const orders: Order[] = ordersData?.orders ?? []
+  const [mutError, setMutError] = React.useState<string | null>(null)
 
-  function removeAddress(id: string) {
-    setAddresses((prev) => prev.filter((a) => a.id !== id))
-  }
+  const statusMutation = useMutation({
+    mutationFn: (status: CustomerStatus) =>
+      updateCustomerStatusServerFn({ data: { customerId, status } }),
+    onSuccess: () => {
+      setMutError(null)
+      queryClient.invalidateQueries({ queryKey: customerQueryOptions(customerId).queryKey })
+      queryClient.invalidateQueries({ queryKey: customersQueryOptions().queryKey })
+    },
+    onError: (err) =>
+      setMutError(err instanceof Error ? err.message : "Failed to update status"),
+  })
+
+  const name = fullName(customer)
+
+  const totalSpent = customer.totalSpent ?? orders.reduce((sum, o) => sum + o.total, 0)
+  const totalOrders = customer.ordersCount ?? orders.length
+
+  const since = new Date(customer.createdAt).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  })
+
+  const lastLogin = customer.lastLoginAt
+    ? new Date(customer.lastLoginAt).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })
+    : "Never"
 
   return (
     <div className="space-y-6 pb-10">
 
-      {/* ── Header ────────────────────────────────────────────────────────────── */}
+      {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div>
         <div className="mb-2 flex items-center gap-1.5 text-sm text-muted-foreground">
           <Link
@@ -181,36 +145,42 @@ function CustomerDetailPage() {
             Customers
           </Link>
           <ChevronRightIcon className="h-3.5 w-3.5" />
-          <span className="text-foreground">{fullName(customer)}</span>
+          <span className="text-foreground">{name}</span>
         </div>
 
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-3">
-            <CustomerAvatar name={fullName(customer)} size="md" />
+            <CustomerAvatar name={name} size="md" />
             <div>
-              <h1 className="text-2xl font-semibold leading-tight">{fullName(customer)}</h1>
+              <h1 className="text-2xl font-semibold leading-tight">{name}</h1>
               <div className="mt-1 flex items-center gap-2">
-                <Badge
-                  variant="outline"
-                  className={`px-2 py-0 text-[11px] font-medium capitalize ${CUSTOMER_STATUS_STYLES[status]}`}
-                >
-                  {status}
-                </Badge>
+                <CustomerStatusBadge status={customer.status} />
                 <span className="text-xs text-muted-foreground">
-                  Customer since {customer.since}
+                  Customer since {since}
                 </span>
               </div>
             </div>
           </div>
 
-          <Button variant="outline" size="sm" className="h-9 shrink-0 gap-2">
-            <PencilIcon className="h-3.5 w-3.5" />
-            Edit
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-9 shrink-0"
+            disabled={statusMutation.isPending}
+            onClick={() =>
+              statusMutation.mutate(customer.status === "active" ? "disabled" : "active")
+            }
+          >
+            {customer.status === "active" ? "Disable account" : "Re-enable account"}
           </Button>
         </div>
+
+        {mutError && (
+          <p className="mt-2 text-sm text-destructive">{mutError}</p>
+        )}
       </div>
 
-      {/* ── Profile + Stats ───────────────────────────────────────────────────── */}
+      {/* ── Profile + Stats ────────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
 
         {/* Profile */}
@@ -224,7 +194,7 @@ function CustomerDetailPage() {
                 <span className="w-28 shrink-0 text-xs font-medium text-muted-foreground">
                   Name
                 </span>
-                <span className="text-sm font-medium">{fullName(customer)}</span>
+                <span className="text-sm font-medium">{name}</span>
               </div>
               <div className="flex items-baseline justify-between">
                 <span className="w-28 shrink-0 text-xs font-medium text-muted-foreground">
@@ -232,207 +202,89 @@ function CustomerDetailPage() {
                 </span>
                 <span className="text-sm">{customer.email}</span>
               </div>
-              <div className="flex items-baseline justify-between">
-                <span className="w-28 shrink-0 text-xs font-medium text-muted-foreground">
-                  Phone
-                </span>
-                <span className="text-sm">{customer.phone}</span>
-              </div>
+              {customer.phone && (
+                <div className="flex items-baseline justify-between">
+                  <span className="w-28 shrink-0 text-xs font-medium text-muted-foreground">
+                    Phone
+                  </span>
+                  <span className="text-sm">{customer.phone}</span>
+                </div>
+              )}
               <div className="flex items-baseline justify-between">
                 <span className="w-28 shrink-0 text-xs font-medium text-muted-foreground">
                   Last login
                 </span>
+                <span className="text-sm text-muted-foreground">{lastLogin}</span>
+              </div>
+              <div className="flex items-baseline justify-between">
+                <span className="w-28 shrink-0 text-xs font-medium text-muted-foreground">
+                  Marketing
+                </span>
                 <span className="text-sm text-muted-foreground">
-                  {customer.lastLogin}
+                  {customer.marketingOptIn ? "Opted in" : "Opted out"}
                 </span>
               </div>
             </div>
 
             <Separator />
 
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                    Account status
-                  </p>
-                </div>
-                <Select
-                  value={status}
-                  onValueChange={(v) => setStatus(v as CustomerStatus)}
-                >
-                  <SelectTrigger className="h-8 w-32 text-sm">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="suspended">Suspended</SelectItem>
-                    <SelectItem value="banned">Banned</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <label className="flex cursor-pointer items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium">Marketing emails</p>
-                  <p className="text-xs text-muted-foreground">
-                    Customer has opted {marketing ? "in" : "out"} of marketing.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setMkt((v) => !v)}
-                  className={cn(
-                    "relative h-5 w-9 shrink-0 rounded-full border-2 transition-colors",
-                    marketing
-                      ? "border-amber-500 bg-amber-500"
-                      : "border-border bg-transparent",
-                  )}
-                >
-                  <span
-                    className={cn(
-                      "absolute top-0.5 h-3 w-3 rounded-full transition-transform duration-200",
-                      marketing
-                        ? "left-0.5 translate-x-4 bg-white"
-                        : "left-0.5 translate-x-0 bg-muted-foreground/40",
-                    )}
-                  />
-                </button>
-              </label>
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Account status
+              </p>
+              <CustomerStatusBadge status={customer.status} />
             </div>
           </CardContent>
         </Card>
 
-        {/* Stats */}
+        {/* Overview stats */}
         <Card>
           <CardHeader className="border-b pb-4">
             <CardTitle className="text-sm font-semibold">Overview</CardTitle>
           </CardHeader>
           <CardContent className="pt-5">
             <div className="grid grid-cols-2 gap-x-6 gap-y-6">
-              <StatTile
-                label="Total orders"
-                value={String(customer.stats.totalOrders)}
-              />
-              <StatTile
-                label="Total spent"
-                value={`$${(customer.stats.totalSpent / 100).toLocaleString("en-US", { minimumFractionDigits: 2 })}`}
-              />
-              <StatTile
-                label="Average order"
-                value={`$${(customer.stats.avgOrder / 100).toFixed(2)}`}
-              />
-              <StatTile
-                label="Customer since"
-                value={customer.since}
-              />
+              <StatTile label="Total orders" value={String(totalOrders)} />
+              <StatTile label="Total spent" value={formatMoney(totalSpent)} />
+              <StatTile label="Customer since" value={since} />
+              <StatTile label="Last login" value={lastLogin} />
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* ── Addresses ────────────────────────────────────────────────────────── */}
+      {/* ── Addresses ──────────────────────────────────────────────────────── */}
       <Card>
         <CardHeader className="border-b pb-4">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-sm font-semibold">Addresses</CardTitle>
-            <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
-              <PlusIcon className="h-3.5 w-3.5" />
-              Add address
-            </Button>
-          </div>
+          <CardTitle className="text-sm font-semibold">Addresses</CardTitle>
         </CardHeader>
         <CardContent className="divide-y pt-0">
-          {addresses.length === 0 ? (
+          {!customer.addresses || customer.addresses.length === 0 ? (
             <p className="py-6 text-center text-sm text-muted-foreground">
               No addresses saved.
             </p>
           ) : (
-            addresses.map((addr) => (
-              <div key={addr.id} className="flex items-start gap-4 py-4">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted">
-                  {addr.label.toLowerCase().includes("home") ? (
-                    <HomeIcon className="h-4 w-4 text-muted-foreground" />
-                  ) : (
-                    <BuildingIcon className="h-4 w-4 text-muted-foreground" />
-                  )}
-                </div>
-
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <p className="text-sm font-medium">{addr.label}</p>
-                    {addr.isDefaultBilling && (
-                      <Badge
-                        variant="outline"
-                        className="px-1.5 py-0 text-[10px] font-medium text-amber-700 border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-900/50 dark:text-amber-400"
-                      >
-                        Default billing
-                      </Badge>
-                    )}
-                    {addr.isDefaultShipping && (
-                      <Badge
-                        variant="outline"
-                        className="px-1.5 py-0 text-[10px] font-medium text-amber-700 border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-900/50 dark:text-amber-400"
-                      >
-                        Default shipping
-                      </Badge>
-                    )}
-                  </div>
-                  <address className="mt-1 not-italic space-y-0 text-xs text-muted-foreground leading-relaxed">
-                    <p>{addr.firstName} {addr.lastName}</p>
-                    <p>{addr.addressLine1}{addr.addressLine2 ? `, ${addr.addressLine2}` : ""}</p>
-                    <p>
-                      {addr.city}
-                      {addr.state ? `, ${addr.state}` : ""} {addr.postalCode}
-                    </p>
-                    <p>{addr.countryCode}</p>
-                  </address>
-                </div>
-
-                <div className="flex shrink-0 items-center gap-1">
-                  {(!addr.isDefaultBilling || !addr.isDefaultShipping) && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
-                      onClick={() => setDefault(addr.id)}
-                    >
-                      <StarIcon className="h-3 w-3" />
-                      Set default
-                    </Button>
-                  )}
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                  >
-                    <PencilIcon className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                    onClick={() => removeAddress(addr.id)}
-                  >
-                    <TrashIcon className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              </div>
+            customer.addresses.map((addr) => (
+              <AddressRow key={addr.id} addr={addr} />
             ))
           )}
         </CardContent>
       </Card>
 
-      {/* ── Order history ─────────────────────────────────────────────────────── */}
+      {/* ── Order history ──────────────────────────────────────────────────── */}
       <Card className="overflow-hidden gap-0 py-0">
         <div className="flex items-center justify-between px-5 py-4">
           <p className="text-sm font-semibold">Order history</p>
-          <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground hover:text-foreground" asChild>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 text-xs text-muted-foreground hover:text-foreground"
+            asChild
+          >
             <Link to="/admin/orders">View all orders</Link>
           </Button>
         </div>
 
-        {/* Column headers */}
         <div className="flex items-center gap-4 border-t border-b bg-muted/20 px-5 py-2.5 text-xs font-medium text-muted-foreground">
           <span className="flex-1">Order</span>
           <span className="w-32">Date</span>
@@ -441,39 +293,48 @@ function CustomerDetailPage() {
           <span className="w-8 shrink-0" />
         </div>
 
-        {ORDER_HISTORY.map((order, i) => (
-          <div
-            key={order.id}
-            className={cn(
-              "flex items-center gap-4 px-5 py-3.5 transition-colors hover:bg-muted/20",
-              i < ORDER_HISTORY.length - 1 && "border-b border-border/50",
-            )}
-          >
-            <p className="flex-1 font-mono text-sm font-medium">{order.number}</p>
-            <p className="w-32 text-sm text-muted-foreground">{order.date}</p>
-            <p className="w-24 text-right text-sm font-semibold tabular-nums">
-              ${order.total.toFixed(2)}
-            </p>
-            <div className="flex w-24 justify-center">
-              <OrderStatusBadge status={order.status} />
-            </div>
-            <div className="w-8 shrink-0 text-right">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                asChild
-              >
-                <Link
-                  to="/admin/orders/$orderId"
-                  params={{ orderId: order.id }}
+        {orders.length === 0 ? (
+          <p className="px-5 py-6 text-center text-sm text-muted-foreground">
+            No orders found.
+          </p>
+        ) : (
+          orders.map((order, i) => (
+            <div
+              key={order.id}
+              className={cn(
+                "flex items-center gap-4 px-5 py-3.5 transition-colors hover:bg-muted/20",
+                i < orders.length - 1 && "border-b border-border/50",
+              )}
+            >
+              <p className="flex-1 font-mono text-sm font-medium">{order.orderNumber}</p>
+              <p className="w-32 text-sm text-muted-foreground">
+                {new Date(order.createdAt).toLocaleDateString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
+                })}
+              </p>
+              <p className="w-24 text-right text-sm font-semibold tabular-nums">
+                {formatMoney(order.total, order.currency)}
+              </p>
+              <div className="flex w-24 justify-center">
+                <OrderStatusBadge status={order.status} />
+              </div>
+              <div className="w-8 shrink-0 text-right">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                  asChild
                 >
-                  <ChevronRightIcon className="h-4 w-4" />
-                </Link>
-              </Button>
+                  <Link to="/admin/orders/$orderId" params={{ orderId: order.id }}>
+                    <ChevronRightIcon className="h-4 w-4" />
+                  </Link>
+                </Button>
+              </div>
             </div>
-          </div>
-        ))}
+          ))
+        )}
       </Card>
 
     </div>

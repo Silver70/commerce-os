@@ -1,7 +1,7 @@
 /**
- * Demo seed script — populates an existing store with 2 categories, 10 products
- * (2 variants each, linked to categories), a shipping zone + method, a tax rate,
- * and 5 orders in various states.
+ * Demo seed script — populates an existing store with 5 customers, 2 categories,
+ * 10 products (2 variants each, linked to categories), a shipping zone + method,
+ * a tax rate, and 5 orders (one per customer, covering all status states).
  *
  * Usage:
  *   npx tsx src/shared/database/seeds/seed.ts
@@ -18,9 +18,11 @@ import { drizzle } from 'drizzle-orm/neon-http';
 import * as dotenv from 'dotenv';
 import { resolve } from 'path';
 import * as https from 'https';
+import * as bcrypt from 'bcrypt';
 import { eq } from 'drizzle-orm';
 import {
   stores,
+  customers,
   categories,
   products,
   productCategories,
@@ -102,6 +104,14 @@ const ACCESSORIES_PRODUCTS = [
 
 const ALL_PRODUCTS = [...APPAREL_PRODUCTS, ...ACCESSORIES_PRODUCTS];
 
+const DEMO_CUSTOMERS = [
+  { firstName: 'Alice', lastName: 'Martin' },
+  { firstName: 'Bob', lastName: 'Chen' },
+  { firstName: 'Carol', lastName: 'Davis' },
+  { firstName: 'Dan', lastName: 'Lee' },
+  { firstName: 'Eva', lastName: 'Patel' },
+];
+
 function slugify(name: string) {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
 }
@@ -138,6 +148,11 @@ async function main() {
   await db.delete(categories).where(eq(categories.storeId, storeId));
   await db.delete(shippingZones).where(eq(shippingZones.storeId, storeId));
   await db.delete(taxRates).where(eq(taxRates.storeId, storeId));
+  // Customers are org-scoped — delete only the demo emails.
+  for (const c of DEMO_CUSTOMERS) {
+    const email = `${c.firstName.toLowerCase()}.${c.lastName.toLowerCase()}@example.com`;
+    await db.delete(customers).where(eq(customers.email, email));
+  }
   console.log('✓ Cleared previous seed data');
 
   // ── Tax Rate ─────────────────────────────────────────────────────────────────
@@ -272,6 +287,30 @@ async function main() {
     '✓ 10 products with 2 variants each created (+ inventory + category links)',
   );
 
+  // ── Customers ────────────────────────────────────────────────────────────────
+  const passwordHash = await bcrypt.hash('Password1!', 10);
+  const customerIds: string[] = [];
+
+  for (const c of DEMO_CUSTOMERS) {
+    const email = `${c.firstName.toLowerCase()}.${c.lastName.toLowerCase()}@example.com`;
+    const [customer] = await db
+      .insert(customers)
+      .values({
+        organizationId: orgId,
+        email,
+        passwordHash,
+        firstName: c.firstName,
+        lastName: c.lastName,
+        status: 'active',
+        emailVerified: true,
+        marketingOptIn: false,
+      })
+      .returning();
+    customerIds.push(customer.id);
+  }
+
+  console.log('✓ 5 customers created (password: Password1!)');
+
   // ── Orders in Various States ─────────────────────────────────────────────────
   const orderStates: Array<{
     status: 'pending' | 'paid' | 'processing' | 'shipped' | 'delivered';
@@ -317,6 +356,9 @@ async function main() {
     const unitPrice = 2999;
     const quantity = 1;
     const taxAmount = Math.round(unitPrice * 0.0875);
+    const c = DEMO_CUSTOMERS[i];
+    const customerEmail = `${c.firstName.toLowerCase()}.${c.lastName.toLowerCase()}@example.com`;
+    const customerName = `${c.firstName} ${c.lastName}`;
 
     const [order] = await db
       .insert(orders)
@@ -324,8 +366,9 @@ async function main() {
         organizationId: orgId,
         storeId,
         orderNumber: `ORD-000${i + 1}`,
-        customerEmail: `customer${i + 1}@example.com`,
-        customerName: `Demo Customer ${i + 1}`,
+        customerId: customerIds[i],
+        customerEmail,
+        customerName,
         status,
         fulfillmentStatus,
         subtotal: unitPrice * quantity,

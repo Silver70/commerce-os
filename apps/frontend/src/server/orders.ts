@@ -20,6 +20,7 @@ export const getOrdersServerFn = createServerFn({ method: "GET" })
       status: z
         .enum(["pending", "paid", "processing", "shipped", "delivered", "refunded", "cancelled"])
         .optional(),
+      customerId: z.string().optional(),
       cursor: z.string().optional(),
       limit: z.number().int().positive().optional(),
     }),
@@ -27,6 +28,7 @@ export const getOrdersServerFn = createServerFn({ method: "GET" })
   .handler(async ({ data }): Promise<OrdersResponse> => {
     const params = new URLSearchParams();
     if (data.status) params.set("status", data.status);
+    if (data.customerId) params.set("customerId", data.customerId);
     if (data.cursor) params.set("cursor", data.cursor);
     if (data.limit) params.set("limit", String(data.limit));
     try {
