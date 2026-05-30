@@ -507,7 +507,7 @@ function GenerateKeySheet({
   const generateMutation = useMutation({
     mutationFn: () => createApiKeyFromSettingsServerFn({ data: { name: name.trim() } }),
     onSuccess: (data) => {
-      setGenKey(data.key)
+      setGenKey(data.rawKey)
       setStep(2)
       void queryClient.invalidateQueries({ queryKey: ["settings", "api-keys"] })
     },
@@ -656,7 +656,7 @@ function ApiKeysSettings() {
               )}
             >
               <span className="text-sm font-medium">{k.name}</span>
-              <code className="font-mono text-sm text-muted-foreground">{k.prefix}…</code>
+              <code className="font-mono text-sm text-muted-foreground">{k.keyPrefix}…</code>
               <span className={cn("text-sm", k.lastUsedAt ? "text-muted-foreground" : "italic text-muted-foreground/60")}>
                 {k.lastUsedAt
                   ? new Date(k.lastUsedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })
@@ -721,8 +721,8 @@ function TaxRateSheet({
     if (open) {
       setName(rate?.name ?? "")
       setRateVal(rate ? String(rate.rate / 100) : "")
-      setCountry(rate?.country ?? "")
-      setState(rate?.state ?? "")
+      setCountry(rate?.countryCode ?? "")
+      setState(rate?.stateCode ?? "")
       setIsIncl(rate?.isInclusive ?? false)
       setIsActive(rate?.isActive ?? true)
     }
@@ -740,7 +740,7 @@ function TaxRateSheet({
         })
       }
       return createTaxRateServerFn({
-        data: { name: name.trim(), rate: basisPoints, country, state: state || undefined, isInclusive, isActive },
+        data: { name: name.trim(), rate: basisPoints, countryCode: country, stateCode: state || undefined, isInclusive, isActive },
       })
     },
     onSuccess: () => {
@@ -939,7 +939,7 @@ function TaxRatesSettings() {
               <span className="text-sm font-medium">{r.name}</span>
               <span className="text-sm font-semibold tabular-nums">{(r.rate / 100).toFixed(2)}%</span>
               <span className="text-sm text-muted-foreground">
-                {countryName(r.country)}{r.state ? ` – ${r.state}` : ""}
+                {countryName(r.countryCode)}{r.stateCode ? ` – ${r.stateCode}` : ""}
               </span>
               <span className="text-sm text-muted-foreground">{r.isInclusive ? "Incl." : "Excl."}</span>
               <div className="flex justify-center">

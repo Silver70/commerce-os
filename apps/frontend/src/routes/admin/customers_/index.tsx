@@ -32,14 +32,13 @@ import {
   type DataTableFilter,
 } from "~/components/data-table"
 import { customersQueryOptions } from "~/queries/customers"
-import { getCustomersServerFn } from "~/server/customers"
 import { formatMoney } from "~/lib/money"
 import type { Customer, CustomerStatus } from "~/types/api"
 
 export type { CustomerStatus }
 
 export function fullName(c: Pick<Customer, "firstName" | "lastName">) {
-  return `${c.firstName} ${c.lastName}`
+  return [c.firstName, c.lastName].filter(Boolean).join(" ") || "—"
 }
 
 export const Route = createFileRoute("/admin/customers_/")({
@@ -96,9 +95,8 @@ export function CustomerAvatar({
 // ─── Status Badge ─────────────────────────────────────────────────────────────
 
 export const CUSTOMER_STATUS_STYLES: Record<CustomerStatus, string> = {
-  active:    "text-emerald-700 border-emerald-200 bg-emerald-50 dark:bg-emerald-950/20 dark:border-emerald-900/50 dark:text-emerald-400",
-  suspended: "text-amber-700 border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-900/50 dark:text-amber-400",
-  banned:    "text-destructive border-destructive/20 bg-destructive/10",
+  active:   "text-emerald-700 border-emerald-200 bg-emerald-50 dark:bg-emerald-950/20 dark:border-emerald-900/50 dark:text-emerald-400",
+  disabled: "text-muted-foreground border-border bg-muted/40",
 }
 
 export function CustomerStatusBadge({ status }: { status: CustomerStatus }) {
@@ -119,7 +117,7 @@ const COLUMNS: DataTableColumn<Customer>[] = [
     key: "customer",
     header: "Customer",
     render: (row) => {
-      const name = `${row.firstName} ${row.lastName}`
+      const name = fullName(row)
       return (
         <div className="flex items-center gap-3">
           <CustomerAvatar name={name} />
@@ -144,7 +142,7 @@ const COLUMNS: DataTableColumn<Customer>[] = [
     className: "w-24",
     render: (row) => (
       <span className="text-sm tabular-nums text-muted-foreground">
-        {row.ordersCount === 0 ? "—" : row.ordersCount}
+        {row.ordersCount != null ? (row.ordersCount === 0 ? "—" : row.ordersCount) : "—"}
       </span>
     ),
   },
@@ -155,7 +153,7 @@ const COLUMNS: DataTableColumn<Customer>[] = [
     className: "w-32",
     render: (row) => (
       <span className="text-sm font-semibold tabular-nums">
-        {row.totalSpent === 0 ? "—" : formatMoney(row.totalSpent)}
+        {row.totalSpent != null ? (row.totalSpent === 0 ? "—" : formatMoney(row.totalSpent)) : "—"}
       </span>
     ),
   },
@@ -200,9 +198,8 @@ const FILTERS: DataTableFilter[] = [
     key: "status",
     placeholder: "All statuses",
     options: [
-      { label: "Active",    value: "active"    },
-      { label: "Suspended", value: "suspended" },
-      { label: "Banned",    value: "banned"    },
+      { label: "Active",   value: "active"   },
+      { label: "Disabled", value: "disabled" },
     ],
   },
 ]
@@ -215,7 +212,6 @@ function CreateCustomerSheet() {
   const [lastName, setLastName]   = React.useState("")
   const [email, setEmail]         = React.useState("")
   const [phone, setPhone]         = React.useState("")
-  const [status, setStatus]       = React.useState<CustomerStatus>("active")
   const [marketing, setMarketing] = React.useState(false)
 
   const canSubmit =
@@ -225,7 +221,7 @@ function CreateCustomerSheet() {
     setOpen(next)
     if (!next) {
       setFirstName(""); setLastName(""); setEmail("")
-      setPhone(""); setStatus("active"); setMarketing(false)
+      setPhone(""); setMarketing(false)
     }
   }
 
@@ -301,25 +297,6 @@ function CreateCustomerSheet() {
 
           <Separator />
 
-          <div className="space-y-1.5">
-            <Label htmlFor="cs-status">Account status</Label>
-            <Select
-              value={status}
-              onValueChange={(v) => setStatus(v as CustomerStatus)}
-            >
-              <SelectTrigger id="cs-status" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="suspended">Suspended</SelectItem>
-                <SelectItem value="banned">Banned</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <Separator />
-
           <label className="flex cursor-pointer items-start justify-between gap-4">
             <div>
               <p className="text-sm font-medium">Marketing emails</p>
@@ -368,27 +345,7 @@ function CreateCustomerSheet() {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 function CustomersPage() {
-  const { data: page } = useSuspenseQuery(customersQueryOptions())
-  const [items, setItems] = React.useState<Customer[]>(page.items)
-  const [nextCursor, setNextCursor] = React.useState<string | null>(page.nextCursor)
-  const [loadingMore, setLoadingMore] = React.useState(false)
-
-  React.useEffect(() => {
-    setItems(page.items)
-    setNextCursor(page.nextCursor)
-  }, [page])
-
-  async function loadMore() {
-    if (!nextCursor || loadingMore) return
-    setLoadingMore(true)
-    try {
-      const more = await getCustomersServerFn({ data: { cursor: nextCursor } })
-      setItems((prev) => [...prev, ...more.items])
-      setNextCursor(more.nextCursor)
-    } finally {
-      setLoadingMore(false)
-    }
-  }
+  const { data: customers } = useSuspenseQuery(customersQueryOptions())
 
   return (
     <div className="space-y-6">
@@ -397,30 +354,20 @@ function CustomersPage() {
           <h1 className="text-2xl font-semibold">Customers</h1>
           <p className="text-sm text-muted-foreground">
             View and manage customer accounts.
-            {page.totalCount > 0 && (
-              <span className="ml-1">({page.totalCount} total)</span>
-            )}
+            <span className="ml-1">({customers.length} total)</span>
           </p>
         </div>
         <CreateCustomerSheet />
       </div>
 
       <DataTable
-        data={items}
+        data={customers}
         columns={COLUMNS}
         rowKey={(row) => row.id}
         filters={FILTERS}
         pageSize={25}
         emptyMessage="No customers match your filters."
       />
-
-      {nextCursor && (
-        <div className="flex justify-center">
-          <Button variant="outline" onClick={loadMore} disabled={loadingMore}>
-            {loadingMore ? "Loading…" : "Load more"}
-          </Button>
-        </div>
-      )}
     </div>
   )
 }

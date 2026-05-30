@@ -15,15 +15,22 @@ export type AdminUser = {
   memberships: WorkOsMembership[];
 };
 
+// Returned by listByStore / listByOrg — rawKey is omitted (hash only stored)
 export type ApiKey = {
   id: string;
+  storeId: string;
   name: string;
-  prefix: string;
+  keyPrefix: string;
+  isActive: boolean;
+  createdBy: string | null;
   lastUsedAt: string | null;
+  expiresAt: string | null;
+  createdAt: string;
 };
 
+// Returned only on key generation (rawKey shown once and never persisted)
 export type ApiKeyWithSecret = ApiKey & {
-  key: string;
+  rawKey: string;
 };
 
 // ─── Organizations ────────────────────────────────────────────────────────────
@@ -84,7 +91,9 @@ export type ProductMedia = {
   id: string;
   url: string;
   altText: string | null;
+  mediaType: string;
   position: number;
+  isPrimary: boolean;
 };
 
 export type Product = {
@@ -131,6 +140,7 @@ export type OrderLineItem = {
   sku: string | null;
   unitPrice: number;
   totalPrice: number;
+  discountAmount: number;
   quantity: number;
   imageUrl: string | null;
 };
@@ -157,6 +167,7 @@ export type Order = {
   shippingAmount: number;
   total: number;
   currency: string;
+  couponCode: string | null;
   // only present on detail endpoint responses
   lineItems?: OrderLineItem[];
   timeline?: OrderTimelineEvent[];
@@ -165,123 +176,158 @@ export type Order = {
 
 // ─── Customers ────────────────────────────────────────────────────────────────
 
-export type CustomerStatus = "active" | "suspended" | "banned";
+// Backend enum: only "active" | "disabled"
+export type CustomerStatus = "active" | "disabled";
 
+// Matches the backend Address schema exactly
 export type CustomerAddress = {
   id: string;
+  customerId: string;
   firstName: string;
   lastName: string;
-  address1: string;
-  address2: string | null;
+  company: string | null;
+  line1: string;
+  line2: string | null;
   city: string;
-  province: string | null;
-  country: string;
-  zip: string;
+  state: string | null;
+  postalCode: string;
+  countryCode: string;
+  phone: string | null;
   isDefault: boolean;
 };
 
+// SafeCustomer — raw DB row minus passwordHash. No computed ordersCount / totalSpent.
 export type Customer = {
   id: string;
-  firstName: string;
-  lastName: string;
+  organizationId: string;
   email: string;
+  firstName: string | null;
+  lastName: string | null;
   phone: string | null;
   status: CustomerStatus;
-  ordersCount: number;
-  totalSpent: number;
-  addresses: CustomerAddress[];
+  emailVerified: boolean;
+  marketingOptIn: boolean;
+  lastLoginAt: string | null;
   createdAt: string;
+  updatedAt: string;
+  // Joined / computed — not returned by the admin list or detail endpoint.
+  // Available only when fetched separately or enriched server-side.
+  ordersCount?: number;
+  totalSpent?: number;
+  addresses?: CustomerAddress[];
 };
 
 // ─── Inventory ────────────────────────────────────────────────────────────────
 
 export type StockStatus = "ok" | "low" | "out";
 
+// Matches the inventory_items DB schema exactly. No joined sku / product name.
 export type InventoryItem = {
   id: string;
+  organizationId: string;
+  storeId: string;
   variantId: string;
-  sku: string;
-  productName: string;
-  variantName: string | null;
-  available: number;
+  quantity: number;
   reserved: number;
-  onHand: number;
-  lowStockThreshold: number;
   allowBackorder: boolean;
+  lowStockThreshold: number;
+  updatedAt: string;
 };
 
 // ─── Discounts & Coupons ──────────────────────────────────────────────────────
 
 export type DiscountType = "percentage" | "fixed_amount";
+// Computed client-side from isActive + startsAt + endsAt — not a backend field
 export type DiscountStatus = "active" | "scheduled" | "expired";
 export type DiscountScope = "order" | "category" | "product";
 
-export type CouponCode = {
-  code: string;
-  maxUses: number | null;
-  perCustomer: number;
-  used: number;
-};
-
+// Raw Discount row from backend (no coupons array, no computed status/usage)
 export type Discount = {
   id: string;
+  organizationId: string;
+  storeId: string;
   name: string;
   type: DiscountType;
   value: number;
   scope: DiscountScope;
-  scopeLabel: string;
-  coupons: CouponCode[];
-  usedCount: number;
-  usageLimit: number | null;
-  status: DiscountStatus;
-  startDate: string;
-  endDate: string | null;
+  scopeId: string | null;
+  minOrderAmount: number | null;
+  isActive: boolean;
+  startsAt: string | null;
+  endsAt: string | null;
+  createdAt: string;
+  updatedAt: string;
 };
 
+export type CouponType = "percentage" | "fixed_amount" | "free_shipping";
+
+// Raw Coupon row from backend
 export type Coupon = {
   id: string;
+  organizationId: string;
+  storeId: string;
   code: string;
-  discountId: string;
-  maxUses: number | null;
-  perCustomer: number;
-  used: number;
+  type: CouponType;
+  value: number;
+  minOrderAmount: number | null;
+  maxUsageCount: number | null;
+  usageCount: number;
+  maxUsagePerCustomer: number | null;
+  isActive: boolean;
+  startsAt: string | null;
+  endsAt: string | null;
+  createdAt: string;
+  updatedAt: string;
 };
 
 // ─── Shipping ─────────────────────────────────────────────────────────────────
 
 export type RateType = "flat_rate" | "free" | "calculated";
 
+// Raw ShippingMethod row — no description field; days use estimatedDays* naming
 export type ShippingMethod = {
   id: string;
+  organizationId: string;
+  storeId: string;
   zoneId: string;
   name: string;
-  description: string | null;
   rateType: RateType;
   price: number;
   minOrderAmount: number | null;
-  minDays: number | null;
-  maxDays: number | null;
+  estimatedDaysMin: number | null;
+  estimatedDaysMax: number | null;
   isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
 };
 
+// Raw ShippingZone row — methods are fetched separately via GET /shipping/methods?zoneId=
 export type ShippingZone = {
   id: string;
+  organizationId: string;
+  storeId: string;
   name: string;
   countries: string[];
   isDefault: boolean;
-  methods: ShippingMethod[];
+  createdAt: string;
+  updatedAt: string;
 };
 
 // ─── Tax Rates ────────────────────────────────────────────────────────────────
 
+// Field names match the tax_rates DB schema (countryCode / stateCode)
 export type TaxRate = {
   id: string;
+  organizationId: string;
+  storeId: string;
   name: string;
+  countryCode: string;
+  stateCode: string | null;
   rate: number;
-  country: string;
-  state: string | null;
   isInclusive: boolean;
   isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
 };
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────

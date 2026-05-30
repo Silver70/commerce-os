@@ -21,8 +21,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select";
-import { DiscountStatusBadge } from "~/routes/admin/discounts_/index";
-import type { Discount, DiscountType, CouponCode } from "~/types/api";
+import {
+  DiscountStatusBadge,
+  computeDiscountStatus,
+} from "~/routes/admin/discounts_/index";
+import type { Discount, DiscountType } from "~/types/api";
+
+// Local UI-only coupon state (the real Coupon type is a separate entity)
+type CouponCodeLocal = {
+  code: string;
+  maxUses: number | null;
+  perCustomer: number;
+  used: number;
+};
 
 export const Route = createFileRoute("/admin/discounts_/$discountId")({
   component: DiscountEditPage,
@@ -64,12 +75,12 @@ function autoGenerateCode() {
 
 // ─── Coupon Codes Card ────────────────────────────────────────────────────────
 
-function CouponCodesCard({
+function CouponCodeLocalsCard({
   codes,
   onChange,
 }: {
-  codes: CouponCode[];
-  onChange: (codes: CouponCode[]) => void;
+  codes: CouponCodeLocal[];
+  onChange: (codes: CouponCodeLocal[]) => void;
 }) {
   const [newCode, setNewCode] = React.useState("");
   const [newMax, setNewMax] = React.useState("");
@@ -246,17 +257,19 @@ function CouponCodesCard({
 
 const SEED: Discount = {
   id: "1",
+  organizationId: "org-1",
+  storeId: "store-1",
   name: "Summer Sale",
   type: "percentage",
   value: 20,
   scope: "order",
-  scopeLabel: "All orders",
-  coupons: [{ code: "SUMMER20", maxUses: 50, perCustomer: 1, used: 23 }],
-  usedCount: 45,
-  usageLimit: 100,
-  status: "active",
-  startDate: "2026-05-01",
-  endDate: "2026-08-31",
+  scopeId: null,
+  minOrderAmount: null,
+  isActive: true,
+  startsAt: "2026-05-01T00:00:00Z",
+  endsAt: "2026-08-31T23:59:59Z",
+  createdAt: "2026-05-01T00:00:00Z",
+  updatedAt: "2026-05-01T00:00:00Z",
 };
 
 function DiscountEditPage() {
@@ -269,29 +282,29 @@ function DiscountEditPage() {
   const [value, setValue] = React.useState(String(discount.value));
   const [appliesTo, setAppliesTo] = React.useState<AppliesTo>(discount.scope);
   const [category, setCategory] = React.useState(
-    discount.scope === "category"
-      ? discount.scopeLabel.replace("Category: ", "")
-      : "",
+    discount.scope === "category" ? (discount.scopeId ?? "") : "",
   );
   const [product, setProduct] = React.useState(
-    discount.scope === "product"
-      ? discount.scopeLabel.replace("Product: ", "")
-      : "",
+    discount.scope === "product" ? (discount.scopeId ?? "") : "",
   );
 
   // Conditions
-  const [minPurchase, setMinPurchase] = React.useState("");
-  const [startDate, setStartDate] = React.useState("2026-05-01");
+  const [minPurchase, setMinPurchase] = React.useState(
+    discount.minOrderAmount != null
+      ? String(discount.minOrderAmount / 100)
+      : "",
+  );
+  const [startDate, setStartDate] = React.useState(
+    discount.startsAt ? discount.startsAt.slice(0, 10) : "",
+  );
   const [endDate, setEndDate] = React.useState(
-    discount.endDate ? "2026-08-31" : "",
+    discount.endsAt ? discount.endsAt.slice(0, 10) : "",
   );
-  const [noEndDate, setNoEndDate] = React.useState(!discount.endDate);
-  const [usageLimit, setUsageLimit] = React.useState(
-    discount.usageLimit !== null ? String(discount.usageLimit) : "",
-  );
+  const [noEndDate, setNoEndDate] = React.useState(!discount.endsAt);
+  const [usageLimit, setUsageLimit] = React.useState("");
 
-  // Coupon codes
-  const [codes, setCodes] = React.useState<CouponCode[]>(discount.coupons);
+  // Coupon codes (local UI state — real coupons are fetched separately)
+  const [codes, setCodes] = React.useState<CouponCodeLocal[]>([]);
 
   const canSave = name.trim().length > 0 && value.trim().length > 0;
 
@@ -312,7 +325,7 @@ function DiscountEditPage() {
         </div>
 
         <div className="flex items-center gap-3">
-          <DiscountStatusBadge status={discount.status} />
+          <DiscountStatusBadge status={computeDiscountStatus(discount)} />
           <Button
             disabled={!canSave}
             className="bg-orange-700 px-5 text-white shadow-none hover:bg-orange-800 disabled:opacity-50"
@@ -592,7 +605,7 @@ function DiscountEditPage() {
         </Card>
 
         {/* ── Coupon Codes ──────────────────────────────────────────────────── */}
-        <CouponCodesCard codes={codes} onChange={setCodes} />
+        <CouponCodeLocalsCard codes={codes} onChange={setCodes} />
       </div>
     </div>
   );

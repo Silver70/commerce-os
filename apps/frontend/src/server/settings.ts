@@ -83,6 +83,7 @@ export const createApiKeyFromSettingsServerFn = createServerFn({ method: "POST" 
         data,
         { headers: { cookie: incomingCookie(), "X-Store-Id": storeId } },
       );
+      // Backend returns GeneratedApiKey which already extends ApiKey with rawKey
       return res.data;
     } catch (err) {
       throw new Error(getErrorMessage(err));
@@ -124,8 +125,8 @@ export const createTaxRateServerFn = createServerFn({ method: "POST" })
     z.object({
       name: z.string().min(1, "Name is required"),
       rate: z.number().int().nonnegative("Rate must be non-negative basis points"),
-      country: z.string().length(2, "Must be ISO 3166-1 alpha-2"),
-      state: z.string().optional(),
+      countryCode: z.string().length(2, "Must be ISO 3166-1 alpha-2"),
+      stateCode: z.string().optional(),
       isInclusive: z.boolean(),
       isActive: z.boolean(),
     }),
@@ -147,6 +148,8 @@ export const updateTaxRateServerFn = createServerFn({ method: "POST" })
       id: z.string().min(1),
       name: z.string().min(1).optional(),
       rate: z.number().int().nonnegative().optional(),
+      countryCode: z.string().length(2).optional(),
+      stateCode: z.string().optional(),
       isInclusive: z.boolean().optional(),
       isActive: z.boolean().optional(),
     }),

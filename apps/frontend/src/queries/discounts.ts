@@ -1,9 +1,27 @@
 import { queryOptions } from "@tanstack/react-query";
-import { getDiscountsServerFn } from "~/server/discounts";
+import {
+  getDiscountsServerFn,
+  getDiscountByIdServerFn,
+  getCouponsServerFn,
+} from "~/server/discounts";
 
-export const discountsQueryOptions = (params: { cursor?: string } = {}) =>
+export const discountsQueryOptions = () =>
   queryOptions({
-    queryKey: ["discounts", params],
-    queryFn: () => getDiscountsServerFn({ data: params }),
+    queryKey: ["discounts"],
+    queryFn: () => getDiscountsServerFn(),
+    staleTime: 30 * 1000,
+  });
+
+export const discountQueryOptions = (discountId: string) =>
+  queryOptions({
+    queryKey: ["discounts", discountId],
+    queryFn: () => getDiscountByIdServerFn({ data: { discountId } }),
+    staleTime: 30 * 1000,
+  });
+
+export const couponsQueryOptions = () =>
+  queryOptions({
+    queryKey: ["coupons"],
+    queryFn: () => getCouponsServerFn(),
     staleTime: 30 * 1000,
   });

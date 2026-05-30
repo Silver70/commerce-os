@@ -182,20 +182,16 @@ export const getMeServerFn = createServerFn({ method: "GET" }).handler(
 
 export const createApiKeyServerFn = createServerFn({ method: "POST" })
   .inputValidator(z.object({ name: z.string().min(1, "Key name is required") }))
-  .handler(async ({ data }) => {
+  .handler(async ({ data }): Promise<import("~/types/api").ApiKeyWithSecret> => {
     const storeId = getCookie("wos-active-store");
     if (!storeId) throw new Error("No active store — complete onboarding step 1 first");
     try {
-      const res = await apiClient.post<{
-        id: string;
-        name: string;
-        rawKey: string;
-        lastUsedAt: string | null;
-      }>(`/api/admin/stores/${storeId}/api-keys`, data, {
-        headers: { cookie: incomingCookie(), "X-Store-Id": storeId },
-      });
-      const { rawKey, ...rest } = res.data;
-      return { ...rest, key: rawKey };
+      const res = await apiClient.post<import("~/types/api").ApiKeyWithSecret>(
+        `/api/admin/stores/${storeId}/api-keys`,
+        data,
+        { headers: { cookie: incomingCookie(), "X-Store-Id": storeId } },
+      );
+      return res.data;
     } catch (err) {
       throw new Error(getErrorMessage(err));
     }

@@ -1,30 +1,32 @@
-import * as React from "react"
-import { createFileRoute, Link } from "@tanstack/react-router"
-import { useSuspenseQuery } from "@tanstack/react-query"
-import { PlusIcon, ChevronRightIcon, TicketIcon } from "lucide-react"
+import * as React from "react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useSuspenseQuery } from "@tanstack/react-query";
+import { PlusIcon, ChevronRightIcon, TicketIcon } from "lucide-react";
 
-import { cn } from "~/lib/utils"
-import { Button } from "~/components/ui/button"
-import { Badge } from "~/components/ui/badge"
-import { Card } from "~/components/ui/card"
-import { discountsQueryOptions } from "~/queries/discounts"
-import type { Discount, DiscountStatus, DiscountType, CouponCode } from "~/types/api"
+import { cn } from "~/lib/utils";
+import { Button } from "~/components/ui/button";
+import { Badge } from "~/components/ui/badge";
+import { Card } from "~/components/ui/card";
+import { discountsQueryOptions } from "~/queries/discounts";
+import type { Discount, DiscountStatus, DiscountType } from "~/types/api";
 
-export type { DiscountType, CouponCode }
+export type { DiscountType };
 
 export const Route = createFileRoute("/admin/discounts_/")({
   loader: ({ context }) =>
     context.queryClient.ensureQueryData(discountsQueryOptions()),
   component: DiscountsPage,
-})
+});
 
 // ─── Status Badge ─────────────────────────────────────────────────────────────
 
 export const DISCOUNT_STATUS_STYLES: Record<DiscountStatus, string> = {
-  active:    "text-emerald-700 border-emerald-200 bg-emerald-50 dark:bg-emerald-950/20 dark:border-emerald-900/50 dark:text-emerald-400",
-  scheduled: "text-violet-700 border-violet-200 bg-violet-50 dark:bg-violet-950/20 dark:border-violet-900/50 dark:text-violet-400",
-  expired:   "text-muted-foreground border-border bg-muted/40",
-}
+  active:
+    "text-emerald-700 border-emerald-200 bg-emerald-50 dark:bg-emerald-950/20 dark:border-emerald-900/50 dark:text-emerald-400",
+  scheduled:
+    "text-violet-700 border-violet-200 bg-violet-50 dark:bg-violet-950/20 dark:border-violet-900/50 dark:text-violet-400",
+  expired: "text-muted-foreground border-border bg-muted/40",
+};
 
 export function DiscountStatusBadge({ status }: { status: DiscountStatus }) {
   return (
@@ -34,46 +36,54 @@ export function DiscountStatusBadge({ status }: { status: DiscountStatus }) {
     >
       {status}
     </Badge>
-  )
+  );
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function formatValue(d: Discount) {
-  return d.type === "percentage" ? `${d.value}%` : `$${(d.value / 100).toFixed(2)}`
+  return d.type === "percentage"
+    ? `${d.value}%`
+    : `$${(d.value / 100).toFixed(2)}`;
 }
 
-function formatUsage(d: Discount) {
-  const limit = d.usageLimit === null ? "∞" : d.usageLimit.toLocaleString()
-  return `${d.usedCount.toLocaleString()} / ${limit}`
+export function computeDiscountStatus(d: Discount): DiscountStatus {
+  const now = new Date();
+  if (!d.isActive) return "expired";
+  if (d.endsAt && new Date(d.endsAt) < now) return "expired";
+  if (d.startsAt && new Date(d.startsAt) > now) return "scheduled";
+  return "active";
+}
+
+function formatScope(d: Discount): string {
+  if (d.scope === "order") return "All orders";
+  if (d.scope === "category") return d.scopeId ? `Category ${d.scopeId.slice(0, 8)}` : "Category";
+  return d.scopeId ? `Product ${d.scopeId.slice(0, 8)}` : "Product";
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-type Tab = { value: DiscountStatus; label: string }
+type Tab = { value: DiscountStatus; label: string };
 const TABS: Tab[] = [
-  { value: "active",    label: "Active"    },
+  { value: "active", label: "Active" },
   { value: "scheduled", label: "Scheduled" },
-  { value: "expired",   label: "Expired"   },
-]
+  { value: "expired", label: "Expired" },
+];
 
 function DiscountsPage() {
-  const { data: page } = useSuspenseQuery(discountsQueryOptions())
-  const [tab, setTab] = React.useState<DiscountStatus>("active")
-
-  const discounts = page.items
+  const { data: discounts } = useSuspenseQuery(discountsQueryOptions());
+  const [tab, setTab] = React.useState<DiscountStatus>("active");
 
   const counts: Record<DiscountStatus, number> = {
-    active:    discounts.filter((d) => d.status === "active").length,
-    scheduled: discounts.filter((d) => d.status === "scheduled").length,
-    expired:   discounts.filter((d) => d.status === "expired").length,
-  }
+    active:    discounts.filter((d) => computeDiscountStatus(d) === "active").length,
+    scheduled: discounts.filter((d) => computeDiscountStatus(d) === "scheduled").length,
+    expired:   discounts.filter((d) => computeDiscountStatus(d) === "expired").length,
+  };
 
-  const rows = discounts.filter((d) => d.status === tab)
+  const rows = discounts.filter((d) => computeDiscountStatus(d) === tab);
 
   return (
     <div className="space-y-6">
-
       {/* ── Header ────────────────────────────────────────────────────────────── */}
       <div className="flex items-start justify-between gap-4">
         <div>
@@ -123,14 +133,12 @@ function DiscountsPage() {
 
       {/* ── Table ─────────────────────────────────────────────────────────────── */}
       <Card className="overflow-hidden gap-0 py-0">
-
         {/* Column headers */}
-        <div className="grid grid-cols-[1fr_80px_80px_160px_100px_96px_40px] items-center border-b bg-muted/20 px-5 py-2.5 text-xs font-medium text-muted-foreground">
+        <div className="grid grid-cols-[1fr_80px_80px_160px_96px_40px] items-center border-b bg-muted/20 px-5 py-2.5 text-xs font-medium text-muted-foreground">
           <span>Name</span>
           <span>Type</span>
           <span>Value</span>
           <span>Applies to</span>
-          <span className="text-right">Usage</span>
           <span className="text-center">Status</span>
           <span />
         </div>
@@ -138,26 +146,25 @@ function DiscountsPage() {
         {rows.length === 0 ? (
           <div className="flex flex-col items-center gap-2 py-16 text-center">
             <TicketIcon className="h-8 w-8 text-muted-foreground/40" />
-            <p className="text-sm text-muted-foreground">
-              No {tab} discounts.
-            </p>
+            <p className="text-sm text-muted-foreground">No {tab} discounts.</p>
           </div>
         ) : (
           rows.map((d, i) => (
             <div
               key={d.id}
               className={cn(
-                "grid grid-cols-[1fr_80px_80px_160px_100px_96px_40px] items-center px-5 py-4 transition-colors hover:bg-muted/20",
+                "grid grid-cols-[1fr_80px_80px_160px_96px_40px] items-center px-5 py-4 transition-colors hover:bg-muted/20",
                 i < rows.length - 1 && "border-b border-border/50",
               )}
             >
-              {/* Name + coupon count */}
+              {/* Name */}
               <div className="min-w-0">
                 <p className="text-sm font-medium leading-none">{d.name}</p>
-                <div className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
-                  <TicketIcon className="h-3 w-3" />
-                  {d.coupons.length === 1 ? "1 coupon" : `${d.coupons.length} coupons`}
-                </div>
+                {d.minOrderAmount != null && d.minOrderAmount > 0 && (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Min. order ${(d.minOrderAmount / 100).toFixed(2)}
+                  </p>
+                )}
               </div>
 
               {/* Type */}
@@ -172,17 +179,12 @@ function DiscountsPage() {
 
               {/* Scope */}
               <span className="text-sm text-muted-foreground truncate pr-4">
-                {d.scopeLabel}
-              </span>
-
-              {/* Usage */}
-              <span className="text-right text-sm tabular-nums text-muted-foreground">
-                {formatUsage(d)}
+                {formatScope(d)}
               </span>
 
               {/* Status */}
               <div className="flex justify-center">
-                <DiscountStatusBadge status={d.status} />
+                <DiscountStatusBadge status={computeDiscountStatus(d)} />
               </div>
 
               {/* Action */}
@@ -205,7 +207,6 @@ function DiscountsPage() {
           ))
         )}
       </Card>
-
     </div>
-  )
+  );
 }

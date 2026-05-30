@@ -58,7 +58,7 @@ function OnboardingStep3() {
     createApiKeyServerFn({ data: { name: "Default Storefront Key" } })
       .then(async (result) => {
         if (!cancelled) {
-          setKeyState({ status: "ready", key: result.key });
+          setKeyState({ status: "ready", key: result.rawKey });
           // Onboarding complete — clear the step cookie (fire-and-forget)
           clearOnboardingCookieServerFn().catch(() => {});
         }

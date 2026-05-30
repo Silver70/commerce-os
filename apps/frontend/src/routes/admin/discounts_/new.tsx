@@ -21,7 +21,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select";
-import type { DiscountType, CouponCode } from "~/routes/admin/discounts_/index";
+import type { DiscountType } from "~/routes/admin/discounts_/index";
+
+type CouponCode = {
+  code: string;
+  maxUses: number | null;
+  perCustomer: number;
+  used: number;
+};
 
 export const Route = createFileRoute("/admin/discounts_/new")({
   component: DiscountNewPage,

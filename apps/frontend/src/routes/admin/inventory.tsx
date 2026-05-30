@@ -35,14 +35,20 @@ export const Route = createFileRoute("/admin/inventory")({
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+function available(item: InventoryItem): number {
+  return item.quantity - item.reserved
+}
+
 function stockStatus(item: InventoryItem): StockStatus {
-  if (item.available === 0) return "out"
-  if (item.available <= item.lowStockThreshold) return "low"
+  const avail = available(item)
+  if (avail === 0) return "out"
+  if (avail <= item.lowStockThreshold) return "low"
   return "ok"
 }
 
 function AvailableCell({ item }: { item: InventoryItem }) {
   const status = stockStatus(item)
+  const avail = available(item)
 
   if (status === "out") {
     return (
@@ -55,11 +61,11 @@ function AvailableCell({ item }: { item: InventoryItem }) {
     return (
       <span className="inline-flex items-center gap-1.5 text-sm font-medium tabular-nums text-amber-600 dark:text-amber-400">
         <AlertTriangleIcon className="h-3.5 w-3.5" />
-        {item.available}
+        {avail}
       </span>
     )
   }
-  return <span className="text-sm tabular-nums">{item.available.toLocaleString()}</span>
+  return <span className="text-sm tabular-nums">{avail.toLocaleString()}</span>
 }
 
 const ADJUSTMENT_REASONS = [
@@ -74,17 +80,15 @@ const ADJUSTMENT_REASONS = [
 
 function InventoryPage() {
   const queryClient = useQueryClient()
-  const { data: allPage } = useSuspenseQuery(inventoryQueryOptions())
-  const { data: lowPage } = useSuspenseQuery(inventoryQueryOptions({ lowStock: true }))
+  const { data: allItems } = useSuspenseQuery(inventoryQueryOptions())
+  const { data: lowItems } = useSuspenseQuery(inventoryQueryOptions({ lowStock: true }))
 
   const [activeTab, setActiveTab]       = React.useState<"all" | "low" | "out">("all")
   const [adjustItem, setAdjustItem]     = React.useState<InventoryItem | null>(null)
   const [adjustQty, setAdjustQty]       = React.useState(0)
   const [adjustReason, setAdjustReason] = React.useState("")
-  const [adjustNotes, setAdjustNotes]   = React.useState("")
+  const [adjustReference, setAdjustReference] = React.useState("")
 
-  const allItems = allPage.items
-  const lowItems = lowPage.items
   const outItems = allItems.filter((i) => stockStatus(i) === "out")
 
   const lowStockCount = lowItems.length
@@ -97,7 +101,7 @@ function InventoryPage() {
   }, [activeTab, allItems, lowItems, outItems])
 
   const adjustMutation = useMutation({
-    mutationFn: (vars: { variantId: string; delta: number; reason: string; notes?: string }) =>
+    mutationFn: (vars: { variantId: string; adjustment: number; reason: string; reference?: string }) =>
       adjustInventoryServerFn({ data: vars }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["inventory"] })
@@ -109,27 +113,19 @@ function InventoryPage() {
     setAdjustItem(item)
     setAdjustQty(0)
     setAdjustReason("")
-    setAdjustNotes("")
+    setAdjustReference("")
   }, [])
 
   const columns: DataTableColumn<InventoryItem>[] = React.useMemo(
     () => [
       {
-        key: "sku",
-        header: "SKU",
+        key: "variantId",
+        header: "Variant ID",
         className: "w-44",
         render: (row) => (
-          <span className="font-mono text-sm font-medium tracking-wide">{row.sku}</span>
-        ),
-      },
-      {
-        key: "product",
-        header: "Product",
-        render: (row) => (
-          <div>
-            <p className="text-sm font-medium">{row.productName}</p>
-            <p className="mt-0.5 text-xs text-muted-foreground">{row.variantName ?? "—"}</p>
-          </div>
+          <span className="font-mono text-sm font-medium tracking-wide text-muted-foreground">
+            {row.variantId.slice(0, 8)}…
+          </span>
         ),
       },
       {
@@ -147,6 +143,17 @@ function InventoryPage() {
         render: (row) => (
           <span className="text-sm tabular-nums text-muted-foreground">
             {row.reserved === 0 ? "—" : row.reserved}
+          </span>
+        ),
+      },
+      {
+        key: "onHand",
+        header: "On Hand",
+        align: "center",
+        className: "w-24",
+        render: (row) => (
+          <span className="text-sm tabular-nums text-muted-foreground">
+            {row.quantity}
           </span>
         ),
       },
@@ -223,8 +230,7 @@ function InventoryPage() {
             <SheetTitle>Adjust Stock</SheetTitle>
             {adjustItem && (
               <SheetDescription>
-                {adjustItem.sku} — {adjustItem.productName}
-                {adjustItem.variantName ? `, ${adjustItem.variantName}` : ""}
+                Variant {adjustItem.variantId.slice(0, 8)}
               </SheetDescription>
             )}
           </SheetHeader>
@@ -236,7 +242,7 @@ function InventoryPage() {
                 <div className="px-3 py-3">
                   <p className="text-xs text-muted-foreground">On hand</p>
                   <p className="mt-1 text-xl font-semibold tabular-nums">
-                    {adjustItem.onHand}
+                    {adjustItem.quantity}
                   </p>
                 </div>
                 <div className="px-3 py-3">
@@ -248,7 +254,7 @@ function InventoryPage() {
                 <div className="px-3 py-3">
                   <p className="text-xs text-muted-foreground">Available</p>
                   <p className="mt-1 text-xl font-semibold tabular-nums">
-                    {adjustItem.available}
+                    {available(adjustItem)}
                   </p>
                 </div>
               </div>
@@ -284,7 +290,7 @@ function InventoryPage() {
                   <p className="text-xs text-muted-foreground">
                     New available:{" "}
                     <span className="font-semibold tabular-nums text-foreground">
-                      {adjustItem.available + adjustQty}
+                      {available(adjustItem) + adjustQty}
                     </span>
                   </p>
                 )}
@@ -309,17 +315,17 @@ function InventoryPage() {
                 </Select>
               </div>
 
-              {/* Notes */}
+              {/* Reference */}
               <div className="space-y-2">
-                <Label htmlFor="adjust-notes">
-                  Notes{" "}
+                <Label htmlFor="adjust-reference">
+                  Reference{" "}
                   <span className="font-normal text-muted-foreground">(optional)</span>
                 </Label>
                 <Input
-                  id="adjust-notes"
-                  placeholder="Add a note…"
-                  value={adjustNotes}
-                  onChange={(e) => setAdjustNotes(e.target.value)}
+                  id="adjust-reference"
+                  placeholder="e.g. PO-1234"
+                  value={adjustReference}
+                  onChange={(e) => setAdjustReference(e.target.value)}
                 />
               </div>
 
@@ -344,9 +350,9 @@ function InventoryPage() {
                   onClick={() =>
                     adjustMutation.mutate({
                       variantId: adjustItem.variantId,
-                      delta: adjustQty,
+                      adjustment: adjustQty,
                       reason: adjustReason,
-                      notes: adjustNotes || undefined,
+                      reference: adjustReference || undefined,
                     })
                   }
                 >
