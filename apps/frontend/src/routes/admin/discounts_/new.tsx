@@ -1,8 +1,11 @@
 import * as React from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { z } from "zod";
 import {
   ArrowLeftIcon,
   ChevronRightIcon,
+  LoaderCircleIcon,
   PlusIcon,
   RefreshCwIcon,
   Trash2Icon,
@@ -21,7 +24,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select";
-import type { DiscountType } from "~/routes/admin/discounts_/index";
+import { createDiscountServerFn, createCouponServerFn } from "~/server/discounts";
+import { discountsQueryOptions } from "~/queries/discounts";
+import type { DiscountType } from "~/types/api";
+
+// ─── Zod Schema ───────────────────────────────────────────────────────────────
+
+const createDiscountSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  type: z.enum(["percentage", "fixed_amount"]),
+  value: z.coerce.number().positive("Value must be positive"),
+  scope: z.enum(["product", "category", "order"]),
+  scopeId: z.string().optional(),
+  minOrderAmount: z.coerce.number().min(0).optional(),
+  isActive: z.boolean(),
+  startsAt: z.string().optional(),
+  endsAt: z.string().optional(),
+});
 
 type CouponCode = {
   code: string;
@@ -37,25 +56,6 @@ export const Route = createFileRoute("/admin/discounts_/new")({
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type AppliesTo = "order" | "category" | "product";
-
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-const CATEGORIES = [
-  "Surfboards",
-  "Apparel",
-  "Accessories",
-  "Wetsuits",
-  "Footwear",
-];
-
-const PRODUCTS = [
-  "Wave Board Pro",
-  "Longboard Classic",
-  "Blue Rashguard",
-  "Board Shorts",
-  "Canvas Tote Bag",
-  "Fin Set Pro",
-];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -256,6 +256,9 @@ function CouponCodesCard({
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 function DiscountNewPage() {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+
   // Discount details
   const [name, setName] = React.useState("");
   const [type, setType] = React.useState<DiscountType>("percentage");
@@ -269,13 +272,85 @@ function DiscountNewPage() {
   const [startDate, setStartDate] = React.useState("");
   const [endDate, setEndDate] = React.useState("");
   const [noEndDate, setNoEndDate] = React.useState(false);
-  const [usageLimit, setUsageLimit] = React.useState("");
 
   // Coupon codes
   const [codes, setCodes] = React.useState<CouponCode[]>([]);
 
+  // Errors
+  const [errors, setErrors] = React.useState<Record<string, string>>({});
+
   const canSave =
     name.trim().length > 0 && value.trim().length > 0 && startDate.length > 0;
+
+  const createMutation = useMutation({
+    mutationFn: async () => {
+      const rawValue = parseFloat(value);
+      const sentValue =
+        type === "fixed_amount" ? Math.round(rawValue * 100) : rawValue;
+
+      const payload = {
+        name: name.trim(),
+        type,
+        value: sentValue,
+        scope: appliesTo,
+        scopeId:
+          appliesTo === "category"
+            ? category || undefined
+            : appliesTo === "product"
+              ? product || undefined
+              : undefined,
+        minOrderAmount: minPurchase
+          ? Math.round(parseFloat(minPurchase) * 100)
+          : undefined,
+        isActive: true,
+        startsAt: startDate ? new Date(startDate).toISOString() : undefined,
+        endsAt:
+          !noEndDate && endDate
+            ? new Date(endDate).toISOString()
+            : undefined,
+      };
+
+      const result = createDiscountSchema.safeParse(payload);
+      if (!result.success) {
+        const fieldErrors: Record<string, string> = {};
+        for (const issue of result.error.issues) {
+          fieldErrors[issue.path.join(".")] = issue.message;
+        }
+        setErrors(fieldErrors);
+        throw new Error("Validation failed");
+      }
+      setErrors({});
+
+      const discount = await createDiscountServerFn({ data: result.data });
+
+      // Create any queued coupon codes
+      for (const c of codes) {
+        await createCouponServerFn({
+          data: {
+            code: c.code,
+            type: discount.type,
+            value: discount.value,
+            maxUsageCount: c.maxUses ?? undefined,
+            maxUsagePerCustomer: c.perCustomer,
+            isActive: true,
+            startsAt: discount.startsAt ?? undefined,
+            endsAt: discount.endsAt ?? undefined,
+          },
+        });
+      }
+
+      return discount;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: discountsQueryOptions().queryKey });
+      navigate({ to: "/admin/discounts" });
+    },
+    onError: (err) => {
+      if (err.message !== "Validation failed") {
+        setErrors({ _root: err instanceof Error ? err.message : "Failed to create discount" });
+      }
+    },
+  });
 
   return (
     <div className="space-y-6 pb-10">
@@ -293,12 +368,22 @@ function DiscountNewPage() {
           <span className="text-foreground">Create discount</span>
         </div>
 
-        <Button
-          disabled={!canSave}
-          className="bg-orange-700 px-5 text-white shadow-none hover:bg-orange-800 disabled:opacity-50"
-        >
-          Save
-        </Button>
+        <div className="flex items-center gap-3">
+          {errors._root && (
+            <p className="text-xs text-destructive">{errors._root}</p>
+          )}
+          <Button
+            disabled={!canSave || createMutation.isPending}
+            onClick={() => createMutation.mutate()}
+            className="bg-orange-700 px-5 text-white shadow-none hover:bg-orange-800 disabled:opacity-50"
+          >
+            {createMutation.isPending ? (
+              <LoaderCircleIcon className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              "Save"
+            )}
+          </Button>
+        </div>
       </div>
 
       <div className="mx-auto max-w-2xl space-y-5">
@@ -321,6 +406,9 @@ function DiscountNewPage() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
               />
+              {errors.name && (
+                <p className="text-xs text-destructive">{errors.name}</p>
+              )}
               <p className="text-xs text-muted-foreground">
                 Visible only to admins, not shown to customers.
               </p>
@@ -383,6 +471,9 @@ function DiscountNewPage() {
                   <span className="text-sm text-muted-foreground">%</span>
                 )}
               </div>
+              {errors.value && (
+                <p className="text-xs text-destructive">{errors.value}</p>
+              )}
             </div>
 
             <Separator />
@@ -422,35 +513,23 @@ function DiscountNewPage() {
 
               {appliesTo === "category" && (
                 <div className="ml-7 mt-1">
-                  <Select value={category} onValueChange={setCategory}>
-                    <SelectTrigger className="w-56">
-                      <SelectValue placeholder="Select category…" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {CATEGORIES.map((c) => (
-                        <SelectItem key={c} value={c}>
-                          {c}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Input
+                    placeholder="Category ID"
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value)}
+                    className="w-56"
+                  />
                 </div>
               )}
 
               {appliesTo === "product" && (
                 <div className="ml-7 mt-1">
-                  <Select value={product} onValueChange={setProduct}>
-                    <SelectTrigger className="w-56">
-                      <SelectValue placeholder="Search product…" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {PRODUCTS.map((p) => (
-                        <SelectItem key={p} value={p}>
-                          {p}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Input
+                    placeholder="Product ID"
+                    value={product}
+                    onChange={(e) => setProduct(e.target.value)}
+                    className="w-56"
+                  />
                 </div>
               )}
             </div>
@@ -554,27 +633,6 @@ function DiscountNewPage() {
                 </div>
                 No end date
               </label>
-            </div>
-
-            <Separator />
-
-            {/* Usage limit */}
-            <div className="space-y-1.5">
-              <Label htmlFor="d-limit">
-                Total usage limit{" "}
-                <span className="text-xs font-normal text-muted-foreground">
-                  (optional — leave empty for unlimited)
-                </span>
-              </Label>
-              <Input
-                id="d-limit"
-                type="number"
-                min={1}
-                placeholder="100"
-                value={usageLimit}
-                onChange={(e) => setUsageLimit(e.target.value)}
-                className="w-36"
-              />
             </div>
           </CardContent>
         </Card>

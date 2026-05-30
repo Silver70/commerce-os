@@ -145,6 +145,49 @@ export const createCouponServerFn = createServerFn({ method: "POST" })
     }
   });
 
+export const getCouponByIdServerFn = createServerFn({ method: "GET" })
+  .inputValidator(z.object({ couponId: z.string().min(1) }))
+  .handler(async ({ data }): Promise<Coupon> => {
+    try {
+      const res = await apiClient.get<Coupon>(
+        `/api/admin/coupons/${data.couponId}`,
+        { headers: storeHeaders() },
+      );
+      return res.data;
+    } catch (err) {
+      throw new Error(getErrorMessage(err));
+    }
+  });
+
+export const updateCouponServerFn = createServerFn({ method: "POST" })
+  .inputValidator(
+    z.object({
+      couponId: z.string().min(1),
+      code: z.string().min(1).max(100).optional(),
+      type: z.enum(["percentage", "fixed_amount", "free_shipping"]).optional(),
+      value: z.number().int().nonnegative().optional(),
+      minOrderAmount: z.number().int().nonnegative().optional(),
+      maxUsageCount: z.number().int().positive().optional(),
+      maxUsagePerCustomer: z.number().int().positive().optional(),
+      isActive: z.boolean().optional(),
+      startsAt: z.string().optional(),
+      endsAt: z.string().optional(),
+    }),
+  )
+  .handler(async ({ data }): Promise<Coupon> => {
+    try {
+      const { couponId, ...body } = data;
+      const res = await apiClient.patch<Coupon>(
+        `/api/admin/coupons/${couponId}`,
+        body,
+        { headers: storeHeaders() },
+      );
+      return res.data;
+    } catch (err) {
+      throw new Error(getErrorMessage(err));
+    }
+  });
+
 export const deleteCouponServerFn = createServerFn({ method: "POST" })
   .inputValidator(z.object({ couponId: z.string().min(1) }))
   .handler(async ({ data }) => {

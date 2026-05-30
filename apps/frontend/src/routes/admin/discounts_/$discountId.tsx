@@ -1,8 +1,16 @@
 import * as React from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import {
+  useSuspenseQuery,
+  useQuery,
+  useMutation,
+  useQueryClient,
+} from "@tanstack/react-query";
+import { z } from "zod";
 import {
   ArrowLeftIcon,
   ChevronRightIcon,
+  LoaderCircleIcon,
   PlusIcon,
   RefreshCwIcon,
   Trash2Icon,
@@ -15,52 +23,47 @@ import { Label } from "~/components/ui/label";
 import { Separator } from "~/components/ui/separator";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "~/components/ui/select";
+  updateDiscountServerFn,
+  deleteDiscountServerFn,
+  createCouponServerFn,
+  deleteCouponServerFn,
+} from "~/server/discounts";
+import {
+  discountQueryOptions,
+  discountsQueryOptions,
+  couponsQueryOptions,
+} from "~/queries/discounts";
 import {
   DiscountStatusBadge,
   computeDiscountStatus,
 } from "~/routes/admin/discounts_/index";
-import type { Discount, DiscountType } from "~/types/api";
+import type { Coupon, Discount, DiscountType } from "~/types/api";
 
-// Local UI-only coupon state (the real Coupon type is a separate entity)
-type CouponCodeLocal = {
-  code: string;
-  maxUses: number | null;
-  perCustomer: number;
-  used: number;
-};
+// ─── Zod Schema ───────────────────────────────────────────────────────────────
+
+const updateDiscountSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  type: z.enum(["percentage", "fixed_amount"]),
+  value: z.coerce.number().positive("Value must be positive"),
+  scope: z.enum(["product", "category", "order"]),
+  scopeId: z.string().optional(),
+  minOrderAmount: z.coerce.number().min(0).optional(),
+  isActive: z.boolean(),
+  startsAt: z.string().optional(),
+  endsAt: z.string().optional(),
+});
 
 export const Route = createFileRoute("/admin/discounts_/$discountId")({
+  loader: ({ context, params }) =>
+    context.queryClient.ensureQueryData(
+      discountQueryOptions(params.discountId),
+    ),
   component: DiscountEditPage,
 });
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type AppliesTo = "order" | "category" | "product";
-
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-const CATEGORIES = [
-  "Surfboards",
-  "Apparel",
-  "Accessories",
-  "Wetsuits",
-  "Footwear",
-];
-
-const PRODUCTS = [
-  "Wave Board Pro",
-  "Longboard Classic",
-  "Blue Rashguard",
-  "Board Shorts",
-  "Canvas Tote Bag",
-  "Fin Set Pro",
-];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -73,19 +76,102 @@ function autoGenerateCode() {
   return `DISC-${part}`;
 }
 
+// ─── Delete Discount Button ───────────────────────────────────────────────────
+
+function DeleteDiscountButton({ discountId }: { discountId: string }) {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [confirming, setConfirming] = React.useState(false);
+
+  const deleteMutation = useMutation({
+    mutationFn: () => deleteDiscountServerFn({ data: { discountId } }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: discountsQueryOptions().queryKey });
+      navigate({ to: "/admin/discounts" });
+    },
+  });
+
+  if (!confirming) {
+    return (
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-8 gap-1.5 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive"
+        onClick={() => setConfirming(true)}
+      >
+        <Trash2Icon className="h-3.5 w-3.5" />
+        Delete discount
+      </Button>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-xs text-muted-foreground">Are you sure?</span>
+      <Button
+        variant="destructive"
+        size="sm"
+        className="h-7 px-3 text-xs"
+        onClick={() => deleteMutation.mutate()}
+        disabled={deleteMutation.isPending}
+      >
+        {deleteMutation.isPending ? (
+          <LoaderCircleIcon className="h-3.5 w-3.5 animate-spin" />
+        ) : (
+          "Delete"
+        )}
+      </Button>
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-7 px-3 text-xs"
+        onClick={() => setConfirming(false)}
+      >
+        Cancel
+      </Button>
+    </div>
+  );
+}
+
 // ─── Coupon Codes Card ────────────────────────────────────────────────────────
 
-function CouponCodeLocalsCard({
-  codes,
-  onChange,
+function CouponCodesCard({
+  discount,
+  coupons,
 }: {
-  codes: CouponCodeLocal[];
-  onChange: (codes: CouponCodeLocal[]) => void;
+  discount: Discount;
+  coupons: Coupon[];
 }) {
+  const queryClient = useQueryClient();
   const [newCode, setNewCode] = React.useState("");
   const [newMax, setNewMax] = React.useState("");
   const [newPerCust, setNewPerCust] = React.useState("1");
   const [codeError, setCodeError] = React.useState("");
+
+  const createMutation = useMutation({
+    mutationFn: (vars: { code: string; maxUses: number | null; perCustomer: number }) =>
+      createCouponServerFn({
+        data: {
+          code: vars.code,
+          type: discount.type,
+          value: discount.value,
+          maxUsageCount: vars.maxUses ?? undefined,
+          maxUsagePerCustomer: vars.perCustomer,
+          isActive: true,
+          startsAt: discount.startsAt ?? undefined,
+          endsAt: discount.endsAt ?? undefined,
+        },
+      }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: couponsQueryOptions().queryKey }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (couponId: string) =>
+      deleteCouponServerFn({ data: { couponId } }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: couponsQueryOptions().queryKey }),
+  });
 
   function handleAdd() {
     const trimmed = newCode.trim().toUpperCase();
@@ -93,27 +179,26 @@ function CouponCodeLocalsCard({
       setCodeError("Code is required.");
       return;
     }
-    if (codes.some((c) => c.code === trimmed)) {
+    if (coupons.some((c) => c.code === trimmed)) {
       setCodeError("Code already exists.");
       return;
     }
-    onChange([
-      ...codes,
+    const maxUses = newMax.trim() === "" ? null : parseInt(newMax, 10);
+    const perCustomer = parseInt(newPerCust, 10) || 1;
+    createMutation.mutate(
+      { code: trimmed, maxUses, perCustomer },
       {
-        code: trimmed,
-        maxUses: newMax.trim() === "" ? null : parseInt(newMax, 10),
-        perCustomer: parseInt(newPerCust, 10) || 1,
-        used: 0,
+        onSuccess: () => {
+          setNewCode("");
+          setNewMax("");
+          setNewPerCust("1");
+          setCodeError("");
+        },
+        onError: (err) => {
+          setCodeError(err instanceof Error ? err.message : "Failed to create coupon");
+        },
       },
-    ]);
-    setNewCode("");
-    setNewMax("");
-    setNewPerCust("1");
-    setCodeError("");
-  }
-
-  function handleRemove(code: string) {
-    onChange(codes.filter((c) => c.code !== code));
+    );
   }
 
   function handleGenerate() {
@@ -129,7 +214,7 @@ function CouponCodeLocalsCard({
         </CardTitle>
       </CardHeader>
       <CardContent className="pt-4 space-y-4">
-        {codes.length > 0 ? (
+        {coupons.length > 0 ? (
           <div className="overflow-hidden rounded-lg border">
             <div className="grid grid-cols-[1fr_80px_96px_60px_36px] items-center bg-muted/20 px-4 py-2 text-xs font-medium text-muted-foreground">
               <span>Code</span>
@@ -138,32 +223,33 @@ function CouponCodeLocalsCard({
               <span className="text-center">Used</span>
               <span />
             </div>
-            {codes.map((c, i) => (
+            {coupons.map((c, i) => (
               <div
-                key={c.code}
+                key={c.id}
                 className={cn(
                   "grid grid-cols-[1fr_80px_96px_60px_36px] items-center px-4 py-3",
-                  i < codes.length - 1 && "border-b border-border/50",
+                  i < coupons.length - 1 && "border-b border-border/50",
                 )}
               >
                 <span className="font-mono text-sm font-semibold tracking-wide">
                   {c.code}
                 </span>
                 <span className="text-center text-sm tabular-nums text-muted-foreground">
-                  {c.maxUses === null ? "∞" : c.maxUses}
+                  {c.maxUsageCount === null ? "∞" : c.maxUsageCount}
                 </span>
                 <span className="text-center text-sm tabular-nums text-muted-foreground">
-                  {c.perCustomer}
+                  {c.maxUsagePerCustomer ?? "∞"}
                 </span>
                 <span className="text-center text-sm tabular-nums text-muted-foreground">
-                  {c.used}
+                  {c.usageCount}
                 </span>
                 <div className="flex justify-end">
                   <Button
                     variant="ghost"
                     size="icon"
                     className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                    onClick={() => handleRemove(c.code)}
+                    onClick={() => deleteMutation.mutate(c.id)}
+                    disabled={deleteMutation.isPending}
                   >
                     <Trash2Icon className="h-3.5 w-3.5" />
                   </Button>
@@ -243,8 +329,13 @@ function CouponCodeLocalsCard({
             size="sm"
             className="gap-1.5"
             onClick={handleAdd}
+            disabled={createMutation.isPending}
           >
-            <PlusIcon className="h-3.5 w-3.5" />
+            {createMutation.isPending ? (
+              <LoaderCircleIcon className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <PlusIcon className="h-3.5 w-3.5" />
+            )}
             Add coupon code
           </Button>
         </div>
@@ -255,31 +346,21 @@ function CouponCodeLocalsCard({
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-const SEED: Discount = {
-  id: "1",
-  organizationId: "org-1",
-  storeId: "store-1",
-  name: "Summer Sale",
-  type: "percentage",
-  value: 20,
-  scope: "order",
-  scopeId: null,
-  minOrderAmount: null,
-  isActive: true,
-  startsAt: "2026-05-01T00:00:00Z",
-  endsAt: "2026-08-31T23:59:59Z",
-  createdAt: "2026-05-01T00:00:00Z",
-  updatedAt: "2026-05-01T00:00:00Z",
-};
-
 function DiscountEditPage() {
-  const { discountId: _discountId } = Route.useParams();
-  const discount = SEED;
+  const { discountId } = Route.useParams();
+  const queryClient = useQueryClient();
+
+  const { data: discount } = useSuspenseQuery(discountQueryOptions(discountId));
+  const { data: allCoupons = [] } = useQuery(couponsQueryOptions());
 
   // Discount details
   const [name, setName] = React.useState(discount.name);
   const [type, setType] = React.useState<DiscountType>(discount.type);
-  const [value, setValue] = React.useState(String(discount.value));
+  const [value, setValue] = React.useState(
+    discount.type === "fixed_amount"
+      ? String(discount.value / 100)
+      : String(discount.value),
+  );
   const [appliesTo, setAppliesTo] = React.useState<AppliesTo>(discount.scope);
   const [category, setCategory] = React.useState(
     discount.scope === "category" ? (discount.scopeId ?? "") : "",
@@ -301,12 +382,62 @@ function DiscountEditPage() {
     discount.endsAt ? discount.endsAt.slice(0, 10) : "",
   );
   const [noEndDate, setNoEndDate] = React.useState(!discount.endsAt);
-  const [usageLimit, setUsageLimit] = React.useState("");
 
-  // Coupon codes (local UI state — real coupons are fetched separately)
-  const [codes, setCodes] = React.useState<CouponCodeLocal[]>([]);
+  // Errors
+  const [errors, setErrors] = React.useState<Record<string, string>>({});
 
   const canSave = name.trim().length > 0 && value.trim().length > 0;
+
+  const updateMutation = useMutation({
+    mutationFn: () => {
+      const rawValue = parseFloat(value);
+      const sentValue =
+        type === "fixed_amount" ? Math.round(rawValue * 100) : rawValue;
+
+      const payload = {
+        name: name.trim(),
+        type,
+        value: sentValue,
+        scope: appliesTo,
+        scopeId:
+          appliesTo === "category"
+            ? category || undefined
+            : appliesTo === "product"
+              ? product || undefined
+              : undefined,
+        minOrderAmount: minPurchase
+          ? Math.round(parseFloat(minPurchase) * 100)
+          : undefined,
+        isActive: discount.isActive,
+        startsAt: startDate ? new Date(startDate).toISOString() : undefined,
+        endsAt:
+          !noEndDate && endDate
+            ? new Date(endDate).toISOString()
+            : undefined,
+      };
+
+      const result = updateDiscountSchema.safeParse(payload);
+      if (!result.success) {
+        const fieldErrors: Record<string, string> = {};
+        for (const issue of result.error.issues) {
+          fieldErrors[issue.path.join(".")] = issue.message;
+        }
+        setErrors(fieldErrors);
+        return Promise.reject(new Error("Validation failed"));
+      }
+      setErrors({});
+      return updateDiscountServerFn({ data: { discountId, ...result.data } });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: discountQueryOptions(discountId).queryKey });
+      queryClient.invalidateQueries({ queryKey: discountsQueryOptions().queryKey });
+    },
+    onError: (err) => {
+      if (err.message !== "Validation failed") {
+        setErrors({ _root: err instanceof Error ? err.message : "Failed to save discount" });
+      }
+    },
+  });
 
   return (
     <div className="space-y-6 pb-10">
@@ -325,12 +456,21 @@ function DiscountEditPage() {
         </div>
 
         <div className="flex items-center gap-3">
+          {errors._root && (
+            <p className="text-xs text-destructive">{errors._root}</p>
+          )}
+          <DeleteDiscountButton discountId={discountId} />
           <DiscountStatusBadge status={computeDiscountStatus(discount)} />
           <Button
-            disabled={!canSave}
+            disabled={!canSave || updateMutation.isPending}
+            onClick={() => updateMutation.mutate()}
             className="bg-orange-700 px-5 text-white shadow-none hover:bg-orange-800 disabled:opacity-50"
           >
-            Save changes
+            {updateMutation.isPending ? (
+              <LoaderCircleIcon className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              "Save changes"
+            )}
           </Button>
         </div>
       </div>
@@ -353,6 +493,9 @@ function DiscountEditPage() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
               />
+              {errors.name && (
+                <p className="text-xs text-destructive">{errors.name}</p>
+              )}
               <p className="text-xs text-muted-foreground">
                 Visible only to admins, not shown to customers.
               </p>
@@ -412,6 +555,9 @@ function DiscountEditPage() {
                   <span className="text-sm text-muted-foreground">%</span>
                 )}
               </div>
+              {errors.value && (
+                <p className="text-xs text-destructive">{errors.value}</p>
+              )}
             </div>
 
             <Separator />
@@ -450,35 +596,23 @@ function DiscountEditPage() {
 
               {appliesTo === "category" && (
                 <div className="ml-7 mt-1">
-                  <Select value={category} onValueChange={setCategory}>
-                    <SelectTrigger className="w-56">
-                      <SelectValue placeholder="Select category…" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {CATEGORIES.map((c) => (
-                        <SelectItem key={c} value={c}>
-                          {c}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Input
+                    placeholder="Category ID"
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value)}
+                    className="w-56"
+                  />
                 </div>
               )}
 
               {appliesTo === "product" && (
                 <div className="ml-7 mt-1">
-                  <Select value={product} onValueChange={setProduct}>
-                    <SelectTrigger className="w-56">
-                      <SelectValue placeholder="Search product…" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {PRODUCTS.map((p) => (
-                        <SelectItem key={p} value={p}>
-                          {p}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Input
+                    placeholder="Product ID"
+                    value={product}
+                    onChange={(e) => setProduct(e.target.value)}
+                    className="w-56"
+                  />
                 </div>
               )}
             </div>
@@ -581,31 +715,11 @@ function DiscountEditPage() {
                 No end date
               </label>
             </div>
-
-            <Separator />
-
-            <div className="space-y-1.5">
-              <Label htmlFor="d-limit">
-                Total usage limit{" "}
-                <span className="text-xs font-normal text-muted-foreground">
-                  (optional — leave empty for unlimited)
-                </span>
-              </Label>
-              <Input
-                id="d-limit"
-                type="number"
-                min={1}
-                placeholder="100"
-                value={usageLimit}
-                onChange={(e) => setUsageLimit(e.target.value)}
-                className="w-36"
-              />
-            </div>
           </CardContent>
         </Card>
 
         {/* ── Coupon Codes ──────────────────────────────────────────────────── */}
-        <CouponCodeLocalsCard codes={codes} onChange={setCodes} />
+        <CouponCodesCard discount={discount} coupons={allCoupons} />
       </div>
     </div>
   );
