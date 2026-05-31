@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { getCookie, getRequestHeader } from "@tanstack/react-start/server";
+import { getRequestHeader } from "@tanstack/react-start/server";
 import { z } from "zod";
 import { adminStoreHeader } from "~/lib/active-store";
 import { apiClient } from "~/lib/api-client";
@@ -56,34 +56,34 @@ export const updateOrgServerFn = createServerFn({ method: "POST" })
 
 // ─── API Keys ─────────────────────────────────────────────────────────────────
 
-export const getApiKeysServerFn = createServerFn({ method: "GET" }).handler(
-  async (): Promise<ApiKey[]> => {
-    const storeId = getCookie("wos-active-store");
-    if (!storeId) return [];
+export const getApiKeysServerFn = createServerFn({ method: "GET" })
+  .inputValidator(z.object({ storeId: z.string().min(1) }))
+  .handler(async ({ data }): Promise<ApiKey[]> => {
     try {
       const res = await apiClient.get<ApiKey[]>(
-        `/api/admin/stores/${storeId}/api-keys`,
-        { headers: { cookie: incomingCookie(), "X-Store-Id": storeId } },
+        `/api/admin/stores/${data.storeId}/api-keys`,
+        { headers: { cookie: incomingCookie(), "X-Store-Id": data.storeId } },
       );
       return res.data;
     } catch (err) {
       throw new Error(getErrorMessage(err));
     }
-  },
-);
+  });
 
 export const createApiKeyFromSettingsServerFn = createServerFn({ method: "POST" })
-  .inputValidator(z.object({ name: z.string().min(1, "Key name is required") }))
+  .inputValidator(
+    z.object({
+      name: z.string().min(1, "Key name is required"),
+      storeId: z.string().min(1, "Store ID is required"),
+    }),
+  )
   .handler(async ({ data }): Promise<ApiKeyWithSecret> => {
-    const storeId = getCookie("wos-active-store");
-    if (!storeId) throw new Error("No active store selected");
     try {
       const res = await apiClient.post<ApiKeyWithSecret>(
-        `/api/admin/stores/${storeId}/api-keys`,
-        data,
-        { headers: { cookie: incomingCookie(), "X-Store-Id": storeId } },
+        `/api/admin/stores/${data.storeId}/api-keys`,
+        { name: data.name },
+        { headers: { cookie: incomingCookie(), "X-Store-Id": data.storeId } },
       );
-      // Backend returns GeneratedApiKey which already extends ApiKey with rawKey
       return res.data;
     } catch (err) {
       throw new Error(getErrorMessage(err));
@@ -91,14 +91,12 @@ export const createApiKeyFromSettingsServerFn = createServerFn({ method: "POST" 
   });
 
 export const deleteApiKeyServerFn = createServerFn({ method: "POST" })
-  .inputValidator(z.object({ keyId: z.string().min(1) }))
+  .inputValidator(z.object({ keyId: z.string().min(1), storeId: z.string().min(1) }))
   .handler(async ({ data }) => {
-    const storeId = getCookie("wos-active-store");
-    if (!storeId) throw new Error("No active store selected");
     try {
       await apiClient.delete(
-        `/api/admin/stores/${storeId}/api-keys/${data.keyId}`,
-        { headers: { cookie: incomingCookie(), "X-Store-Id": storeId } },
+        `/api/admin/api-keys/${data.keyId}`,
+        { headers: { cookie: incomingCookie(), "X-Store-Id": data.storeId } },
       );
     } catch (err) {
       throw new Error(getErrorMessage(err));

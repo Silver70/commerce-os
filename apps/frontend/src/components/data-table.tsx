@@ -1,19 +1,15 @@
-import * as React from "react"
-import {
-  ChevronLeftIcon,
-  ChevronRightIcon,
-  XIcon,
-} from "lucide-react"
+import * as React from "react";
+import { ChevronLeftIcon, ChevronRightIcon, XIcon } from "lucide-react";
 
-import { cn } from "~/lib/utils"
-import { Button } from "~/components/ui/button"
+import { cn } from "~/lib/utils";
+import { Button } from "~/components/ui/button";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "~/components/ui/select"
+} from "~/components/ui/select";
 import {
   Table,
   TableBody,
@@ -21,33 +17,33 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "~/components/ui/table"
-import { Card } from "~/components/ui/card"
+} from "~/components/ui/table";
+import { Card } from "~/components/ui/card";
 
 // ─── Public Types ─────────────────────────────────────────────────────────────
 
 export type DataTableColumn<T> = {
-  key: string
-  header: string
-  align?: "left" | "center" | "right"
-  className?: string
-  render: (row: T) => React.ReactNode
-}
+  key: string;
+  header: string;
+  align?: "left" | "center" | "right";
+  className?: string;
+  render: (row: T) => React.ReactNode;
+};
 
 export type DataTableFilter = {
-  key: string
-  placeholder: string
-  options: { label: string; value: string }[]
-}
+  key: string;
+  placeholder: string;
+  options: { label: string; value: string }[];
+};
 
 export interface DataTableProps<T extends object> {
-  data: T[]
-  columns: DataTableColumn<T>[]
-  rowKey?: (row: T) => string
-  filters?: DataTableFilter[]
-  pageSize?: number
-  action?: React.ReactNode
-  emptyMessage?: string
+  data: T[];
+  columns: DataTableColumn<T>[];
+  rowKey?: (row: T) => string;
+  filters?: DataTableFilter[];
+  pageSize?: number;
+  action?: React.ReactNode;
+  emptyMessage?: string;
 }
 
 // ─── Internal Helpers ────────────────────────────────────────────────────────
@@ -56,20 +52,20 @@ const ALIGN: Record<string, string> = {
   left: "text-left",
   center: "text-center",
   right: "text-right",
-}
+};
 
-const CLEAR = "__all__"
+const CLEAR = "__all__";
 
 function buildPageList(page: number, totalPages: number): (number | "…")[] {
   const visible = Array.from({ length: totalPages }, (_, i) => i + 1).filter(
     (p) => p === 1 || p === totalPages || Math.abs(p - page) <= 1,
-  )
-  const result: (number | "…")[] = []
+  );
+  const result: (number | "…")[] = [];
   visible.forEach((p, i) => {
-    if (i > 0 && p - visible[i - 1] > 1) result.push("…")
-    result.push(p)
-  })
-  return result
+    if (i > 0 && p - visible[i - 1] > 1) result.push("…");
+    result.push(p);
+  });
+  return result;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -83,44 +79,51 @@ export function DataTable<T extends object>({
   action,
   emptyMessage = "No results.",
 }: DataTableProps<T>) {
-  const [activeFilters, setActiveFilters] = React.useState<Record<string, string>>({})
-  const [page, setPage] = React.useState(1)
+  const [activeFilters, setActiveFilters] = React.useState<
+    Record<string, string>
+  >({});
+  const [page, setPage] = React.useState(1);
 
   const filtered = React.useMemo(
     () =>
       data.filter((row) =>
         filters.every(({ key }) => {
-          const v = activeFilters[key]
-          return !v || String((row as Record<string, unknown>)[key] ?? "") === v
+          const v = activeFilters[key];
+          return (
+            !v || String((row as Record<string, unknown>)[key] ?? "") === v
+          );
         }),
       ),
     [data, activeFilters, filters],
-  )
+  );
 
   React.useEffect(() => {
-    setPage(1)
-  }, [activeFilters])
+    setPage(1);
+  }, [activeFilters]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
-  const pageData = filtered.slice((page - 1) * pageSize, page * pageSize)
-  const pageNumbers = React.useMemo(() => buildPageList(page, totalPages), [page, totalPages])
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const pageData = filtered.slice((page - 1) * pageSize, page * pageSize);
+  const pageNumbers = React.useMemo(
+    () => buildPageList(page, totalPages),
+    [page, totalPages],
+  );
 
-  const hasActive = Object.values(activeFilters).some(Boolean)
+  const hasActive = Object.values(activeFilters).some(Boolean);
 
   function setFilter(key: string, value: string) {
-    setActiveFilters((prev) => ({ ...prev, [key]: value }))
+    setActiveFilters((prev) => ({ ...prev, [key]: value }));
   }
 
   function clearFilter(key: string) {
     setActiveFilters((prev) => {
-      const next = { ...prev }
-      delete next[key]
-      return next
-    })
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
   }
 
   function clearAll() {
-    setActiveFilters({})
+    setActiveFilters({});
   }
 
   // ─── Render ───────────────────────────────────────────────────────────────
@@ -287,5 +290,5 @@ export function DataTable<T extends object>({
         )}
       </div>
     </div>
-  )
+  );
 }

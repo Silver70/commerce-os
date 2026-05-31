@@ -99,7 +99,9 @@ export class ApiKeyService {
         createdAt: apiKeys.createdAt,
       })
       .from(apiKeys)
-      .where(eq(apiKeys.organizationId, orgId));
+      .where(
+        and(eq(apiKeys.organizationId, orgId), eq(apiKeys.isActive, true)),
+      );
   }
 
   async listByStore(storeId: string) {
@@ -116,6 +118,6 @@ export class ApiKeyService {
         createdAt: apiKeys.createdAt,
       })
       .from(apiKeys)
-      .where(eq(apiKeys.storeId, storeId));
+      .where(and(eq(apiKeys.storeId, storeId), eq(apiKeys.isActive, true)));
   }
 }

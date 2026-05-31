@@ -27,7 +27,7 @@ import {
 import { TooltipProvider } from "~/components/ui/tooltip"
 import { meQueryOptions } from "~/queries/auth"
 import { storesQueryOptions } from "~/queries/settings"
-import { getOnboardingStepServerFn, setActiveStoreServerFn } from "~/server/stores"
+import { ensureActiveStoreServerFn, getOnboardingStepServerFn, setActiveStoreServerFn } from "~/server/stores"
 import type { Store } from "~/types/api"
 
 export const Route = createFileRoute("/admin")({
@@ -40,7 +40,12 @@ export const Route = createFileRoute("/admin")({
     if (step === "2") throw redirect({ to: "/onboarding/step2" })
     if (step === "3") throw redirect({ to: "/onboarding/step3" })
 
-    await context.queryClient.ensureQueryData(storesQueryOptions())
+    const stores = await context.queryClient.ensureQueryData(storesQueryOptions())
+    if (stores.length > 0) {
+      await ensureActiveStoreServerFn({
+        data: { storeIds: stores.map((s) => s.id), fallbackId: stores[0].id },
+      })
+    }
     return { user }
   },
   component: AdminLayout,

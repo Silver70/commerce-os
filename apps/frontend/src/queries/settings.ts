@@ -21,10 +21,11 @@ export const storesQueryOptions = () =>
     staleTime: 5 * 60 * 1000,
   });
 
-export const apiKeysQueryOptions = () =>
+export const apiKeysQueryOptions = (storeId: string) =>
   queryOptions({
-    queryKey: ["settings", "api-keys"],
-    queryFn: () => getApiKeysServerFn(),
+    queryKey: ["settings", "api-keys", storeId],
+    queryFn: () => getApiKeysServerFn({ data: { storeId } }),
+    enabled: !!storeId,
     staleTime: 60 * 1000,
   });
 

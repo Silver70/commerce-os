@@ -100,6 +100,29 @@ export const setActiveStoreServerFn = createServerFn({ method: "POST" })
     });
   });
 
+// ─── Ensure Active Store ──────────────────────────────────────────────────────
+// Called from the admin layout beforeLoad to guarantee wos-active-store is
+// always set to a valid store. Fixes silent empty results / "no active store"
+// errors for any server function that reads the cookie (adminStoreHeader, etc.).
+
+export const ensureActiveStoreServerFn = createServerFn({ method: "POST" })
+  .inputValidator(
+    z.object({
+      storeIds: z.array(z.string().min(1)),
+      fallbackId: z.string().min(1),
+    }),
+  )
+  .handler(async ({ data }) => {
+    const current = getCookie("wos-active-store");
+    if (!current || !data.storeIds.includes(current)) {
+      setCookie("wos-active-store", data.fallbackId, {
+        path: "/",
+        sameSite: "lax",
+        maxAge: 30 * 24 * 60 * 60,
+      });
+    }
+  });
+
 // ─── Onboarding Step Cookie ───────────────────────────────────────────────────
 
 export const getOnboardingStepServerFn = createServerFn({

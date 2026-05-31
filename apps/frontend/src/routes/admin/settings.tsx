@@ -127,12 +127,14 @@ function getActiveStoreId(): string | null {
 function GeneralSettings() {
   const queryClient = useQueryClient()
   const { data: stores } = useSuspenseQuery(storesQueryOptions())
+  const { data: org }    = useSuspenseQuery(organizationQueryOptions())
   const activeId = getActiveStoreId()
   const store = stores.find((s) => s.id === activeId) ?? stores[0]
 
   const [storeName, setStoreName] = React.useState(store?.name ?? "")
   const [currency, setCurrency]   = React.useState(store?.currency ?? "USD")
   const [timezone, setTimezone]   = React.useState(store?.timezone ?? "UTC")
+  const [orgName, setOrgName]     = React.useState(org?.name ?? "")
 
   React.useEffect(() => {
     if (store) {
@@ -142,7 +144,11 @@ function GeneralSettings() {
     }
   }, [store?.id])
 
-  const saveMutation = useMutation({
+  React.useEffect(() => {
+    if (org) setOrgName(org.name)
+  }, [org?.id])
+
+  const storeSaveMutation = useMutation({
     mutationFn: () =>
       updateStoreServerFn({
         data: { storeId: store!.id, name: storeName.trim(), currency, timezone },
@@ -152,22 +158,29 @@ function GeneralSettings() {
     },
   })
 
+  const orgSaveMutation = useMutation({
+    mutationFn: () => updateOrgServerFn({ data: { name: orgName.trim() } }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["settings", "organization"] })
+    },
+  })
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold">General</h2>
         <Button
-          onClick={() => saveMutation.mutate()}
-          disabled={saveMutation.isPending || !store}
+          onClick={() => storeSaveMutation.mutate()}
+          disabled={storeSaveMutation.isPending || !store}
           className="gap-2 bg-orange-700 px-5 text-white shadow-none hover:bg-orange-800"
         >
-          {saveMutation.isSuccess ? <CheckIcon className="h-4 w-4" /> : null}
-          {saveMutation.isPending ? "Saving…" : saveMutation.isSuccess ? "Saved" : "Save"}
+          {storeSaveMutation.isSuccess ? <CheckIcon className="h-4 w-4" /> : null}
+          {storeSaveMutation.isPending ? "Saving…" : storeSaveMutation.isSuccess ? "Saved" : "Save"}
         </Button>
       </div>
 
-      {saveMutation.isError && (
-        <p className="text-sm text-destructive">{saveMutation.error.message}</p>
+      {storeSaveMutation.isError && (
+        <p className="text-sm text-destructive">{storeSaveMutation.error.message}</p>
       )}
 
       <Card>
@@ -240,6 +253,41 @@ function GeneralSettings() {
             </Select>
           </div>
 
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="border-b pb-4">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Organization
+            </CardTitle>
+            <Button
+              size="sm"
+              onClick={() => orgSaveMutation.mutate()}
+              disabled={orgSaveMutation.isPending || orgName.trim().length < 2}
+              className="h-7 gap-1.5 bg-orange-700 px-3 text-xs text-white shadow-none hover:bg-orange-800 disabled:opacity-50"
+            >
+              {orgSaveMutation.isSuccess ? <CheckIcon className="h-3 w-3" /> : null}
+              {orgSaveMutation.isPending ? "Saving…" : orgSaveMutation.isSuccess ? "Saved" : "Save"}
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-5 pt-5">
+          <div className="space-y-1.5">
+            <Label htmlFor="org-name">
+              Organization name <span className="text-destructive">*</span>
+            </Label>
+            <Input
+              id="org-name"
+              value={orgName}
+              onChange={(e) => setOrgName(e.target.value)}
+              className="max-w-sm"
+            />
+          </div>
+          {orgSaveMutation.isError && (
+            <p className="text-sm text-destructive">{orgSaveMutation.error.message}</p>
+          )}
         </CardContent>
       </Card>
     </div>
@@ -489,9 +537,13 @@ function TeamSettings() {
 function GenerateKeySheet({
   open,
   onOpenChange,
+  storeId,
+  storeName,
 }: {
   open: boolean
   onOpenChange: (v: boolean) => void
+  storeId: string
+  storeName: string
 }) {
   const queryClient = useQueryClient()
   const [step, setStep]     = React.useState<1 | 2>(1)
@@ -505,20 +557,13 @@ function GenerateKeySheet({
   }, [open])
 
   const generateMutation = useMutation({
-    mutationFn: () => createApiKeyFromSettingsServerFn({ data: { name: name.trim() } }),
+    mutationFn: () => createApiKeyFromSettingsServerFn({ data: { name: name.trim(), storeId } }),
     onSuccess: (data) => {
       setGenKey(data.rawKey)
       setStep(2)
-      void queryClient.invalidateQueries({ queryKey: ["settings", "api-keys"] })
+      void queryClient.invalidateQueries({ queryKey: ["settings", "api-keys", storeId] })
     },
     onError: (err) => setError(err.message),
-  })
-
-  const deleteMutation = useMutation({
-    mutationFn: (keyId: string) => deleteApiKeyServerFn({ data: { keyId } }),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["settings", "api-keys"] })
-    },
   })
 
   function handleCopy() {
@@ -542,6 +587,14 @@ function GenerateKeySheet({
         {step === 1 ? (
           <>
             <div className="flex-1 px-4 py-5 space-y-4">
+              {storeName && (
+                <div className="flex items-center gap-2 rounded-md border bg-muted/30 px-3 py-2">
+                  <KeyIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  <span className="text-xs text-muted-foreground">
+                    Key will be scoped to <span className="font-medium text-foreground">{storeName}</span>
+                  </span>
+                </div>
+              )}
               <div className="space-y-1.5">
                 <Label htmlFor="key-name">
                   Key name <span className="text-destructive">*</span>
@@ -613,12 +666,43 @@ function GenerateKeySheet({
 
 function ApiKeysSettings() {
   const queryClient = useQueryClient()
-  const { data: keys = [] } = useQuery(apiKeysQueryOptions())
+  const { data: stores = [] } = useQuery(storesQueryOptions())
+  const activeId = getActiveStoreId()
+  const activeStore = stores.find((s) => s.id === activeId) ?? stores[0]
+  const storeId = activeStore?.id ?? ""
+
+  const { data: keys = [] } = useQuery(apiKeysQueryOptions(storeId))
   const [genOpen, setGenOpen] = React.useState(false)
+  const [revokeError, setRevokeError] = React.useState<string | null>(null)
+  const [copiedId, setCopiedId] = React.useState<string | null>(null)
+
+  function handleCopyPrefix(keyId: string, prefix: string) {
+    navigator.clipboard.writeText(prefix).catch(() => {})
+    setCopiedId(keyId)
+    setTimeout(() => setCopiedId(null), 2000)
+  }
 
   const deleteMutation = useMutation({
-    mutationFn: (keyId: string) => deleteApiKeyServerFn({ data: { keyId } }),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["settings", "api-keys"] }),
+    mutationFn: (keyId: string) => deleteApiKeyServerFn({ data: { keyId, storeId } }),
+    onMutate: async (keyId) => {
+      await queryClient.cancelQueries({ queryKey: ["settings", "api-keys", storeId] })
+      const previousKeys = queryClient.getQueryData<import("~/types/api").ApiKey[]>(["settings", "api-keys", storeId])
+      queryClient.setQueryData<import("~/types/api").ApiKey[]>(
+        ["settings", "api-keys", storeId],
+        (old) => old?.filter((k) => k.id !== keyId) ?? [],
+      )
+      setRevokeError(null)
+      return { previousKeys }
+    },
+    onError: (err, _keyId, context) => {
+      if (context?.previousKeys) {
+        queryClient.setQueryData(["settings", "api-keys", storeId], context.previousKeys)
+      }
+      setRevokeError(err.message)
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ["settings", "api-keys", storeId] })
+    },
   })
 
   return (
@@ -635,9 +719,9 @@ function ApiKeysSettings() {
       </div>
 
       <Card className="overflow-hidden gap-0 py-0">
-        <div className="grid grid-cols-[1fr_160px_120px_40px] items-center border-b bg-muted/20 px-5 py-2.5 text-xs font-medium text-muted-foreground">
+        <div className="grid grid-cols-[1fr_180px_120px_40px] items-center border-b bg-muted/20 px-5 py-2.5 text-xs font-medium text-muted-foreground">
           <span>Name</span>
-          <span>Key</span>
+          <span>Key prefix</span>
           <span>Last used</span>
           <span />
         </div>
@@ -651,12 +735,25 @@ function ApiKeysSettings() {
             <div
               key={k.id}
               className={cn(
-                "grid grid-cols-[1fr_160px_120px_40px] items-center px-5 py-4",
+                "grid grid-cols-[1fr_180px_120px_40px] items-center px-5 py-4",
                 i < keys.length - 1 && "border-b border-border/50",
               )}
             >
               <span className="text-sm font-medium">{k.name}</span>
-              <code className="font-mono text-sm text-muted-foreground">{k.keyPrefix}…</code>
+              <div className="flex items-center gap-1.5">
+                <code className="font-mono text-sm text-muted-foreground">{k.keyPrefix}…</code>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 shrink-0 text-muted-foreground hover:text-foreground"
+                  onClick={() => handleCopyPrefix(k.id, k.keyPrefix)}
+                  title="Copy key prefix"
+                >
+                  {copiedId === k.id
+                    ? <CheckIcon className="h-3 w-3 text-emerald-500" />
+                    : <CopyIcon className="h-3 w-3" />}
+                </Button>
+              </div>
               <span className={cn("text-sm", k.lastUsedAt ? "text-muted-foreground" : "italic text-muted-foreground/60")}>
                 {k.lastUsedAt
                   ? new Date(k.lastUsedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })
@@ -673,7 +770,6 @@ function ApiKeysSettings() {
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
                       className="text-destructive focus:text-destructive"
-                      disabled={deleteMutation.isPending}
                       onClick={() => deleteMutation.mutate(k.id)}
                     >
                       Revoke
@@ -686,6 +782,10 @@ function ApiKeysSettings() {
         )}
       </Card>
 
+      {revokeError && (
+        <p className="text-sm text-destructive">{revokeError}</p>
+      )}
+
       <div className="flex gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-900/50 dark:bg-amber-950/20">
         <ShieldIcon className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
         <p className="text-sm text-amber-700 dark:text-amber-400">
@@ -693,7 +793,7 @@ function ApiKeysSettings() {
         </p>
       </div>
 
-      <GenerateKeySheet open={genOpen} onOpenChange={setGenOpen} />
+      <GenerateKeySheet open={genOpen} onOpenChange={setGenOpen} storeId={storeId} storeName={activeStore?.name ?? ""} />
     </div>
   )
 }
@@ -956,14 +1056,26 @@ function TaxRatesSettings() {
                 </Badge>
               </div>
               <div className="flex justify-end">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
-                  onClick={() => setSheet({ open: true, rate: r })}
-                >
-                  Edit
-                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground">
+                      <MoreHorizontalIcon className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-36">
+                    <DropdownMenuItem onClick={() => setSheet({ open: true, rate: r })}>
+                      Edit
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      className="text-destructive focus:text-destructive"
+                      disabled={deleteMutation.isPending}
+                      onClick={() => deleteMutation.mutate(r.id)}
+                    >
+                      Delete
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </div>
           ))
