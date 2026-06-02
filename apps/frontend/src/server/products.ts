@@ -1,8 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
-import { getRequestHeader } from "@tanstack/react-start/server";
 import { z } from "zod";
 import { adminStoreHeader } from "~/lib/active-store";
-import { apiClient } from "~/lib/api-client";
+import { apiClient, authHeader } from "~/lib/api-client";
 import { getErrorMessage } from "~/lib/errors";
 import type {
   Category,
@@ -13,12 +12,8 @@ import type {
   ProductStatus,
 } from "~/types/api";
 
-function incomingCookie(): string {
-  return getRequestHeader("cookie") ?? "";
-}
-
-function storeHeaders() {
-  return { cookie: incomingCookie(), ...adminStoreHeader() };
+async function storeHeaders() {
+  return { ...(await authHeader()), ...adminStoreHeader() };
 }
 
 // ─── Zod schemas (mirror backend DTOs) ───────────────────────────────────────
@@ -105,7 +100,7 @@ export const getProductsServerFn = createServerFn({ method: "GET" })
     try {
       const res = await apiClient.get<PaginatedResponse<Product>>(
         `/api/admin/products?${params.toString()}`,
-        { headers: storeHeaders() },
+        { headers: await storeHeaders() },
       );
       return res.data;
     } catch (err) {
@@ -119,7 +114,7 @@ export const getProductByIdServerFn = createServerFn({ method: "GET" })
     try {
       const res = await apiClient.get<Product>(
         `/api/admin/products/${data.productId}`,
-        { headers: storeHeaders() },
+        { headers: await storeHeaders() },
       );
       return res.data;
     } catch (err) {
@@ -140,7 +135,7 @@ export const createProductServerFn = createServerFn({ method: "POST" })
     };
     try {
       const res = await apiClient.post<Product>("/api/admin/products", body, {
-        headers: storeHeaders(),
+        headers: await storeHeaders(),
       });
       return res.data;
     } catch (err) {
@@ -160,7 +155,7 @@ export const updateProductServerFn = createServerFn({ method: "POST" })
       const res = await apiClient.patch<Product>(
         `/api/admin/products/${data.productId}`,
         data.body,
-        { headers: storeHeaders() },
+        { headers: await storeHeaders() },
       );
       return res.data;
     } catch (err) {
@@ -173,7 +168,7 @@ export const deleteProductServerFn = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     try {
       await apiClient.delete(`/api/admin/products/${data.productId}`, {
-        headers: storeHeaders(),
+        headers: await storeHeaders(),
       });
     } catch (err) {
       throw new Error(getErrorMessage(err));
@@ -194,7 +189,7 @@ export const createVariantServerFn = createServerFn({ method: "POST" })
       const res = await apiClient.post<ProductVariant>(
         `/api/admin/products/${data.productId}/variants`,
         data.body,
-        { headers: storeHeaders() },
+        { headers: await storeHeaders() },
       );
       return res.data;
     } catch (err) {
@@ -215,7 +210,7 @@ export const updateVariantServerFn = createServerFn({ method: "POST" })
       const res = await apiClient.patch<ProductVariant>(
         `/api/admin/products/${data.productId}/variants/${data.variantId}`,
         data.body,
-        { headers: storeHeaders() },
+        { headers: await storeHeaders() },
       );
       return res.data;
     } catch (err) {
@@ -234,7 +229,7 @@ export const deleteVariantServerFn = createServerFn({ method: "POST" })
     try {
       await apiClient.delete(
         `/api/admin/products/${data.productId}/variants/${data.variantId}`,
-        { headers: storeHeaders() },
+        { headers: await storeHeaders() },
       );
     } catch (err) {
       throw new Error(getErrorMessage(err));
@@ -271,10 +266,7 @@ export const uploadMediaServerFn = createServerFn({ method: "POST" })
         `/api/admin/products/${data.productId}/media`,
         formData,
         {
-          headers: {
-            cookie: incomingCookie(),
-            ...adminStoreHeader(),
-          },
+          headers: await storeHeaders(),
         },
       );
       return res.data;
@@ -294,7 +286,7 @@ export const deleteMediaServerFn = createServerFn({ method: "POST" })
     try {
       await apiClient.delete(
         `/api/admin/products/${data.productId}/media/${data.mediaId}`,
-        { headers: storeHeaders() },
+        { headers: await storeHeaders() },
       );
     } catch (err) {
       throw new Error(getErrorMessage(err));
@@ -307,7 +299,7 @@ export const getCategoriesServerFn = createServerFn({ method: "GET" }).handler(
   async (): Promise<Category[]> => {
     try {
       const res = await apiClient.get<Category[]>("/api/admin/categories", {
-        headers: storeHeaders(),
+        headers: await storeHeaders(),
       });
       return res.data;
     } catch (err) {

@@ -1,24 +1,19 @@
 import { createServerFn } from "@tanstack/react-start";
-import { getRequestHeader } from "@tanstack/react-start/server";
 import { z } from "zod";
 import { adminStoreHeader } from "~/lib/active-store";
-import { apiClient } from "~/lib/api-client";
+import { apiClient, authHeader } from "~/lib/api-client";
 import { getErrorMessage } from "~/lib/errors";
 import type { Coupon, Discount } from "~/types/api";
 
-function incomingCookie(): string {
-  return getRequestHeader("cookie") ?? "";
-}
-
-function storeHeaders() {
-  return { cookie: incomingCookie(), ...adminStoreHeader() };
+async function storeHeaders() {
+  return { ...(await authHeader()), ...adminStoreHeader() };
 }
 
 export const getDiscountsServerFn = createServerFn({ method: "GET" }).handler(
   async (): Promise<Discount[]> => {
     try {
       const res = await apiClient.get<Discount[]>("/api/admin/discounts", {
-        headers: storeHeaders(),
+        headers: await storeHeaders(),
       });
       return res.data;
     } catch (err) {
@@ -33,7 +28,7 @@ export const getDiscountByIdServerFn = createServerFn({ method: "GET" })
     try {
       const res = await apiClient.get<Discount>(
         `/api/admin/discounts/${data.discountId}`,
-        { headers: storeHeaders() },
+        { headers: await storeHeaders() },
       );
       return res.data;
     } catch (err) {
@@ -58,7 +53,7 @@ export const createDiscountServerFn = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<Discount> => {
     try {
       const res = await apiClient.post<Discount>("/api/admin/discounts", data, {
-        headers: storeHeaders(),
+        headers: await storeHeaders(),
       });
       return res.data;
     } catch (err) {
@@ -87,7 +82,7 @@ export const updateDiscountServerFn = createServerFn({ method: "POST" })
       const res = await apiClient.patch<Discount>(
         `/api/admin/discounts/${discountId}`,
         body,
-        { headers: storeHeaders() },
+        { headers: await storeHeaders() },
       );
       return res.data;
     } catch (err) {
@@ -100,7 +95,7 @@ export const deleteDiscountServerFn = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     try {
       await apiClient.delete(`/api/admin/discounts/${data.discountId}`, {
-        headers: storeHeaders(),
+        headers: await storeHeaders(),
       });
     } catch (err) {
       throw new Error(getErrorMessage(err));
@@ -111,7 +106,7 @@ export const getCouponsServerFn = createServerFn({ method: "GET" }).handler(
   async (): Promise<Coupon[]> => {
     try {
       const res = await apiClient.get<Coupon[]>("/api/admin/coupons", {
-        headers: storeHeaders(),
+        headers: await storeHeaders(),
       });
       return res.data;
     } catch (err) {
@@ -137,7 +132,7 @@ export const createCouponServerFn = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<Coupon> => {
     try {
       const res = await apiClient.post<Coupon>("/api/admin/coupons", data, {
-        headers: storeHeaders(),
+        headers: await storeHeaders(),
       });
       return res.data;
     } catch (err) {
@@ -151,7 +146,7 @@ export const getCouponByIdServerFn = createServerFn({ method: "GET" })
     try {
       const res = await apiClient.get<Coupon>(
         `/api/admin/coupons/${data.couponId}`,
-        { headers: storeHeaders() },
+        { headers: await storeHeaders() },
       );
       return res.data;
     } catch (err) {
@@ -180,7 +175,7 @@ export const updateCouponServerFn = createServerFn({ method: "POST" })
       const res = await apiClient.patch<Coupon>(
         `/api/admin/coupons/${couponId}`,
         body,
-        { headers: storeHeaders() },
+        { headers: await storeHeaders() },
       );
       return res.data;
     } catch (err) {
@@ -193,7 +188,7 @@ export const deleteCouponServerFn = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     try {
       await apiClient.delete(`/api/admin/coupons/${data.couponId}`, {
-        headers: storeHeaders(),
+        headers: await storeHeaders(),
       });
     } catch (err) {
       throw new Error(getErrorMessage(err));

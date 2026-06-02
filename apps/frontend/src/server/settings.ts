@@ -1,8 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
-import { getRequestHeader } from "@tanstack/react-start/server";
 import { z } from "zod";
 import { adminStoreHeader } from "~/lib/active-store";
-import { apiClient } from "~/lib/api-client";
+import { apiClient, authHeader } from "~/lib/api-client";
 import { getErrorMessage } from "~/lib/errors";
 import type {
   ApiKey,
@@ -13,8 +12,8 @@ import type {
   TaxRate,
 } from "~/types/api";
 
-function incomingCookie(): string {
-  return getRequestHeader("cookie") ?? "";
+async function storeHeaders() {
+  return { ...(await authHeader()), ...adminStoreHeader() };
 }
 
 // ─── Get Organization ─────────────────────────────────────────────────────────
@@ -24,7 +23,7 @@ export const getOrganizationServerFn = createServerFn({
 }).handler(async (): Promise<Organization> => {
   try {
     const res = await apiClient.get<Organization>("/api/admin/organization", {
-      headers: { cookie: incomingCookie() },
+      headers: await authHeader(),
     });
     return res.data;
   } catch (err) {
@@ -38,7 +37,9 @@ export const getOrganizationServerFn = createServerFn({
 export const updateOrgServerFn = createServerFn({ method: "POST" })
   .inputValidator(
     z.object({
-      name: z.string().min(2, "Organization name must be at least 2 characters"),
+      name: z
+        .string()
+        .min(2, "Organization name must be at least 2 characters"),
     }),
   )
   .handler(async ({ data }) => {
@@ -46,7 +47,7 @@ export const updateOrgServerFn = createServerFn({ method: "POST" })
       const res = await apiClient.patch<Organization>(
         "/api/admin/organization",
         data,
-        { headers: { cookie: incomingCookie() } },
+        { headers: await authHeader() },
       );
       return res.data;
     } catch (err) {
@@ -62,7 +63,7 @@ export const getApiKeysServerFn = createServerFn({ method: "GET" })
     try {
       const res = await apiClient.get<ApiKey[]>(
         `/api/admin/stores/${data.storeId}/api-keys`,
-        { headers: { cookie: incomingCookie(), "X-Store-Id": data.storeId } },
+        { headers: { ...(await authHeader()), "X-Store-Id": data.storeId } },
       );
       return res.data;
     } catch (err) {
@@ -70,7 +71,9 @@ export const getApiKeysServerFn = createServerFn({ method: "GET" })
     }
   });
 
-export const createApiKeyFromSettingsServerFn = createServerFn({ method: "POST" })
+export const createApiKeyFromSettingsServerFn = createServerFn({
+  method: "POST",
+})
   .inputValidator(
     z.object({
       name: z.string().min(1, "Key name is required"),
@@ -82,7 +85,7 @@ export const createApiKeyFromSettingsServerFn = createServerFn({ method: "POST" 
       const res = await apiClient.post<ApiKeyWithSecret>(
         `/api/admin/stores/${data.storeId}/api-keys`,
         { name: data.name },
-        { headers: { cookie: incomingCookie(), "X-Store-Id": data.storeId } },
+        { headers: { ...(await authHeader()), "X-Store-Id": data.storeId } },
       );
       return res.data;
     } catch (err) {
@@ -91,13 +94,14 @@ export const createApiKeyFromSettingsServerFn = createServerFn({ method: "POST" 
   });
 
 export const deleteApiKeyServerFn = createServerFn({ method: "POST" })
-  .inputValidator(z.object({ keyId: z.string().min(1), storeId: z.string().min(1) }))
+  .inputValidator(
+    z.object({ keyId: z.string().min(1), storeId: z.string().min(1) }),
+  )
   .handler(async ({ data }) => {
     try {
-      await apiClient.delete(
-        `/api/admin/api-keys/${data.keyId}`,
-        { headers: { cookie: incomingCookie(), "X-Store-Id": data.storeId } },
-      );
+      await apiClient.delete(`/api/admin/api-keys/${data.keyId}`, {
+        headers: { ...(await authHeader()), "X-Store-Id": data.storeId },
+      });
     } catch (err) {
       throw new Error(getErrorMessage(err));
     }
@@ -109,7 +113,7 @@ export const getTaxRatesServerFn = createServerFn({ method: "GET" }).handler(
   async (): Promise<TaxRate[]> => {
     try {
       const res = await apiClient.get<TaxRate[]>("/api/admin/tax-rates", {
-        headers: { cookie: incomingCookie(), ...adminStoreHeader() },
+        headers: await storeHeaders(),
       });
       return res.data;
     } catch (err) {
@@ -122,7 +126,10 @@ export const createTaxRateServerFn = createServerFn({ method: "POST" })
   .inputValidator(
     z.object({
       name: z.string().min(1, "Name is required"),
-      rate: z.number().int().nonnegative("Rate must be non-negative basis points"),
+      rate: z
+        .number()
+        .int()
+        .nonnegative("Rate must be non-negative basis points"),
       countryCode: z.string().length(2, "Must be ISO 3166-1 alpha-2"),
       stateCode: z.string().optional(),
       isInclusive: z.boolean(),
@@ -132,7 +139,7 @@ export const createTaxRateServerFn = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<TaxRate> => {
     try {
       const res = await apiClient.post<TaxRate>("/api/admin/tax-rates", data, {
-        headers: { cookie: incomingCookie(), ...adminStoreHeader() },
+        headers: await storeHeaders(),
       });
       return res.data;
     } catch (err) {
@@ -155,9 +162,13 @@ export const updateTaxRateServerFn = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<TaxRate> => {
     try {
       const { id, ...body } = data;
-      const res = await apiClient.patch<TaxRate>(`/api/admin/tax-rates/${id}`, body, {
-        headers: { cookie: incomingCookie(), ...adminStoreHeader() },
-      });
+      const res = await apiClient.patch<TaxRate>(
+        `/api/admin/tax-rates/${id}`,
+        body,
+        {
+          headers: await storeHeaders(),
+        },
+      );
       return res.data;
     } catch (err) {
       throw new Error(getErrorMessage(err));
@@ -169,7 +180,7 @@ export const deleteTaxRateServerFn = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     try {
       await apiClient.delete(`/api/admin/tax-rates/${data.id}`, {
-        headers: { cookie: incomingCookie(), ...adminStoreHeader() },
+        headers: await storeHeaders(),
       });
     } catch (err) {
       throw new Error(getErrorMessage(err));
@@ -192,7 +203,7 @@ export const getAuditLogsServerFn = createServerFn({ method: "GET" })
     try {
       const res = await apiClient.get<PaginatedResponse<AuditEntry>>(
         `/api/admin/audit-logs?${params.toString()}`,
-        { headers: { cookie: incomingCookie() } },
+        { headers: await authHeader() },
       );
       return res.data;
     } catch (err) {

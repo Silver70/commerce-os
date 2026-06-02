@@ -1,29 +1,31 @@
 import { createServerFn } from "@tanstack/react-start";
-import { getRequestHeader } from "@tanstack/react-start/server";
 import { z } from "zod";
 import { adminStoreHeader } from "~/lib/active-store";
-import { apiClient } from "~/lib/api-client";
+import { apiClient, authHeader } from "~/lib/api-client";
 import { getErrorMessage } from "~/lib/errors";
 import type { ShippingMethod, ShippingZone } from "~/types/api";
 
-function incomingCookie(): string {
-  return getRequestHeader("cookie") ?? "";
+async function storeHeaders() {
+  return { ...(await authHeader()), ...adminStoreHeader() };
 }
 
 // ─── Get Shipping Zones ───────────────────────────────────────────────────────
 
-export const getShippingZonesServerFn = createServerFn({ method: "GET" }).handler(
-  async () => {
-    try {
-      const res = await apiClient.get<ShippingZone[]>("/api/admin/shipping/zones", {
-        headers: { cookie: incomingCookie(), ...adminStoreHeader() },
-      });
-      return res.data;
-    } catch (err) {
-      throw new Error(getErrorMessage(err));
-    }
-  },
-);
+export const getShippingZonesServerFn = createServerFn({
+  method: "GET",
+}).handler(async () => {
+  try {
+    const res = await apiClient.get<ShippingZone[]>(
+      "/api/admin/shipping/zones",
+      {
+        headers: await storeHeaders(),
+      },
+    );
+    return res.data;
+  } catch (err) {
+    throw new Error(getErrorMessage(err));
+  }
+});
 
 // ─── Get Shipping Methods ─────────────────────────────────────────────────────
 
@@ -34,7 +36,7 @@ export const getShippingMethodsServerFn = createServerFn({ method: "GET" })
       const params = data.zoneId ? `?zoneId=${data.zoneId}` : "";
       const res = await apiClient.get<ShippingMethod[]>(
         `/api/admin/shipping/methods${params}`,
-        { headers: { cookie: incomingCookie(), ...adminStoreHeader() } },
+        { headers: await storeHeaders() },
       );
       return res.data;
     } catch (err) {
@@ -57,7 +59,7 @@ export const createShippingZoneServerFn = createServerFn({ method: "POST" })
       const res = await apiClient.post<ShippingZone>(
         "/api/admin/shipping/zones",
         data,
-        { headers: { cookie: incomingCookie(), ...adminStoreHeader() } },
+        { headers: await storeHeaders() },
       );
       return res.data;
     } catch (err) {
@@ -82,7 +84,7 @@ export const updateShippingZoneServerFn = createServerFn({ method: "POST" })
       const res = await apiClient.patch<ShippingZone>(
         `/api/admin/shipping/zones/${id}`,
         body,
-        { headers: { cookie: incomingCookie(), ...adminStoreHeader() } },
+        { headers: await storeHeaders() },
       );
       return res.data;
     } catch (err) {
@@ -97,7 +99,7 @@ export const deleteShippingZoneServerFn = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     try {
       await apiClient.delete(`/api/admin/shipping/zones/${data.id}`, {
-        headers: { cookie: incomingCookie(), ...adminStoreHeader() },
+        headers: await storeHeaders(),
       });
     } catch (err) {
       throw new Error(getErrorMessage(err));
@@ -124,7 +126,7 @@ export const createShippingMethodServerFn = createServerFn({ method: "POST" })
       const res = await apiClient.post<ShippingMethod>(
         "/api/admin/shipping/methods",
         data,
-        { headers: { cookie: incomingCookie(), ...adminStoreHeader() } },
+        { headers: await storeHeaders() },
       );
       return res.data;
     } catch (err) {
@@ -153,7 +155,7 @@ export const updateShippingMethodServerFn = createServerFn({ method: "POST" })
       const res = await apiClient.patch<ShippingMethod>(
         `/api/admin/shipping/methods/${id}`,
         body,
-        { headers: { cookie: incomingCookie(), ...adminStoreHeader() } },
+        { headers: await storeHeaders() },
       );
       return res.data;
     } catch (err) {
@@ -168,7 +170,7 @@ export const deleteShippingMethodServerFn = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     try {
       await apiClient.delete(`/api/admin/shipping/methods/${data.id}`, {
-        headers: { cookie: incomingCookie(), ...adminStoreHeader() },
+        headers: await storeHeaders(),
       });
     } catch (err) {
       throw new Error(getErrorMessage(err));

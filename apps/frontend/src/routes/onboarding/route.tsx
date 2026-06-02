@@ -1,10 +1,10 @@
 import { createFileRoute, Outlet, redirect } from '@tanstack/react-router'
-import { meQueryOptions } from '~/queries/auth'
+import { getAuth, getSignInUrl } from '@workos/authkit-tanstack-react-start'
 
 export const Route = createFileRoute('/onboarding')({
-  beforeLoad: async ({ context }) => {
-    const user = await context.queryClient.ensureQueryData(meQueryOptions())
-    if (!user) throw redirect({ to: '/auth/login' })
+  beforeLoad: async () => {
+    const { user } = await getAuth()
+    if (!user) throw redirect({ href: await getSignInUrl() })
   },
   component: OnboardingLayout,
 })

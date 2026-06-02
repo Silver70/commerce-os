@@ -7,6 +7,7 @@ import {
   Inject,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { eq, and, asc } from 'drizzle-orm';
 import type { Request } from 'express';
 import { WorkosAuthService } from '../services/workos-auth.service';
@@ -17,11 +18,19 @@ import type { TenantContext } from '../../../shared/tenant/tenant-context';
 
 @Injectable()
 export class AdminAuthGuard implements CanActivate {
+  private readonly jwks: ReturnType<typeof createRemoteJWKSet>;
+
   constructor(
     private readonly workosAuth: WorkosAuthService,
     private readonly config: ConfigService,
     @Inject(DRIZZLE_CLIENT) private readonly db: DrizzleClient,
-  ) {}
+  ) {
+    const clientId = config.getOrThrow<string>('WORKOS_CLIENT_ID');
+    const jwksUrl = new URL(
+      `https://api.workos.com/sso/jwks/${clientId}`,
+    );
+    this.jwks = createRemoteJWKSet(jwksUrl);
+  }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<Request>();
@@ -61,22 +70,42 @@ export class AdminAuthGuard implements CanActivate {
       return true;
     }
 
+    const authHeader = request.headers['authorization'];
     const token =
-      (request.cookies as Record<string, string> | undefined)?.[
-        'wos-session'
-      ] ?? request.headers['authorization']?.replace('Bearer ', '');
+      typeof authHeader === 'string' && authHeader.startsWith('Bearer ')
+        ? authHeader.slice(7)
+        : undefined;
 
     if (!token) {
-      throw new UnauthorizedException('No session token provided');
+      throw new UnauthorizedException('No Bearer token provided');
     }
 
-    const session = await this.workosAuth.verifyToken(token);
+    let payload: {
+      sub: string;
+      org_id?: string;
+      role?: string;
+      sid?: string;
+      email?: string;
+    };
+    try {
+      const { payload: verified } = await jwtVerify(token, this.jwks);
+      payload = verified as typeof payload;
+    } catch {
+      throw new UnauthorizedException('Invalid or expired token');
+    }
 
-    const workosOrgId = session.organizationId;
+    const workosOrgId = payload.org_id;
+
+    // No org_id in token — bootstrap endpoint is the only caller here.
+    // Set a minimal context so the controller can run provisioning logic.
     if (!workosOrgId) {
-      throw new UnauthorizedException(
-        'No organization associated with session',
-      );
+      request.tenantContext = {
+        organizationId: '',
+        userId: payload.sub,
+        email: payload.email,
+        role: undefined,
+      };
+      return true;
     }
 
     let [org] = await this.db
@@ -97,24 +126,15 @@ export class AdminAuthGuard implements CanActivate {
         .returning();
     }
 
-    const membership = await this.workosAuth.getOrganizationMembership(
-      session.userId,
-      workosOrgId,
-    );
-
-    const roleSlug = (membership?.role as { slug: string } | null | undefined)
-      ?.slug;
-    const role = roleSlug as TenantContext['role'];
-
     const requestedStoreId = this.extractStoreId(request);
     const activeStoreId = await this.resolveStoreId(org.id, requestedStoreId);
 
     request.tenantContext = {
       organizationId: org.id,
       storeId: activeStoreId,
-      userId: session.userId,
-      email: session.user?.email,
-      role,
+      userId: payload.sub,
+      email: payload.email,
+      role: payload.role as TenantContext['role'],
     };
 
     return true;

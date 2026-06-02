@@ -18,6 +18,7 @@ import { Route as OnboardingStep2RouteImport } from './routes/onboarding/step2'
 import { Route as OnboardingStep1RouteImport } from './routes/onboarding/step1'
 import { Route as AuthVerifyEmailRouteImport } from './routes/auth/verify-email'
 import { Route as AuthSignupRouteImport } from './routes/auth/signup'
+import { Route as AuthSignoutRouteImport } from './routes/auth/signout'
 import { Route as AuthLoginRouteImport } from './routes/auth/login'
 import { Route as AdminShippingRouteImport } from './routes/admin/shipping'
 import { Route as AdminSettingsRouteImport } from './routes/admin/settings'
@@ -27,6 +28,8 @@ import { Route as AdminProductsIndexRouteImport } from './routes/admin/products_
 import { Route as AdminOrdersIndexRouteImport } from './routes/admin/orders_/index'
 import { Route as AdminDiscountsIndexRouteImport } from './routes/admin/discounts_/index'
 import { Route as AdminCustomersIndexRouteImport } from './routes/admin/customers_/index'
+import { Route as ApiAuthSignInRouteImport } from './routes/api.auth.sign-in'
+import { Route as ApiAuthCallbackRouteImport } from './routes/api.auth.callback'
 import { Route as AdminProductsNewRouteImport } from './routes/admin/products_/new'
 import { Route as AdminProductsProductIdRouteImport } from './routes/admin/products_/$productId'
 import { Route as AdminOrdersNewRouteImport } from './routes/admin/orders_/new'
@@ -80,6 +83,11 @@ const AuthSignupRoute = AuthSignupRouteImport.update({
   path: '/signup',
   getParentRoute: () => AuthRouteRoute,
 } as any)
+const AuthSignoutRoute = AuthSignoutRouteImport.update({
+  id: '/signout',
+  path: '/signout',
+  getParentRoute: () => AuthRouteRoute,
+} as any)
 const AuthLoginRoute = AuthLoginRouteImport.update({
   id: '/login',
   path: '/login',
@@ -124,6 +132,16 @@ const AdminCustomersIndexRoute = AdminCustomersIndexRouteImport.update({
   id: '/customers_/',
   path: '/customers/',
   getParentRoute: () => AdminRouteRoute,
+} as any)
+const ApiAuthSignInRoute = ApiAuthSignInRouteImport.update({
+  id: '/api/auth/sign-in',
+  path: '/api/auth/sign-in',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthCallbackRoute = ApiAuthCallbackRouteImport.update({
+  id: '/api/auth/callback',
+  path: '/api/auth/callback',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const AdminProductsNewRoute = AdminProductsNewRouteImport.update({
   id: '/products_/new',
@@ -173,6 +191,7 @@ export interface FileRoutesByFullPath {
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/shipping': typeof AdminShippingRoute
   '/auth/login': typeof AuthLoginRoute
+  '/auth/signout': typeof AuthSignoutRoute
   '/auth/signup': typeof AuthSignupRoute
   '/auth/verify-email': typeof AuthVerifyEmailRoute
   '/onboarding/step1': typeof OnboardingStep1Route
@@ -185,6 +204,8 @@ export interface FileRoutesByFullPath {
   '/admin/orders/new': typeof AdminOrdersNewRoute
   '/admin/products/$productId': typeof AdminProductsProductIdRoute
   '/admin/products/new': typeof AdminProductsNewRoute
+  '/api/auth/callback': typeof ApiAuthCallbackRoute
+  '/api/auth/sign-in': typeof ApiAuthSignInRoute
   '/admin/customers/': typeof AdminCustomersIndexRoute
   '/admin/discounts/': typeof AdminDiscountsIndexRoute
   '/admin/orders/': typeof AdminOrdersIndexRoute
@@ -200,6 +221,7 @@ export interface FileRoutesByTo {
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/shipping': typeof AdminShippingRoute
   '/auth/login': typeof AuthLoginRoute
+  '/auth/signout': typeof AuthSignoutRoute
   '/auth/signup': typeof AuthSignupRoute
   '/auth/verify-email': typeof AuthVerifyEmailRoute
   '/onboarding/step1': typeof OnboardingStep1Route
@@ -212,6 +234,8 @@ export interface FileRoutesByTo {
   '/admin/orders/new': typeof AdminOrdersNewRoute
   '/admin/products/$productId': typeof AdminProductsProductIdRoute
   '/admin/products/new': typeof AdminProductsNewRoute
+  '/api/auth/callback': typeof ApiAuthCallbackRoute
+  '/api/auth/sign-in': typeof ApiAuthSignInRoute
   '/admin/customers': typeof AdminCustomersIndexRoute
   '/admin/discounts': typeof AdminDiscountsIndexRoute
   '/admin/orders': typeof AdminOrdersIndexRoute
@@ -228,6 +252,7 @@ export interface FileRoutesById {
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/shipping': typeof AdminShippingRoute
   '/auth/login': typeof AuthLoginRoute
+  '/auth/signout': typeof AuthSignoutRoute
   '/auth/signup': typeof AuthSignupRoute
   '/auth/verify-email': typeof AuthVerifyEmailRoute
   '/onboarding/step1': typeof OnboardingStep1Route
@@ -240,6 +265,8 @@ export interface FileRoutesById {
   '/admin/orders_/new': typeof AdminOrdersNewRoute
   '/admin/products_/$productId': typeof AdminProductsProductIdRoute
   '/admin/products_/new': typeof AdminProductsNewRoute
+  '/api/auth/callback': typeof ApiAuthCallbackRoute
+  '/api/auth/sign-in': typeof ApiAuthSignInRoute
   '/admin/customers_/': typeof AdminCustomersIndexRoute
   '/admin/discounts_/': typeof AdminDiscountsIndexRoute
   '/admin/orders_/': typeof AdminOrdersIndexRoute
@@ -257,6 +284,7 @@ export interface FileRouteTypes {
     | '/admin/settings'
     | '/admin/shipping'
     | '/auth/login'
+    | '/auth/signout'
     | '/auth/signup'
     | '/auth/verify-email'
     | '/onboarding/step1'
@@ -269,6 +297,8 @@ export interface FileRouteTypes {
     | '/admin/orders/new'
     | '/admin/products/$productId'
     | '/admin/products/new'
+    | '/api/auth/callback'
+    | '/api/auth/sign-in'
     | '/admin/customers/'
     | '/admin/discounts/'
     | '/admin/orders/'
@@ -284,6 +314,7 @@ export interface FileRouteTypes {
     | '/admin/settings'
     | '/admin/shipping'
     | '/auth/login'
+    | '/auth/signout'
     | '/auth/signup'
     | '/auth/verify-email'
     | '/onboarding/step1'
@@ -296,6 +327,8 @@ export interface FileRouteTypes {
     | '/admin/orders/new'
     | '/admin/products/$productId'
     | '/admin/products/new'
+    | '/api/auth/callback'
+    | '/api/auth/sign-in'
     | '/admin/customers'
     | '/admin/discounts'
     | '/admin/orders'
@@ -311,6 +344,7 @@ export interface FileRouteTypes {
     | '/admin/settings'
     | '/admin/shipping'
     | '/auth/login'
+    | '/auth/signout'
     | '/auth/signup'
     | '/auth/verify-email'
     | '/onboarding/step1'
@@ -323,6 +357,8 @@ export interface FileRouteTypes {
     | '/admin/orders_/new'
     | '/admin/products_/$productId'
     | '/admin/products_/new'
+    | '/api/auth/callback'
+    | '/api/auth/sign-in'
     | '/admin/customers_/'
     | '/admin/discounts_/'
     | '/admin/orders_/'
@@ -334,6 +370,8 @@ export interface RootRouteChildren {
   AdminRouteRoute: typeof AdminRouteRouteWithChildren
   AuthRouteRoute: typeof AuthRouteRouteWithChildren
   OnboardingRouteRoute: typeof OnboardingRouteRouteWithChildren
+  ApiAuthCallbackRoute: typeof ApiAuthCallbackRoute
+  ApiAuthSignInRoute: typeof ApiAuthSignInRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -401,6 +439,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthSignupRouteImport
       parentRoute: typeof AuthRouteRoute
     }
+    '/auth/signout': {
+      id: '/auth/signout'
+      path: '/signout'
+      fullPath: '/auth/signout'
+      preLoaderRoute: typeof AuthSignoutRouteImport
+      parentRoute: typeof AuthRouteRoute
+    }
     '/auth/login': {
       id: '/auth/login'
       path: '/login'
@@ -463,6 +508,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/customers/'
       preLoaderRoute: typeof AdminCustomersIndexRouteImport
       parentRoute: typeof AdminRouteRoute
+    }
+    '/api/auth/sign-in': {
+      id: '/api/auth/sign-in'
+      path: '/api/auth/sign-in'
+      fullPath: '/api/auth/sign-in'
+      preLoaderRoute: typeof ApiAuthSignInRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/callback': {
+      id: '/api/auth/callback'
+      path: '/api/auth/callback'
+      fullPath: '/api/auth/callback'
+      preLoaderRoute: typeof ApiAuthCallbackRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/admin/products_/new': {
       id: '/admin/products_/new'
@@ -558,12 +617,14 @@ const AdminRouteRouteWithChildren = AdminRouteRoute._addFileChildren(
 
 interface AuthRouteRouteChildren {
   AuthLoginRoute: typeof AuthLoginRoute
+  AuthSignoutRoute: typeof AuthSignoutRoute
   AuthSignupRoute: typeof AuthSignupRoute
   AuthVerifyEmailRoute: typeof AuthVerifyEmailRoute
 }
 
 const AuthRouteRouteChildren: AuthRouteRouteChildren = {
   AuthLoginRoute: AuthLoginRoute,
+  AuthSignoutRoute: AuthSignoutRoute,
   AuthSignupRoute: AuthSignupRoute,
   AuthVerifyEmailRoute: AuthVerifyEmailRoute,
 }
@@ -593,16 +654,19 @@ const rootRouteChildren: RootRouteChildren = {
   AdminRouteRoute: AdminRouteRouteWithChildren,
   AuthRouteRoute: AuthRouteRouteWithChildren,
   OnboardingRouteRoute: OnboardingRouteRouteWithChildren,
+  ApiAuthCallbackRoute: ApiAuthCallbackRoute,
+  ApiAuthSignInRoute: ApiAuthSignInRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
 
 import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
+import type { startInstance } from './start.ts'
 declare module '@tanstack/react-start' {
   interface Register {
     ssr: true
     router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
   }
 }

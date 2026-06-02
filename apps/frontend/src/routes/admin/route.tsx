@@ -7,6 +7,11 @@ import {
   ChevronsUpDownIcon,
   CheckIcon,
 } from "lucide-react"
+import {
+  getAuth,
+  getSignInUrl,
+  switchToOrganization,
+} from "@workos/authkit-tanstack-react-start"
 
 import { AppSidebar } from "~/components/app-sidebar"
 import { ThemeToggle } from "~/components/ThemeToggle"
@@ -25,15 +30,28 @@ import {
   SidebarTrigger,
 } from "~/components/ui/sidebar"
 import { TooltipProvider } from "~/components/ui/tooltip"
-import { meQueryOptions } from "~/queries/auth"
 import { storesQueryOptions } from "~/queries/settings"
-import { ensureActiveStoreServerFn, getOnboardingStepServerFn, setActiveStoreServerFn } from "~/server/stores"
+import {
+  ensureActiveStoreServerFn,
+  getOnboardingStepServerFn,
+  setActiveStoreServerFn,
+} from "~/server/stores"
+import { bootstrapOrgServerFn } from "~/server/auth"
 import type { Store } from "~/types/api"
 
 export const Route = createFileRoute("/admin")({
   beforeLoad: async ({ context }) => {
-    const user = await context.queryClient.ensureQueryData(meQueryOptions())
-    if (!user) throw redirect({ to: "/auth/login" })
+    const auth = await getAuth()
+    if (!auth.user) throw redirect({ href: await getSignInUrl() })
+
+    const user = auth.user
+    const organizationId = (auth as { organizationId?: string }).organizationId
+
+    // First-login: no org yet — provision one then re-mint the session
+    if (!organizationId) {
+      const { workosOrgId } = await bootstrapOrgServerFn()
+      await switchToOrganization({ data: { organizationId: workosOrgId } })
+    }
 
     const step = await getOnboardingStepServerFn()
     if (step === "1") throw redirect({ to: "/onboarding/step1" })
@@ -41,11 +59,16 @@ export const Route = createFileRoute("/admin")({
     if (step === "3") throw redirect({ to: "/onboarding/step3" })
 
     const stores = await context.queryClient.ensureQueryData(storesQueryOptions())
-    if (stores.length > 0) {
-      await ensureActiveStoreServerFn({
-        data: { storeIds: stores.map((s) => s.id), fallbackId: stores[0].id },
-      })
+
+    // New user: org exists but no stores yet → send to onboarding
+    if (stores.length === 0) {
+      throw redirect({ to: "/onboarding/step1" })
     }
+
+    await ensureActiveStoreServerFn({
+      data: { storeIds: stores.map((s) => s.id), fallbackId: stores[0].id },
+    })
+
     return { user }
   },
   component: AdminLayout,

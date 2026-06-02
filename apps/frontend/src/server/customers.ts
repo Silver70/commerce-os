@@ -1,17 +1,12 @@
 import { createServerFn } from "@tanstack/react-start";
-import { getRequestHeader } from "@tanstack/react-start/server";
 import { z } from "zod";
 import { adminStoreHeader } from "~/lib/active-store";
-import { apiClient } from "~/lib/api-client";
+import { apiClient, authHeader } from "~/lib/api-client";
 import { getErrorMessage } from "~/lib/errors";
 import type { Customer } from "~/types/api";
 
-function incomingCookie(): string {
-  return getRequestHeader("cookie") ?? "";
-}
-
-function storeHeaders() {
-  return { cookie: incomingCookie(), ...adminStoreHeader() };
+async function storeHeaders() {
+  return { ...(await authHeader()), ...adminStoreHeader() };
 }
 
 export const getCustomersServerFn = createServerFn({ method: "GET" })
@@ -30,7 +25,7 @@ export const getCustomersServerFn = createServerFn({ method: "GET" })
     try {
       const res = await apiClient.get<Customer[]>(
         `/api/admin/customers?${params.toString()}`,
-        { headers: storeHeaders() },
+        { headers: await storeHeaders() },
       );
       return res.data;
     } catch (err) {
@@ -44,7 +39,7 @@ export const getCustomerByIdServerFn = createServerFn({ method: "GET" })
     try {
       const res = await apiClient.get<Customer>(
         `/api/admin/customers/${data.customerId}`,
-        { headers: storeHeaders() },
+        { headers: await storeHeaders() },
       );
       return res.data;
     } catch (err) {
@@ -64,7 +59,7 @@ export const updateCustomerStatusServerFn = createServerFn({ method: "POST" })
       const res = await apiClient.patch<Customer>(
         `/api/admin/customers/${data.customerId}/status`,
         { status: data.status },
-        { headers: storeHeaders() },
+        { headers: await storeHeaders() },
       );
       return res.data;
     } catch (err) {

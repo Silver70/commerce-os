@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
+import { Link, useRouterState } from "@tanstack/react-router";
 import {
   LayoutDashboardIcon,
   PackageIcon,
@@ -37,13 +37,7 @@ import {
   SidebarRail,
   SidebarSeparator,
 } from "~/components/ui/sidebar";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { logoutServerFn } from "~/server/auth";
-import { meQueryOptions } from "~/queries/auth";
-import {
-  clearActiveStoreCookieServerFn,
-  clearOnboardingCookieServerFn,
-} from "~/server/stores";
+import { useAuth } from "@workos/authkit-tanstack-react-start/client";
 
 type NavItem = {
   title: string;
@@ -94,28 +88,17 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const { data: user } = useQuery(meQueryOptions());
+  const { user, role, signOut } = useAuth();
   const [isLoggingOut, setIsLoggingOut] = React.useState(false);
 
   const avatarInitial = user?.email?.[0]?.toUpperCase() ?? "U";
   const displayEmail = user?.email ?? "Account";
-  const displayRole = user?.role
-    ? (ROLE_LABELS[user.role] ?? user.role)
-    : "Admin";
+  const displayRole = role ? (ROLE_LABELS[role] ?? role) : "Admin";
 
   async function handleLogout() {
     setIsLoggingOut(true);
     try {
-      await logoutServerFn();
-      // Clear store-scoped cookies so a subsequent login starts fresh
-      await Promise.allSettled([
-        clearActiveStoreCookieServerFn(),
-        clearOnboardingCookieServerFn(),
-      ]);
-      queryClient.clear();
-      await navigate({ to: "/auth/login" });
+      await signOut();
     } finally {
       setIsLoggingOut(false);
     }

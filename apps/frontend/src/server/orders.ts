@@ -1,24 +1,27 @@
 import { createServerFn } from "@tanstack/react-start";
-import { getRequestHeader } from "@tanstack/react-start/server";
 import { z } from "zod";
 import { adminStoreHeader } from "~/lib/active-store";
-import { apiClient } from "~/lib/api-client";
+import { apiClient, authHeader } from "~/lib/api-client";
 import { getErrorMessage } from "~/lib/errors";
 import type { Order, OrderStatus, OrdersResponse } from "~/types/api";
 
-function incomingCookie(): string {
-  return getRequestHeader("cookie") ?? "";
-}
-
-function storeHeaders() {
-  return { cookie: incomingCookie(), ...adminStoreHeader() };
+async function storeHeaders() {
+  return { ...(await authHeader()), ...adminStoreHeader() };
 }
 
 export const getOrdersServerFn = createServerFn({ method: "GET" })
   .inputValidator(
     z.object({
       status: z
-        .enum(["pending", "paid", "processing", "shipped", "delivered", "refunded", "cancelled"])
+        .enum([
+          "pending",
+          "paid",
+          "processing",
+          "shipped",
+          "delivered",
+          "refunded",
+          "cancelled",
+        ])
         .optional(),
       customerId: z.string().optional(),
       cursor: z.string().optional(),
@@ -34,7 +37,7 @@ export const getOrdersServerFn = createServerFn({ method: "GET" })
     try {
       const res = await apiClient.get<OrdersResponse>(
         `/api/admin/orders?${params.toString()}`,
-        { headers: storeHeaders() },
+        { headers: await storeHeaders() },
       );
       return res.data;
     } catch (err) {
@@ -46,7 +49,15 @@ export const updateOrderStatusServerFn = createServerFn({ method: "POST" })
   .inputValidator(
     z.object({
       orderId: z.string().min(1),
-      status: z.enum(["pending", "paid", "processing", "shipped", "delivered", "refunded", "cancelled"]),
+      status: z.enum([
+        "pending",
+        "paid",
+        "processing",
+        "shipped",
+        "delivered",
+        "refunded",
+        "cancelled",
+      ]),
     }),
   )
   .handler(async ({ data }) => {
@@ -54,7 +65,7 @@ export const updateOrderStatusServerFn = createServerFn({ method: "POST" })
       const res = await apiClient.patch<Order>(
         `/api/admin/orders/${data.orderId}/status`,
         { status: data.status },
-        { headers: storeHeaders() },
+        { headers: await storeHeaders() },
       );
       return res.data;
     } catch (err) {
@@ -74,7 +85,7 @@ export const addOrderNoteServerFn = createServerFn({ method: "POST" })
       await apiClient.post(
         `/api/admin/orders/${data.orderId}/notes`,
         { note: data.note },
-        { headers: storeHeaders() },
+        { headers: await storeHeaders() },
       );
     } catch (err) {
       throw new Error(getErrorMessage(err));
@@ -94,7 +105,7 @@ export const refundOrderServerFn = createServerFn({ method: "POST" })
       await apiClient.post(
         `/api/admin/orders/${data.orderId}/refund`,
         { amount: data.amount, reason: data.reason },
-        { headers: storeHeaders() },
+        { headers: await storeHeaders() },
       );
     } catch (err) {
       throw new Error(getErrorMessage(err));
@@ -113,11 +124,9 @@ export const createShipmentServerFn = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     try {
       const { orderId, ...body } = data;
-      await apiClient.post(
-        `/api/admin/orders/${orderId}/shipment`,
-        body,
-        { headers: storeHeaders() },
-      );
+      await apiClient.post(`/api/admin/orders/${orderId}/shipment`, body, {
+        headers: await storeHeaders(),
+      });
     } catch (err) {
       throw new Error(getErrorMessage(err));
     }
@@ -127,9 +136,12 @@ export const getOrderByIdServerFn = createServerFn({ method: "GET" })
   .inputValidator(z.object({ orderId: z.string().min(1) }))
   .handler(async ({ data }): Promise<Order> => {
     try {
-      const res = await apiClient.get<Order>(`/api/admin/orders/${data.orderId}`, {
-        headers: storeHeaders(),
-      });
+      const res = await apiClient.get<Order>(
+        `/api/admin/orders/${data.orderId}`,
+        {
+          headers: await storeHeaders(),
+        },
+      );
       return res.data;
     } catch (err) {
       throw new Error(getErrorMessage(err));

@@ -5,12 +5,9 @@ import {
   Delete,
   Body,
   Param,
-  Req,
-  Res,
   HttpCode,
   HttpStatus,
   UseGuards,
-  UnauthorizedException,
   ParseUUIDPipe,
 } from '@nestjs/common';
 import {
@@ -21,21 +18,14 @@ import {
 } from '@nestjs/swagger';
 import { IsString, IsNotEmpty, MaxLength } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
-import type { Request, Response } from 'express';
 import { WorkosAuthService } from '../services/workos-auth.service';
 import { ApiKeyService } from '../services/api-key.service';
-import { EventEmitter2 } from '@nestjs/event-emitter';
-import { TenantCreatedEvent } from '../../../shared/events/events';
 import { AdminAuthGuard } from '../guards/admin-auth.guard';
 import { RbacGuard } from '../guards/rbac.guard';
 import { RequirePermission } from '../decorators/require-permission.decorator';
 import { CurrentTenant } from '../decorators/current-tenant.decorator';
 import type { TenantContext } from '../../../shared/tenant/tenant-context';
 import { requireStoreContext } from '../../../shared/tenant/tenant.util';
-import { SignupDto } from '../dto/signup.dto';
-import { LoginDto } from '../dto/login.dto';
-import { VerifyEmailDto } from '../dto/verify-email.dto';
-import { ResendVerificationDto } from '../dto/resend-verification.dto';
 
 class CreateApiKeyDto {
   @ApiProperty({ description: 'Display name for this API key' })
@@ -51,121 +41,45 @@ export class AuthController {
   constructor(
     private readonly workosAuth: WorkosAuthService,
     private readonly apiKeyService: ApiKeyService,
-    private readonly eventEmitter: EventEmitter2,
   ) {}
 
-  @Post('signup')
-  @ApiOperation({ summary: 'Create a new admin account and organization' })
-  async signup(@Body() dto: SignupDto) {
-    const user = await this.workosAuth.signup(
-      dto.email,
-      dto.password,
-      dto.firstName,
-      dto.lastName,
-    );
+  // ─── Bootstrap (first-login org provisioning) ─────────────────────────────
 
-    this.eventEmitter.emit(
-      'tenant.created',
-      new TenantCreatedEvent('', user.id, dto.email, dto.organizationName),
-    );
-
-    return { userId: user.id, email: user.email };
-  }
-
-  @Post('login')
+  @Post('bootstrap')
+  @UseGuards(AdminAuthGuard)
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Login with email and password' })
-  async login(
-    @Body() dto: LoginDto,
-    @Res({ passthrough: true }) res: Response,
-  ) {
-    const result = await this.workosAuth.login(dto.email, dto.password);
-    this.setSessionCookies(res, result.accessToken, result.refreshToken);
-    return { user: result.user, accessToken: result.accessToken };
-  }
-
-  @Post('refresh')
-  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
   @ApiOperation({
-    summary: 'Exchange the refresh token cookie for a fresh access token',
+    summary:
+      'Idempotently provision a WorkOS org + membership for a brand-new user',
   })
-  async refresh(
-    @Req() req: Request,
-    @Res({ passthrough: true }) res: Response,
-  ) {
-    const refreshToken = (req.cookies as Record<string, string> | undefined)?.[
-      'wos-refresh'
-    ];
-    if (!refreshToken) {
-      this.clearSessionCookies(res);
-      throw new UnauthorizedException('No refresh token');
+  async bootstrap(@CurrentTenant() tenant: TenantContext) {
+    const userId = tenant.userId!;
+
+    // Idempotent: return existing org if user already has a membership
+    const memberships = await this.workosAuth.listOrganizationMemberships(userId);
+    if (memberships.length > 0) {
+      return { workosOrgId: memberships[0].organizationId };
     }
-    try {
-      const result = await this.workosAuth.refreshSession(refreshToken);
-      this.setSessionCookies(res, result.accessToken, result.refreshToken);
-      return { ok: true };
-    } catch {
-      this.clearSessionCookies(res);
-      throw new UnauthorizedException('Session refresh failed');
-    }
+
+    const user = await this.workosAuth.getUser(userId);
+    const orgName = user.email.split('@')[0] ?? 'My Organization';
+
+    const workosOrg = await this.workosAuth.createOrganization(orgName);
+    await this.workosAuth.createMembership(userId, workosOrg.id, 'super_admin');
+
+    // The DB organizations row is auto-created by AdminAuthGuard on the next
+    // authenticated request once the JWT carries the new org_id claim.
+    return { workosOrgId: workosOrg.id };
   }
 
-  private setSessionCookies(
-    res: Response,
-    accessToken: string,
-    refreshToken: string,
-  ): void {
-    const secure = process.env.NODE_ENV === 'production';
-    res.cookie('wos-session', accessToken, {
-      httpOnly: true,
-      secure,
-      sameSite: 'lax',
-      maxAge: 15 * 60 * 1000,
-    });
-    res.cookie('wos-refresh', refreshToken, {
-      httpOnly: true,
-      secure,
-      sameSite: 'lax',
-      maxAge: 30 * 24 * 60 * 60 * 1000,
-    });
-  }
-
-  private clearSessionCookies(res: Response): void {
-    res.clearCookie('wos-session');
-    res.clearCookie('wos-refresh');
-  }
-
-  @Post('verify-email')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({
-    summary: 'Verify email address with code from verification email',
-  })
-  async verifyEmail(@Body() dto: VerifyEmailDto) {
-    await this.workosAuth.verifyEmail(dto.userId, dto.code);
-
-    return { message: 'Email verified successfully.' };
-  }
-
-  @Post('resend-verification')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Resend email verification link' })
-  async resendVerification(@Body() dto: ResendVerificationDto) {
-    await this.workosAuth.resendVerificationEmail(dto.userId);
-    return { message: 'Verification email sent.' };
-  }
-
-  @Post('logout')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Logout and clear session cookies' })
-  logout(@Res({ passthrough: true }) res: Response) {
-    this.clearSessionCookies(res);
-  }
+  // ─── Me ───────────────────────────────────────────────────────────────────
 
   @Get('me')
   @UseGuards(AdminAuthGuard)
-  @ApiOperation({ summary: 'Get current admin user' })
+  @ApiOperation({ summary: 'Get current admin user info' })
   async me(@CurrentTenant() tenant: TenantContext) {
-    const memberships = await this.workosAuth.listOrganizations(tenant.userId!);
+    const memberships = await this.workosAuth.listOrganizationMemberships(tenant.userId!);
     return {
       userId: tenant.userId,
       email: tenant.email,

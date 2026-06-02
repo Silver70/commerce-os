@@ -1,18 +1,10 @@
 import { createServerFn } from "@tanstack/react-start";
-import {
-  getCookie,
-  getRequestHeader,
-  setCookie,
-} from "@tanstack/react-start/server";
+import { getCookie, setCookie } from "@tanstack/react-start/server";
 import { z } from "zod";
 import { adminStoreHeader } from "~/lib/active-store";
-import { apiClient } from "~/lib/api-client";
+import { apiClient, authHeader } from "~/lib/api-client";
 import { getErrorMessage } from "~/lib/errors";
 import type { Store } from "~/types/api";
-
-function incomingCookie(): string {
-  return getRequestHeader("cookie") ?? "";
-}
 
 const ONBOARDING_COOKIE_OPTS = {
   path: "/",
@@ -26,7 +18,7 @@ export const getStoresServerFn = createServerFn({ method: "GET" }).handler(
   async (): Promise<Store[]> => {
     try {
       const res = await apiClient.get<Store[]>("/api/admin/stores", {
-        headers: { cookie: incomingCookie() },
+        headers: await authHeader(),
       });
       return res.data;
     } catch (err) {
@@ -48,7 +40,7 @@ export const createStoreServerFn = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<Store> => {
     try {
       const res = await apiClient.post<Store>("/api/admin/stores", data, {
-        headers: { cookie: incomingCookie() },
+        headers: await authHeader(),
       });
       setCookie("wos-active-store", res.data.id, ONBOARDING_COOKIE_OPTS);
       setCookie("wos-onboarding-step", "2", ONBOARDING_COOKIE_OPTS);
@@ -77,7 +69,7 @@ export const updateStoreServerFn = createServerFn({ method: "POST" })
         body,
         {
           headers: {
-            cookie: incomingCookie(),
+            ...(await authHeader()),
             ...adminStoreHeader(),
           },
         },

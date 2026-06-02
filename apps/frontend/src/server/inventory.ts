@@ -1,17 +1,12 @@
 import { createServerFn } from "@tanstack/react-start";
-import { getRequestHeader } from "@tanstack/react-start/server";
 import { z } from "zod";
 import { adminStoreHeader } from "~/lib/active-store";
-import { apiClient } from "~/lib/api-client";
+import { apiClient, authHeader } from "~/lib/api-client";
 import { getErrorMessage } from "~/lib/errors";
 import type { InventoryItem } from "~/types/api";
 
-function incomingCookie(): string {
-  return getRequestHeader("cookie") ?? "";
-}
-
-function storeHeaders() {
-  return { cookie: incomingCookie(), ...adminStoreHeader() };
+async function storeHeaders() {
+  return { ...(await authHeader()), ...adminStoreHeader() };
 }
 
 export const getInventoryServerFn = createServerFn({ method: "GET" })
@@ -31,7 +26,7 @@ export const getInventoryServerFn = createServerFn({ method: "GET" })
         ? `/api/admin/inventory/low-stock`
         : `/api/admin/inventory?${params.toString()}`;
       const res = await apiClient.get<InventoryItem[]>(endpoint, {
-        headers: storeHeaders(),
+        headers: await storeHeaders(),
       });
       return res.data;
     } catch (err) {
@@ -54,7 +49,7 @@ export const adjustInventoryServerFn = createServerFn({ method: "POST" })
       const res = await apiClient.patch<InventoryItem>(
         `/api/admin/inventory/${variantId}`,
         body,
-        { headers: storeHeaders() },
+        { headers: await storeHeaders() },
       );
       return res.data;
     } catch (err) {
