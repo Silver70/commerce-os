@@ -10,5 +10,12 @@ export default defineConfig({
   resolve: {
     tsconfigPaths: true,
   },
+  optimizeDeps: {
+    // eventemitter3 v5 (pulled in by recharts) ships an ESM wrapper around a
+    // CJS index.js with no default export. Force-prebundle it so Vite flattens
+    // it into valid ESM; otherwise the raw CJS reaches the browser, throws
+    // "does not provide an export named 'default'", and breaks hydration.
+    include: ['eventemitter3'],
+  },
   plugins: [tailwindcss(), tanstackStart(), viteReact()],
 })

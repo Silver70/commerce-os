@@ -1,11 +1,6 @@
-import { createStart } from '@tanstack/react-start';
-import { createCsrfMiddleware } from '@tanstack/start-client-core';
-import { authkitMiddleware } from '@workos/authkit-tanstack-react-start';
-
-const csrfMiddleware = createCsrfMiddleware({
-  filter: (ctx) => ctx.handlerType === 'serverFn',
-});
+import { createStart } from "@tanstack/react-start";
+import { authkitMiddleware } from "@workos/authkit-tanstack-react-start";
 
 export const startInstance = createStart(() => ({
-  requestMiddleware: [authkitMiddleware(), csrfMiddleware],
+  requestMiddleware: [authkitMiddleware()],
 }));
