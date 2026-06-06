@@ -3,7 +3,7 @@ import {
   getCategoriesServerFn,
   getProductByIdServerFn,
   getProductsServerFn,
-} from "~/server/products";
+} from "./server";
 import type { ProductStatus } from "~/types/api";
 
 export const productsQueryOptions = (
