@@ -35,7 +35,7 @@ import {
   type ChartConfig,
 } from "~/components/ui/chart";
 import { dashboardStatsQueryOptions } from "~/queries/dashboard";
-import { ordersQueryOptions } from "~/queries/orders";
+import { ordersQueryOptions } from "~/features/orders/queries";
 import { formatMoney } from "~/lib/money";
 import type { OrderStatus, Period } from "~/types/api";
 

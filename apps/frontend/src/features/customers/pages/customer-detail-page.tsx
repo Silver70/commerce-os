@@ -21,10 +21,9 @@ import { CustomerAvatar } from "../components/customer-avatar";
 import { CustomerStatusBadge } from "../components/customer-status-badge";
 import { StatTile } from "../components/stat-tile";
 import { AddressRow } from "../components/address-row";
-// Cross-feature: order history pulls from the orders module. These move to
-// ~/features/orders/* when orders is migrated to a feature.
-import { ordersQueryOptions } from "~/queries/orders";
-import { OrderStatusBadge } from "~/routes/admin/orders_/index";
+// Cross-feature: the order-history section reads from the orders feature.
+import { ordersQueryOptions } from "~/features/orders/queries";
+import { OrderStatusBadge } from "~/features/orders/components/order-status-badge";
 
 const route = getRouteApi("/admin/customers_/$customerId");
 
