@@ -1,8 +1,5 @@
 import { queryOptions } from "@tanstack/react-query";
-import {
-  getCustomersServerFn,
-  getCustomerByIdServerFn,
-} from "~/server/customers";
+import { getCustomersServerFn, getCustomerByIdServerFn } from "./server";
 import type { CustomerStatus } from "~/types/api";
 
 export const customersQueryOptions = (
