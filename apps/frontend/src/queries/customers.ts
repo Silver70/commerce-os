@@ -5,7 +5,9 @@ import {
 } from "~/server/customers";
 import type { CustomerStatus } from "~/types/api";
 
-export const customersQueryOptions = (params: { status?: CustomerStatus } = {}) =>
+export const customersQueryOptions = (
+  params: { status?: CustomerStatus } = {},
+) =>
   queryOptions({
     queryKey: ["customers", params],
     queryFn: () => getCustomersServerFn({ data: params }),

@@ -47,10 +47,16 @@ export const Route = createFileRoute("/admin")({
     const user = auth.user
     const organizationId = (auth as { organizationId?: string }).organizationId
 
-    // First-login: no org yet — provision one then re-mint the session
+    // First-login: no org yet — provision one then re-mint the session.
+    // switchToOrganization sets a fresh session cookie (now carrying org_id +
+    // role), but getAuth()/authHeader() within THIS request still hold the
+    // pre-switch token — so any backend call below hits RBAC as "No role
+    // assigned". Bounce through a fresh request so the re-minted session is the
+    // one that's read; this beforeLoad then re-runs with organizationId set.
     if (!organizationId) {
       const { workosOrgId } = await bootstrapOrgServerFn()
       await switchToOrganization({ data: { organizationId: workosOrgId } })
+      throw redirect({ to: "/admin" })
     }
 
     const step = await getOnboardingStepServerFn()

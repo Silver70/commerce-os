@@ -14,7 +14,10 @@ import {
 import { Logo } from "~/components/Logo";
 import { Button } from "~/components/ui/button";
 import { createApiKeyServerFn } from "~/server/auth";
-import { clearOnboardingCookieServerFn } from "~/server/stores";
+import {
+  clearOnboardingCookieServerFn,
+  getStoresServerFn,
+} from "~/server/stores";
 
 export const Route = createFileRoute("/onboarding/step3")({
   component: OnboardingStep3,
@@ -44,6 +47,12 @@ type KeyState =
   | { status: "ready"; key: string }
   | { status: "error"; message: string };
 
+function getActiveStoreId(): string | null {
+  if (typeof document === "undefined") return null;
+  const match = document.cookie.match(/(?:^|;\s*)wos-active-store=([^;]*)/);
+  return match ? match[1] : null;
+}
+
 function OnboardingStep3() {
   const navigate = useNavigate();
   const [revealed, setRevealed] = React.useState(false);
@@ -51,29 +60,41 @@ function OnboardingStep3() {
   const [keyState, setKeyState] = React.useState<KeyState>({
     status: "loading",
   });
+  // Fire the key-creation exactly once. A ref (not the effect cleanup) is the
+  // guard, because React's dev double-invoke / remount would otherwise create
+  // two API keys for the same store. We deliberately do NOT cancel on cleanup:
+  // the result must survive the StrictMode unmount→remount and populate state,
+  // and a stray setState after a genuine unmount is a harmless no-op.
+  const startedRef = React.useRef(false);
 
   React.useEffect(() => {
-    let cancelled = false;
+    if (startedRef.current) return;
+    startedRef.current = true;
 
-    createApiKeyServerFn({ data: { name: "Default Storefront Key" } })
-      .then(async (result) => {
-        if (!cancelled) {
-          setKeyState({ status: "ready", key: result.rawKey });
-          // Onboarding complete — clear the step cookie (fire-and-forget)
-          clearOnboardingCookieServerFn().catch(() => {});
+    (async () => {
+      try {
+        // Name the key after the store so keys are distinguishable per store.
+        // A store-lookup failure must never block key generation — fall back.
+        let keyName = "Storefront Key";
+        try {
+          const stores = await getStoresServerFn();
+          const activeId = getActiveStoreId();
+          const store = stores.find((s) => s.id === activeId) ?? stores[0];
+          if (store) keyName = `${store.name} Storefront`;
+        } catch {
+          // keep the fallback name
         }
-      })
-      .catch((err: unknown) => {
-        if (!cancelled) {
-          const message =
-            err instanceof Error ? err.message : "Failed to generate API key";
-          setKeyState({ status: "error", message });
-        }
-      });
 
-    return () => {
-      cancelled = true;
-    };
+        const result = await createApiKeyServerFn({ data: { name: keyName } });
+        setKeyState({ status: "ready", key: result.rawKey });
+        // Onboarding complete — clear the step cookie (fire-and-forget)
+        clearOnboardingCookieServerFn().catch(() => {});
+      } catch (err: unknown) {
+        const message =
+          err instanceof Error ? err.message : "Failed to generate API key";
+        setKeyState({ status: "error", message });
+      }
+    })();
   }, []);
 
   async function handleSkip() {
