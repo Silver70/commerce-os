@@ -30,7 +30,7 @@ import {
   SidebarTrigger,
 } from "~/components/ui/sidebar"
 import { TooltipProvider } from "~/components/ui/tooltip"
-import { storesQueryOptions } from "~/queries/settings"
+import { storesQueryOptions } from "~/features/settings/queries"
 import {
   ensureActiveStoreServerFn,
   getOnboardingStepServerFn,

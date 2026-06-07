@@ -4,7 +4,7 @@ import {
   getAuditLogsServerFn,
   getOrganizationServerFn,
   getTaxRatesServerFn,
-} from "~/server/settings";
+} from "./server";
 import { getStoresServerFn } from "~/server/stores";
 
 export const organizationQueryOptions = () =>

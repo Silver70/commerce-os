@@ -1,61 +1,70 @@
-import * as React from "react"
-import { createFileRoute } from "@tanstack/react-router"
-import { useSuspenseQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { AlertTriangleIcon, MinusIcon, PlusIcon, SlidersHorizontalIcon } from "lucide-react"
+import * as React from "react";
+import { createFileRoute } from "@tanstack/react-router";
+import {
+  useSuspenseQuery,
+  useMutation,
+  useQueryClient,
+} from "@tanstack/react-query";
+import {
+  AlertTriangleIcon,
+  MinusIcon,
+  PlusIcon,
+  SlidersHorizontalIcon,
+} from "lucide-react";
 
-import { Badge } from "~/components/ui/badge"
-import { Button } from "~/components/ui/button"
-import { DataTable, type DataTableColumn } from "~/components/data-table"
-import { Input } from "~/components/ui/input"
-import { Label } from "~/components/ui/label"
+import { Badge } from "~/components/ui/badge";
+import { Button } from "~/components/ui/button";
+import { DataTable, type DataTableColumn } from "~/components/data-table";
+import { Input } from "~/components/ui/input";
+import { Label } from "~/components/ui/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "~/components/ui/select"
+} from "~/components/ui/select";
 import {
   Sheet,
   SheetContent,
   SheetDescription,
   SheetHeader,
   SheetTitle,
-} from "~/components/ui/sheet"
-import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs"
-import { inventoryQueryOptions } from "~/queries/inventory"
-import { adjustInventoryServerFn } from "~/server/inventory"
-import type { InventoryItem, StockStatus } from "~/types/api"
+} from "~/components/ui/sheet";
+import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
+import { inventoryQueryOptions } from "~/queries/inventory";
+import { adjustInventoryServerFn } from "~/server/inventory";
+import type { InventoryItem, StockStatus } from "~/types/api";
 
 export const Route = createFileRoute("/admin/inventory")({
   loader: ({ context }) =>
     context.queryClient.ensureQueryData(inventoryQueryOptions()),
   component: InventoryPage,
-})
+});
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function available(item: InventoryItem): number {
-  return item.quantity - item.reserved
+  return item.quantity - item.reserved;
 }
 
 function stockStatus(item: InventoryItem): StockStatus {
-  const avail = available(item)
-  if (avail === 0) return "out"
-  if (avail <= item.lowStockThreshold) return "low"
-  return "ok"
+  const avail = available(item);
+  if (avail === 0) return "out";
+  if (avail <= item.lowStockThreshold) return "low";
+  return "ok";
 }
 
 function AvailableCell({ item }: { item: InventoryItem }) {
-  const status = stockStatus(item)
-  const avail = available(item)
+  const status = stockStatus(item);
+  const avail = available(item);
 
   if (status === "out") {
     return (
       <span className="inline-flex items-center gap-1.5 text-sm font-medium tabular-nums text-destructive">
         <span className="h-1.5 w-1.5 rounded-full bg-destructive" />0
       </span>
-    )
+    );
   }
   if (status === "low") {
     return (
@@ -63,58 +72,68 @@ function AvailableCell({ item }: { item: InventoryItem }) {
         <AlertTriangleIcon className="h-3.5 w-3.5" />
         {avail}
       </span>
-    )
+    );
   }
-  return <span className="text-sm tabular-nums">{avail.toLocaleString()}</span>
+  return <span className="text-sm tabular-nums">{avail.toLocaleString()}</span>;
 }
 
 const ADJUSTMENT_REASONS = [
-  { value: "restock",    label: "Restock"         },
-  { value: "damage",     label: "Damage / Loss"   },
-  { value: "correction", label: "Correction"      },
-  { value: "return",     label: "Customer Return" },
-  { value: "other",      label: "Other"           },
-]
+  { value: "restock", label: "Restock" },
+  { value: "damage", label: "Damage / Loss" },
+  { value: "correction", label: "Correction" },
+  { value: "return", label: "Customer Return" },
+  { value: "other", label: "Other" },
+];
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 function InventoryPage() {
-  const queryClient = useQueryClient()
-  const { data: allItems } = useSuspenseQuery(inventoryQueryOptions())
-  const { data: lowItems } = useSuspenseQuery(inventoryQueryOptions({ lowStock: true }))
+  const queryClient = useQueryClient();
+  const { data: allItems } = useSuspenseQuery(inventoryQueryOptions());
+  const { data: lowItems } = useSuspenseQuery(
+    inventoryQueryOptions({ lowStock: true }),
+  );
 
-  const [activeTab, setActiveTab]       = React.useState<"all" | "low" | "out">("all")
-  const [adjustItem, setAdjustItem]     = React.useState<InventoryItem | null>(null)
-  const [adjustQty, setAdjustQty]       = React.useState(0)
-  const [adjustReason, setAdjustReason] = React.useState("")
-  const [adjustReference, setAdjustReference] = React.useState("")
+  const [activeTab, setActiveTab] = React.useState<"all" | "low" | "out">(
+    "all",
+  );
+  const [adjustItem, setAdjustItem] = React.useState<InventoryItem | null>(
+    null,
+  );
+  const [adjustQty, setAdjustQty] = React.useState(0);
+  const [adjustReason, setAdjustReason] = React.useState("");
+  const [adjustReference, setAdjustReference] = React.useState("");
 
-  const outItems = allItems.filter((i) => stockStatus(i) === "out")
+  const outItems = allItems.filter((i) => stockStatus(i) === "out");
 
-  const lowStockCount = lowItems.length
-  const outStockCount = outItems.length
+  const lowStockCount = lowItems.length;
+  const outStockCount = outItems.length;
 
   const filteredData = React.useMemo(() => {
-    if (activeTab === "low") return lowItems
-    if (activeTab === "out") return outItems
-    return allItems
-  }, [activeTab, allItems, lowItems, outItems])
+    if (activeTab === "low") return lowItems;
+    if (activeTab === "out") return outItems;
+    return allItems;
+  }, [activeTab, allItems, lowItems, outItems]);
 
   const adjustMutation = useMutation({
-    mutationFn: (vars: { variantId: string; adjustment: number; reason: string; reference?: string }) =>
-      adjustInventoryServerFn({ data: vars }),
+    mutationFn: (vars: {
+      variantId: string;
+      adjustment: number;
+      reason: string;
+      reference?: string;
+    }) => adjustInventoryServerFn({ data: vars }),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["inventory"] })
-      setAdjustItem(null)
+      void queryClient.invalidateQueries({ queryKey: ["inventory"] });
+      setAdjustItem(null);
     },
-  })
+  });
 
   const openAdjust = React.useCallback((item: InventoryItem) => {
-    setAdjustItem(item)
-    setAdjustQty(0)
-    setAdjustReason("")
-    setAdjustReference("")
-  }, [])
+    setAdjustItem(item);
+    setAdjustQty(0);
+    setAdjustReason("");
+    setAdjustReference("");
+  }, []);
 
   const columns: DataTableColumn<InventoryItem>[] = React.useMemo(
     () => [
@@ -176,7 +195,7 @@ function InventoryPage() {
       },
     ],
     [openAdjust],
-  )
+  );
 
   return (
     <div className="space-y-6">
@@ -187,7 +206,10 @@ function InventoryPage() {
         </p>
       </div>
 
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)}>
+      <Tabs
+        value={activeTab}
+        onValueChange={(v) => setActiveTab(v as typeof activeTab)}
+      >
         <TabsList>
           <TabsTrigger value="all">All SKUs</TabsTrigger>
           <TabsTrigger value="low" className="gap-1.5">
@@ -224,7 +246,10 @@ function InventoryPage() {
       />
 
       {/* ── Stock Adjustment Sheet ── */}
-      <Sheet open={adjustItem !== null} onOpenChange={(open) => !open && setAdjustItem(null)}>
+      <Sheet
+        open={adjustItem !== null}
+        onOpenChange={(open) => !open && setAdjustItem(null)}
+      >
         <SheetContent>
           <SheetHeader>
             <SheetTitle>Adjust Stock</SheetTitle>
@@ -319,7 +344,9 @@ function InventoryPage() {
               <div className="space-y-2">
                 <Label htmlFor="adjust-reference">
                   Reference{" "}
-                  <span className="font-normal text-muted-foreground">(optional)</span>
+                  <span className="font-normal text-muted-foreground">
+                    (optional)
+                  </span>
                 </Label>
                 <Input
                   id="adjust-reference"
@@ -346,7 +373,9 @@ function InventoryPage() {
                 </Button>
                 <Button
                   className="flex-1 bg-orange-700 text-white shadow-none hover:bg-orange-800"
-                  disabled={adjustQty === 0 || !adjustReason || adjustMutation.isPending}
+                  disabled={
+                    adjustQty === 0 || !adjustReason || adjustMutation.isPending
+                  }
                   onClick={() =>
                     adjustMutation.mutate({
                       variantId: adjustItem.variantId,
@@ -364,5 +393,5 @@ function InventoryPage() {
         </SheetContent>
       </Sheet>
     </div>
-  )
+  );
 }
