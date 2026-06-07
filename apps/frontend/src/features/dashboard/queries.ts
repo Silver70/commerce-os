@@ -1,5 +1,5 @@
 import { queryOptions } from "@tanstack/react-query";
-import { getDashboardStatsServerFn } from "~/server/dashboard";
+import { getDashboardStatsServerFn } from "./server";
 import type { Period } from "~/types/api";
 
 export const dashboardStatsQueryOptions = (period: Period) =>

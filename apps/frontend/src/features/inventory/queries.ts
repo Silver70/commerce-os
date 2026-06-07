@@ -1,5 +1,5 @@
 import { queryOptions } from "@tanstack/react-query";
-import { getInventoryServerFn } from "~/server/inventory";
+import { getInventoryServerFn } from "./server";
 
 export const inventoryQueryOptions = (params: { lowStock?: boolean; cursor?: string } = {}) =>
   queryOptions({

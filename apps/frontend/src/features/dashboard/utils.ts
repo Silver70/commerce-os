@@ -1,0 +1,45 @@
+import type { Period } from "~/types/api";
+
+/** Compact currency: $1.2M / $3.4k / $999. */
+export function fmt(n: number): string {
+  return n >= 1_000_000
+    ? `$${(n / 1_000_000).toFixed(1)}M`
+    : n >= 1_000
+      ? `$${(n / 1_000).toFixed(1)}k`
+      : `$${n.toLocaleString()}`;
+}
+
+/** Compact count: 1.2M / 3.4k / 999. */
+export function fmtCount(n: number): string {
+  return n >= 1_000_000
+    ? `${(n / 1_000_000).toFixed(1)}M`
+    : n >= 1_000
+      ? `${(n / 1_000).toFixed(1)}k`
+      : n.toLocaleString();
+}
+
+const PERIOD_DAYS: Record<Period, number> = {
+  today: 1,
+  "7d": 7,
+  "30d": 30,
+  "90d": 90,
+};
+
+/** Map a revenue sparkline to dated points spanning the selected period. */
+export function sparklineToTrend(
+  sparkline: number[],
+  period: Period,
+): { date: string; revenue: number }[] {
+  const days = PERIOD_DAYS[period];
+  const start = new Date();
+  start.setDate(start.getDate() - days);
+
+  return sparkline.map((revenue, i) => {
+    const d = new Date(start);
+    d.setDate(d.getDate() + i);
+    return {
+      date: d.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+      revenue,
+    };
+  });
+}
