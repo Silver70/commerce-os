@@ -8,7 +8,7 @@ import { Button } from '~/components/ui/button'
 import { Input } from '~/components/ui/input'
 import { Label } from '~/components/ui/label'
 import { Popover, PopoverContent, PopoverTrigger } from '~/components/ui/popover'
-import { createShippingZoneServerFn, createShippingMethodServerFn } from '~/server/shipping'
+import { createShippingZoneServerFn, createShippingMethodServerFn } from '~/features/shipping/server'
 import { setOnboardingStepServerFn } from '~/server/stores'
 
 export const Route = createFileRoute('/onboarding/step2')({

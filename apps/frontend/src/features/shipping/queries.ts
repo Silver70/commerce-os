@@ -2,7 +2,7 @@ import { queryOptions } from "@tanstack/react-query";
 import {
   getShippingZonesServerFn,
   getShippingMethodsServerFn,
-} from "~/server/shipping";
+} from "./server";
 
 export const shippingZonesQueryOptions = () =>
   queryOptions({
