@@ -4,7 +4,7 @@ import {
   getDiscountByIdServerFn,
   getCouponsServerFn,
   getCouponByIdServerFn,
-} from "~/server/discounts";
+} from "./server";
 
 export const discountsQueryOptions = () =>
   queryOptions({
