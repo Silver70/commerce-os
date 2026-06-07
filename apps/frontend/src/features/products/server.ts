@@ -308,6 +308,70 @@ export const getCategoriesServerFn = createServerFn({ method: "GET" }).handler(
   },
 );
 
+const createCategoryInputSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  description: z.string().optional(),
+  parentId: z.string().min(1).optional(),
+  position: z.number().int().min(0).optional(),
+});
+
+// The create/update endpoints return a single category row without a
+// `children` array — normalize to the tree-shaped Category the UI expects.
+function withChildren(cat: Omit<Category, "children">): Category {
+  return { ...cat, children: [] };
+}
+
+export const createCategoryServerFn = createServerFn({ method: "POST" })
+  .inputValidator(createCategoryInputSchema)
+  .handler(async ({ data }): Promise<Category> => {
+    try {
+      const res = await apiClient.post<Omit<Category, "children">>(
+        "/api/admin/categories",
+        data,
+        { headers: await storeHeaders() },
+      );
+      return withChildren(res.data);
+    } catch (err) {
+      throw new Error(getErrorMessage(err));
+    }
+  });
+
+export const updateCategoryServerFn = createServerFn({ method: "POST" })
+  .inputValidator(
+    z.object({
+      id: z.string().min(1),
+      name: z.string().min(1).optional(),
+      description: z.string().optional(),
+      parentId: z.string().min(1).nullable().optional(),
+      position: z.number().int().min(0).optional(),
+    }),
+  )
+  .handler(async ({ data }): Promise<Category> => {
+    const { id, ...body } = data;
+    try {
+      const res = await apiClient.patch<Omit<Category, "children">>(
+        `/api/admin/categories/${id}`,
+        body,
+        { headers: await storeHeaders() },
+      );
+      return withChildren(res.data);
+    } catch (err) {
+      throw new Error(getErrorMessage(err));
+    }
+  });
+
+export const deleteCategoryServerFn = createServerFn({ method: "POST" })
+  .inputValidator(z.object({ id: z.string().min(1) }))
+  .handler(async ({ data }) => {
+    try {
+      await apiClient.delete(`/api/admin/categories/${data.id}`, {
+        headers: await storeHeaders(),
+      });
+    } catch (err) {
+      throw new Error(getErrorMessage(err));
+    }
+  });
+
 // ─── Re-export types for consumers ───────────────────────────────────────────
 
 export type CreateProductInput = z.infer<typeof createProductInputSchema>;

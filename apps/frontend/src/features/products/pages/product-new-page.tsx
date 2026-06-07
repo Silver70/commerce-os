@@ -28,7 +28,11 @@ import {
   productQueryOptions,
   productsQueryOptions,
 } from "../queries";
-import { createProductServerFn, uploadMediaServerFn } from "../server";
+import {
+  createCategoryServerFn,
+  createProductServerFn,
+  uploadMediaServerFn,
+} from "../server";
 import {
   generateVariantDrafts,
   STATUS_HINTS,
@@ -217,6 +221,18 @@ export function ProductNewPage() {
       setErrors({
         _root: err instanceof Error ? err.message : "Failed to create product",
       });
+    },
+  });
+
+  // Quick-create a category inline, then auto-select it. Full management
+  // (parent, description, reordering) lives at /admin/categories.
+  const createCategoryMutation = useMutation({
+    mutationFn: (name: string) => createCategoryServerFn({ data: { name } }),
+    onSuccess: (cat) => {
+      queryClient.invalidateQueries({
+        queryKey: categoriesQueryOptions().queryKey,
+      });
+      addCat(cat);
     },
   });
 
@@ -546,6 +562,8 @@ export function ProductNewPage() {
             selected={selectedCats}
             onAdd={addCat}
             onRemove={removeCat}
+            onCreate={(name) => createCategoryMutation.mutate(name)}
+            isCreating={createCategoryMutation.isPending}
           />
 
           {/* SEO */}

@@ -1,7 +1,8 @@
 import * as React from "react";
-import { PlusIcon, SearchIcon, XIcon } from "lucide-react";
+import { LoaderCircleIcon, PlusIcon, SearchIcon, XIcon } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Input } from "~/components/ui/input";
+import { cn } from "~/lib/utils";
 import type { Category } from "~/types/api";
 
 export function CategoriesCard({
@@ -9,11 +10,16 @@ export function CategoriesCard({
   selected,
   onAdd,
   onRemove,
+  onCreate,
+  isCreating = false,
 }: {
   allCategories: Category[];
   selected: Category[];
   onAdd: (cat: Category) => void;
   onRemove: (id: string) => void;
+  /** Quick-create a category by name. When omitted, no create affordance shows. */
+  onCreate?: (name: string) => void;
+  isCreating?: boolean;
 }) {
   const [query, setQuery] = React.useState("");
   const [focused, setFocused] = React.useState(false);
@@ -30,7 +36,19 @@ export function CategoriesCard({
       c.name.toLowerCase().includes(query.toLowerCase()),
   );
 
-  const showDropdown = focused && suggestions.length > 0;
+  const trimmed = query.trim();
+  const exactMatch = flat.some(
+    (c) => c.name.toLowerCase() === trimmed.toLowerCase(),
+  );
+  const canCreate = !!onCreate && trimmed.length > 0 && !exactMatch;
+
+  function handleCreate() {
+    if (!canCreate) return;
+    onCreate?.(trimmed);
+    setQuery("");
+  }
+
+  const showDropdown = focused && (suggestions.length > 0 || canCreate);
 
   return (
     <Card>
@@ -45,7 +63,15 @@ export function CategoriesCard({
             onChange={(e) => setQuery(e.target.value)}
             onFocus={() => setFocused(true)}
             onBlur={() => setTimeout(() => setFocused(false), 120)}
-            placeholder="Search categories…"
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && canCreate) {
+                e.preventDefault();
+                handleCreate();
+              }
+            }}
+            placeholder={
+              onCreate ? "Search or create category…" : "Search categories…"
+            }
             className="h-9 pl-8 text-sm"
           />
 
@@ -65,6 +91,33 @@ export function CategoriesCard({
                   {cat.name}
                 </button>
               ))}
+
+              {canCreate && (
+                <button
+                  type="button"
+                  disabled={isCreating}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    handleCreate();
+                  }}
+                  className={cn(
+                    "flex w-full items-center gap-2 px-3 py-2 text-sm transition-colors hover:bg-muted/60 disabled:opacity-60",
+                    suggestions.length > 0 && "border-t border-border",
+                  )}
+                >
+                  {isCreating ? (
+                    <LoaderCircleIcon className="h-3.5 w-3.5 shrink-0 animate-spin text-muted-foreground" />
+                  ) : (
+                    <PlusIcon className="h-3.5 w-3.5 shrink-0 text-orange-700" />
+                  )}
+                  <span className="text-muted-foreground">
+                    Create{" "}
+                    <span className="font-medium text-foreground">
+                      “{trimmed}”
+                    </span>
+                  </span>
+                </button>
+              )}
             </div>
           )}
         </div>

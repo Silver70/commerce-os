@@ -117,6 +117,8 @@ export type Category = {
   name: string;
   slug: string;
   parentId: string | null;
+  description?: string | null;
+  position?: number;
   children: Category[];
 };
 

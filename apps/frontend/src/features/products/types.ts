@@ -27,3 +27,11 @@ export type PendingFile = {
   altText: string;
   primary: boolean;
 };
+
+// Category create/edit form values — collected in the sheet, persisted via
+// the create/update server fns.
+export type CategoryFormValues = {
+  name: string;
+  parentId: string | null;
+  description: string;
+};
