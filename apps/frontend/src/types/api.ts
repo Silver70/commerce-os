@@ -236,6 +236,13 @@ export type InventoryItem = {
   updatedAt: string;
 };
 
+// Inventory item enriched with variant + product labels (list endpoints).
+export type InventoryItemView = InventoryItem & {
+  sku: string;
+  variantName: string | null;
+  productName: string;
+};
+
 // ─── Discounts & Coupons ──────────────────────────────────────────────────────
 
 export type DiscountType = "percentage" | "fixed_amount";

@@ -5,22 +5,23 @@ import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/data-table";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
-import type { InventoryItem } from "~/types/api";
+import type { InventoryItemView } from "~/types/api";
 import { inventoryQueryOptions } from "../queries";
 import { stockStatus } from "../utils";
 import { AvailableCell } from "../components/available-cell";
 import { StockAdjustSheet } from "../components/stock-adjust-sheet";
 
 export function InventoryPage() {
-  const allItems: InventoryItem[] = useSuspenseQuery(
+  const allItems: InventoryItemView[] = useSuspenseQuery(
     inventoryQueryOptions(),
   ).data;
-  const lowItems: InventoryItem[] = useSuspenseQuery(
+  const lowItems: InventoryItemView[] = useSuspenseQuery(
     inventoryQueryOptions({ lowStock: true }),
   ).data;
 
   const [activeTab, setActiveTab] = React.useState<"all" | "low" | "out">("all");
-  const [adjustItem, setAdjustItem] = React.useState<InventoryItem | null>(null);
+  const [adjustItem, setAdjustItem] =
+    React.useState<InventoryItemView | null>(null);
 
   const outItems = allItems.filter((i) => stockStatus(i) === "out");
 
@@ -33,20 +34,30 @@ export function InventoryPage() {
     return allItems;
   }, [activeTab, allItems, lowItems, outItems]);
 
-  const openAdjust = React.useCallback((item: InventoryItem) => {
+  const openAdjust = React.useCallback((item: InventoryItemView) => {
     setAdjustItem(item);
   }, []);
 
-  const columns: DataTableColumn<InventoryItem>[] = React.useMemo(
+  const columns: DataTableColumn<InventoryItemView>[] = React.useMemo(
     () => [
       {
-        key: "variantId",
-        header: "Variant ID",
-        className: "w-44",
+        key: "product",
+        header: "Product",
         render: (row) => (
-          <span className="font-mono text-sm font-medium tracking-wide text-muted-foreground">
-            {row.variantId.slice(0, 8)}…
-          </span>
+          <div className="flex flex-col">
+            <span className="text-sm font-medium text-foreground">
+              {row.productName}
+              {row.variantName && (
+                <span className="text-muted-foreground">
+                  {" · "}
+                  {row.variantName}
+                </span>
+              )}
+            </span>
+            <span className="font-mono text-xs tracking-wide text-muted-foreground">
+              {row.sku}
+            </span>
+          </div>
         ),
       },
       {

@@ -18,7 +18,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "~/components/ui/sheet";
-import type { InventoryItem } from "~/types/api";
+import type { InventoryItemView } from "~/types/api";
 import { adjustInventoryServerFn } from "../server";
 import { available } from "../utils";
 
@@ -34,7 +34,7 @@ export function StockAdjustSheet({
   item,
   onClose,
 }: {
-  item: InventoryItem | null;
+  item: InventoryItemView | null;
   onClose: () => void;
 }) {
   const queryClient = useQueryClient();
@@ -71,7 +71,10 @@ export function StockAdjustSheet({
           <SheetTitle>Adjust Stock</SheetTitle>
           {item && (
             <SheetDescription>
-              Variant {item.variantId.slice(0, 8)}
+              {item.productName}
+              {item.variantName ? ` · ${item.variantName}` : ""}
+              {" · "}
+              <span className="font-mono">{item.sku}</span>
             </SheetDescription>
           )}
         </SheetHeader>

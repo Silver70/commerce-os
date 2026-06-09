@@ -3,7 +3,7 @@ import { z } from "zod";
 import { adminStoreHeader } from "~/lib/active-store";
 import { apiClient, authHeader } from "~/lib/api-client";
 import { getErrorMessage } from "~/lib/errors";
-import type { InventoryItem } from "~/types/api";
+import type { InventoryItem, InventoryItemView } from "~/types/api";
 
 async function storeHeaders() {
   return { ...(await authHeader()), ...adminStoreHeader() };
@@ -17,7 +17,7 @@ export const getInventoryServerFn = createServerFn({ method: "GET" })
       limit: z.number().int().positive().optional(),
     }),
   )
-  .handler(async ({ data }): Promise<InventoryItem[]> => {
+  .handler(async ({ data }): Promise<InventoryItemView[]> => {
     const params = new URLSearchParams();
     if (data.cursor) params.set("cursor", data.cursor);
     if (data.limit) params.set("limit", String(data.limit));
@@ -25,7 +25,7 @@ export const getInventoryServerFn = createServerFn({ method: "GET" })
       const endpoint = data.lowStock
         ? `/api/admin/inventory/low-stock`
         : `/api/admin/inventory?${params.toString()}`;
-      const res = await apiClient.get<InventoryItem[]>(endpoint, {
+      const res = await apiClient.get<InventoryItemView[]>(endpoint, {
         headers: await storeHeaders(),
       });
       return res.data;

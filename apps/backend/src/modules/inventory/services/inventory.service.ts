@@ -7,6 +7,7 @@ import { Cron } from '@nestjs/schedule';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InventoryLowEvent } from '../../../shared/events/events';
 import { InventoryRepository } from '../repositories/inventory.repository';
+import type { InventoryItemView } from '../repositories/inventory.repository';
 import { AuditService } from '../../audit/services/audit.service';
 import type { InventoryItem } from '../../../shared/database/schema';
 
@@ -224,14 +225,17 @@ export class InventoryService {
     return this.inventoryRepo.findByVariantId(variantId, orgId, storeId);
   }
 
-  async getAllForOrg(orgId: string, storeId: string): Promise<InventoryItem[]> {
+  async getAllForOrg(
+    orgId: string,
+    storeId: string,
+  ): Promise<InventoryItemView[]> {
     return this.inventoryRepo.findAll(orgId, storeId);
   }
 
   async getLowStockItems(
     orgId: string,
     storeId: string,
-  ): Promise<InventoryItem[]> {
+  ): Promise<InventoryItemView[]> {
     return this.inventoryRepo.findLowStock(orgId, storeId);
   }
 

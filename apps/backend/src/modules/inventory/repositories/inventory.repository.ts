@@ -5,6 +5,8 @@ import type { DrizzleClient } from '../../../shared/database/database.module';
 import {
   inventoryItems,
   stockReservations,
+  productVariants,
+  products,
 } from '../../../shared/database/schema';
 import type {
   InventoryItem,
@@ -20,6 +22,29 @@ export interface ReserveInput {
   storeId: string;
   expiresAt: Date;
 }
+
+/** Inventory item enriched with variant + product labels for display. */
+export type InventoryItemView = InventoryItem & {
+  sku: string;
+  variantName: string | null;
+  productName: string;
+};
+
+/** Projection used by the list queries to join variant + product labels. */
+const inventoryViewColumns = {
+  id: inventoryItems.id,
+  organizationId: inventoryItems.organizationId,
+  storeId: inventoryItems.storeId,
+  variantId: inventoryItems.variantId,
+  quantity: inventoryItems.quantity,
+  reserved: inventoryItems.reserved,
+  allowBackorder: inventoryItems.allowBackorder,
+  lowStockThreshold: inventoryItems.lowStockThreshold,
+  updatedAt: inventoryItems.updatedAt,
+  sku: productVariants.sku,
+  variantName: productVariants.name,
+  productName: products.name,
+} as const;
 
 @Injectable()
 export class InventoryRepository {
@@ -63,10 +88,15 @@ export class InventoryRepository {
     return row ?? null;
   }
 
-  async findAll(orgId: string, storeId: string): Promise<InventoryItem[]> {
+  async findAll(orgId: string, storeId: string): Promise<InventoryItemView[]> {
     return this.db
-      .select()
+      .select(inventoryViewColumns)
       .from(inventoryItems)
+      .innerJoin(
+        productVariants,
+        eq(inventoryItems.variantId, productVariants.id),
+      )
+      .innerJoin(products, eq(productVariants.productId, products.id))
       .where(
         and(
           eq(inventoryItems.organizationId, orgId),
@@ -75,10 +105,18 @@ export class InventoryRepository {
       );
   }
 
-  async findLowStock(orgId: string, storeId: string): Promise<InventoryItem[]> {
+  async findLowStock(
+    orgId: string,
+    storeId: string,
+  ): Promise<InventoryItemView[]> {
     return this.db
-      .select()
+      .select(inventoryViewColumns)
       .from(inventoryItems)
+      .innerJoin(
+        productVariants,
+        eq(inventoryItems.variantId, productVariants.id),
+      )
+      .innerJoin(products, eq(productVariants.productId, products.id))
       .where(
         and(
           eq(inventoryItems.organizationId, orgId),
