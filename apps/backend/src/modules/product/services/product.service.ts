@@ -61,6 +61,7 @@ export class ProductService {
     });
 
     if (dto.options && dto.options.length > 0) {
+      this.assertOptionsUnique(dto.options);
       for (let i = 0; i < dto.options.length; i++) {
         const optDto = dto.options[i];
         const option = await this.productRepo.createOption({
@@ -378,6 +379,38 @@ export class ProductService {
       storeId,
     );
     return result.items;
+  }
+
+  /**
+   * Reject duplicate option names within a product, and duplicate values
+   * within a single option (both case-insensitive). The DB enforces this too
+   * via unique constraints; this gives the caller a clean 409 instead of a raw
+   * constraint error.
+   */
+  private assertOptionsUnique(
+    options: { name: string; values?: { value: string }[] }[],
+  ): void {
+    const seenNames = new Set<string>();
+    for (const opt of options) {
+      const name = opt.name.trim().toLowerCase();
+      if (seenNames.has(name)) {
+        throw new ConflictException(
+          `Duplicate option name "${opt.name}". Each option must be unique for a product.`,
+        );
+      }
+      seenNames.add(name);
+
+      const seenValues = new Set<string>();
+      for (const v of opt.values ?? []) {
+        const value = v.value.trim().toLowerCase();
+        if (seenValues.has(value)) {
+          throw new ConflictException(
+            `Duplicate value "${v.value}" for option "${opt.name}".`,
+          );
+        }
+        seenValues.add(value);
+      }
+    }
   }
 
   private async createVariantInternal(
