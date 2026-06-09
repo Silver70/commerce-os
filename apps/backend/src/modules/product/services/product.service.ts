@@ -12,6 +12,7 @@ import {
   ProductDeletedEvent,
 } from '../../../shared/events/events';
 import { ProductRepository } from '../repositories/product.repository';
+import { InventoryService } from '../../inventory/services/inventory.service';
 import type {
   ProductDetail,
   PaginatedProducts,
@@ -32,6 +33,7 @@ type ProductMedia = typeof productMedia.$inferSelect;
 export class ProductService {
   constructor(
     private readonly productRepo: ProductRepository,
+    private readonly inventoryService: InventoryService,
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
@@ -393,6 +395,7 @@ export class ProductService {
       requiresShipping?: boolean;
       position?: number;
       optionValueIds?: string[];
+      initialStock?: number;
     },
     defaultPosition = 0,
   ): Promise<ProductVariant> {
@@ -425,6 +428,13 @@ export class ProductService {
         await this.productRepo.linkVariantOptionValue(variant.id, ovId);
       }
     }
+
+    await this.inventoryService.createForVariant(
+      variant.id,
+      organizationId,
+      storeId,
+      dto.initialStock ?? 0,
+    );
 
     return variant;
   }
