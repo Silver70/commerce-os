@@ -181,6 +181,16 @@ export type Order = {
 // Backend enum: only "active" | "disabled"
 export type CustomerStatus = "active" | "disabled";
 
+// Org-scoped customer group (mirrors the customer_groups table)
+export type CustomerGroup = {
+  id: string;
+  organizationId: string;
+  name: string;
+  description: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 // Matches the backend Address schema exactly
 export type CustomerAddress = {
   id: string;
@@ -209,14 +219,28 @@ export type Customer = {
   status: CustomerStatus;
   emailVerified: boolean;
   marketingOptIn: boolean;
+  groupId: string | null;
   lastLoginAt: string | null;
   createdAt: string;
   updatedAt: string;
   // Joined / computed — not returned by the admin list or detail endpoint.
   // Available only when fetched separately or enriched server-side.
+  group?: CustomerGroup;
   ordersCount?: number;
   totalSpent?: number;
   addresses?: CustomerAddress[];
+};
+
+// POST /admin/customers returns the new customer plus a one-time link the admin
+// shares manually so the customer can set their password.
+export type CreatedCustomerResult = {
+  customer: Customer;
+  setPasswordUrl: string;
+};
+
+export type SetPasswordLinkResult = {
+  setPasswordUrl: string;
+  expiresAt: string;
 };
 
 // ─── Inventory ────────────────────────────────────────────────────────────────

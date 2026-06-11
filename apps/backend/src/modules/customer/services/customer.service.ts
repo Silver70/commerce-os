@@ -1,18 +1,29 @@
 import {
   Injectable,
   NotFoundException,
+  BadRequestException,
   UnauthorizedException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { CustomerAuthService } from '../../auth/services/customer-auth.service';
 import { CustomerRepository } from '../repositories/customer.repository';
-import { CustomerRegisteredEvent } from '../../../shared/events/events';
+import type { ListCustomersOptions } from '../repositories/customer.repository';
+import { CustomerGroupRepository } from '../repositories/customer-group.repository';
+import {
+  CustomerRegisteredEvent,
+  CustomerCreatedByAdminEvent,
+} from '../../../shared/events/events';
 import type { Customer, Address } from '../../../shared/database/schema';
 import type { RegisterCustomerDto } from '../dto/register-customer.dto';
 import type {
   UpdateCustomerDto,
   UpdateCustomerStatusDto,
 } from '../dto/update-customer.dto';
+import type {
+  CreateCustomerDto,
+  AdminUpdateCustomerDto,
+} from '../dto/admin-customer.dto';
 import type {
   CreateAddressDto,
   UpdateAddressDto,
@@ -26,6 +37,16 @@ export interface AuthPayload {
   customer: SafeCustomer;
 }
 
+export interface CreatedCustomerResult {
+  customer: SafeCustomer;
+  setPasswordUrl: string;
+}
+
+export interface SetPasswordLinkResult {
+  setPasswordUrl: string;
+  expiresAt: Date;
+}
+
 function sanitize(customer: Customer): SafeCustomer {
   const { passwordHash: _passwordHash, ...safe } = customer;
   return safe;
@@ -35,7 +56,9 @@ function sanitize(customer: Customer): SafeCustomer {
 export class CustomerService {
   constructor(
     private readonly customerRepo: CustomerRepository,
+    private readonly customerGroupRepo: CustomerGroupRepository,
     private readonly customerAuth: CustomerAuthService,
+    private readonly config: ConfigService,
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
@@ -155,9 +178,111 @@ export class CustomerService {
     return sanitize(updated);
   }
 
-  async listCustomers(orgId: string): Promise<SafeCustomer[]> {
-    const customers = await this.customerRepo.findAll(orgId);
+  async listCustomers(
+    orgId: string,
+    opts: ListCustomersOptions = {},
+  ): Promise<SafeCustomer[]> {
+    const customers = await this.customerRepo.findAll(orgId, opts);
     return customers.map(sanitize);
+  }
+
+  // ─── Admin-managed accounts ─────────────────────────────────────────────────
+
+  /**
+   * Admin-creates a customer with no password, optionally assigns a group, and
+   * returns a single-use set-password link for the admin to share manually.
+   */
+  async createCustomer(
+    orgId: string,
+    dto: CreateCustomerDto,
+  ): Promise<CreatedCustomerResult> {
+    if (dto.groupId) {
+      await this.assertGroupExists(dto.groupId, orgId);
+    }
+
+    const created = await this.customerAuth.createByAdmin(dto.email, orgId);
+
+    const updated = await this.customerRepo.update(created.id, orgId, {
+      firstName: dto.firstName ?? null,
+      lastName: dto.lastName ?? null,
+      phone: dto.phone ?? null,
+      groupId: dto.groupId ?? null,
+      marketingOptIn: dto.marketingOptIn ?? false,
+    });
+    const customer = updated ?? created;
+
+    this.eventEmitter.emit(
+      'customer.created_by_admin',
+      new CustomerCreatedByAdminEvent(customer.id, orgId, customer.email),
+    );
+
+    const { token } = await this.customerAuth.createSetPasswordToken(
+      customer.id,
+      orgId,
+    );
+
+    return {
+      customer: sanitize(customer),
+      setPasswordUrl: this.buildSetPasswordUrl(token),
+    };
+  }
+
+  async updateCustomer(
+    customerId: string,
+    orgId: string,
+    dto: AdminUpdateCustomerDto,
+  ): Promise<SafeCustomer> {
+    const customer = await this.customerRepo.findById(customerId, orgId);
+    if (!customer) throw new NotFoundException('Customer not found');
+
+    if (dto.groupId) {
+      await this.assertGroupExists(dto.groupId, orgId);
+    }
+
+    const patch: Parameters<CustomerRepository['update']>[2] = {};
+    if (dto.firstName !== undefined) patch.firstName = dto.firstName;
+    if (dto.lastName !== undefined) patch.lastName = dto.lastName;
+    if (dto.phone !== undefined) patch.phone = dto.phone;
+    if (dto.marketingOptIn !== undefined)
+      patch.marketingOptIn = dto.marketingOptIn;
+    if (dto.groupId !== undefined) patch.groupId = dto.groupId;
+
+    if (Object.keys(patch).length === 0) return sanitize(customer);
+
+    const updated = await this.customerRepo.update(customerId, orgId, patch);
+    if (!updated)
+      throw new NotFoundException('Customer not found after update');
+    return sanitize(updated);
+  }
+
+  /** (Re)issue a set-password link for an existing customer. */
+  async generateSetPasswordLink(
+    customerId: string,
+    orgId: string,
+  ): Promise<SetPasswordLinkResult> {
+    const customer = await this.customerRepo.findById(customerId, orgId);
+    if (!customer) throw new NotFoundException('Customer not found');
+
+    const { token, expiresAt } = await this.customerAuth.createSetPasswordToken(
+      customerId,
+      orgId,
+    );
+    return { setPasswordUrl: this.buildSetPasswordUrl(token), expiresAt };
+  }
+
+  private async assertGroupExists(
+    groupId: string,
+    orgId: string,
+  ): Promise<void> {
+    const group = await this.customerGroupRepo.findById(groupId, orgId);
+    if (!group) throw new BadRequestException('Customer group not found');
+  }
+
+  private buildSetPasswordUrl(token: string): string {
+    const base = this.config
+      .get<string>('STOREFRONT_URL', 'http://localhost:3000')
+      .replace(/\/$/, '');
+    return `${base}/auth/set-password?token=${token}`;
   }
 
   // ─── Addresses ────────────────────────────────────────────────────────────────

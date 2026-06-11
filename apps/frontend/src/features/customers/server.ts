@@ -3,7 +3,11 @@ import { z } from "zod";
 import { adminStoreHeader } from "~/lib/active-store";
 import { apiClient, authHeader } from "~/lib/api-client";
 import { getErrorMessage } from "~/lib/errors";
-import type { Customer } from "~/types/api";
+import type {
+  Customer,
+  CreatedCustomerResult,
+  SetPasswordLinkResult,
+} from "~/types/api";
 
 async function storeHeaders() {
   return { ...(await authHeader()), ...adminStoreHeader() };
@@ -40,6 +44,93 @@ export const getCustomerByIdServerFn = createServerFn({ method: "GET" })
       const res = await apiClient.get<Customer>(
         `/api/admin/customers/${data.customerId}`,
         { headers: await storeHeaders() },
+      );
+      return res.data;
+    } catch (err) {
+      throw new Error(getErrorMessage(err));
+    }
+  });
+
+export const createCustomerServerFn = createServerFn({ method: "POST" })
+  .inputValidator(
+    z.object({
+      email: z.string().email(),
+      firstName: z.string().optional(),
+      lastName: z.string().optional(),
+      phone: z.string().optional(),
+      groupId: z.string().optional(),
+      marketingOptIn: z.boolean().optional(),
+    }),
+  )
+  .handler(async ({ data }): Promise<CreatedCustomerResult> => {
+    try {
+      const res = await apiClient.post<CreatedCustomerResult>(
+        "/api/admin/customers",
+        data,
+        { headers: await storeHeaders() },
+      );
+      return res.data;
+    } catch (err) {
+      throw new Error(getErrorMessage(err));
+    }
+  });
+
+export const updateCustomerServerFn = createServerFn({ method: "POST" })
+  .inputValidator(
+    z.object({
+      customerId: z.string().min(1),
+      firstName: z.string().optional(),
+      lastName: z.string().optional(),
+      phone: z.string().optional(),
+      marketingOptIn: z.boolean().optional(),
+      // null clears the group assignment
+      groupId: z.string().nullable().optional(),
+    }),
+  )
+  .handler(async ({ data }): Promise<Customer> => {
+    try {
+      const { customerId, ...body } = data;
+      const res = await apiClient.patch<Customer>(
+        `/api/admin/customers/${customerId}`,
+        body,
+        { headers: await storeHeaders() },
+      );
+      return res.data;
+    } catch (err) {
+      throw new Error(getErrorMessage(err));
+    }
+  });
+
+export const generateSetPasswordLinkServerFn = createServerFn({
+  method: "POST",
+})
+  .inputValidator(z.object({ customerId: z.string().min(1) }))
+  .handler(async ({ data }): Promise<SetPasswordLinkResult> => {
+    try {
+      const res = await apiClient.post<SetPasswordLinkResult>(
+        `/api/admin/customers/${data.customerId}/set-password-link`,
+        undefined,
+        { headers: await storeHeaders() },
+      );
+      return res.data;
+    } catch (err) {
+      throw new Error(getErrorMessage(err));
+    }
+  });
+
+// Public (unauthenticated) — the token is the credential, so no headers needed.
+export const setPasswordServerFn = createServerFn({ method: "POST" })
+  .inputValidator(
+    z.object({
+      token: z.string().min(1),
+      password: z.string().min(8).max(128),
+    }),
+  )
+  .handler(async ({ data }): Promise<{ success: boolean; email: string }> => {
+    try {
+      const res = await apiClient.post<{ success: boolean; email: string }>(
+        "/api/customer/set-password",
+        data,
       );
       return res.data;
     } catch (err) {

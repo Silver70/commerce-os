@@ -1,9 +1,17 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { eq, and, desc } from 'drizzle-orm';
+import { eq, and, lt, desc, type SQL } from 'drizzle-orm';
 import { DRIZZLE_CLIENT } from '../../../shared/database/database.module';
 import type { DrizzleClient } from '../../../shared/database/database.module';
 import { customers, addresses } from '../../../shared/database/schema';
 import type { Customer, Address } from '../../../shared/database/schema';
+import { decodeCursor } from '../../../shared/utils/pagination.util';
+
+export interface ListCustomersOptions {
+  status?: Customer['status'];
+  groupId?: string;
+  limit?: number;
+  cursor?: string;
+}
 
 @Injectable()
 export class CustomerRepository {
@@ -31,12 +39,25 @@ export class CustomerRepository {
     return row ?? null;
   }
 
-  async findAll(orgId: string): Promise<Customer[]> {
-    return this.db
+  async findAll(
+    orgId: string,
+    opts: ListCustomersOptions = {},
+  ): Promise<Customer[]> {
+    const conditions: SQL[] = [eq(customers.organizationId, orgId)];
+    if (opts.status) conditions.push(eq(customers.status, opts.status));
+    if (opts.groupId) conditions.push(eq(customers.groupId, opts.groupId));
+    if (opts.cursor) {
+      const decoded = decodeCursor<{ createdAt: string }>(opts.cursor);
+      conditions.push(lt(customers.createdAt, new Date(decoded.createdAt)));
+    }
+
+    const query = this.db
       .select()
       .from(customers)
-      .where(eq(customers.organizationId, orgId))
+      .where(and(...conditions))
       .orderBy(desc(customers.createdAt));
+
+    return opts.limit ? query.limit(opts.limit) : query;
   }
 
   async update(
@@ -51,6 +72,7 @@ export class CustomerRepository {
         | 'marketingOptIn'
         | 'status'
         | 'lastLoginAt'
+        | 'groupId'
       >
     >,
   ): Promise<Customer | null> {

@@ -19,11 +19,13 @@ import { Route as OnboardingStep1RouteImport } from './routes/onboarding/step1'
 import { Route as AuthVerifyEmailRouteImport } from './routes/auth/verify-email'
 import { Route as AuthSignupRouteImport } from './routes/auth/signup'
 import { Route as AuthSignoutRouteImport } from './routes/auth/signout'
+import { Route as AuthSetPasswordRouteImport } from './routes/auth/set-password'
 import { Route as AuthLoginRouteImport } from './routes/auth/login'
 import { Route as AdminShippingRouteImport } from './routes/admin/shipping'
 import { Route as AdminSettingsRouteImport } from './routes/admin/settings'
 import { Route as AdminInventoryRouteImport } from './routes/admin/inventory'
 import { Route as AdminDashboardRouteImport } from './routes/admin/dashboard'
+import { Route as AdminCustomerGroupsRouteImport } from './routes/admin/customer-groups'
 import { Route as AdminCategoriesRouteImport } from './routes/admin/categories'
 import { Route as AdminProductsIndexRouteImport } from './routes/admin/products_/index'
 import { Route as AdminOrdersIndexRouteImport } from './routes/admin/orders_/index'
@@ -89,6 +91,11 @@ const AuthSignoutRoute = AuthSignoutRouteImport.update({
   path: '/signout',
   getParentRoute: () => AuthRouteRoute,
 } as any)
+const AuthSetPasswordRoute = AuthSetPasswordRouteImport.update({
+  id: '/set-password',
+  path: '/set-password',
+  getParentRoute: () => AuthRouteRoute,
+} as any)
 const AuthLoginRoute = AuthLoginRouteImport.update({
   id: '/login',
   path: '/login',
@@ -112,6 +119,11 @@ const AdminInventoryRoute = AdminInventoryRouteImport.update({
 const AdminDashboardRoute = AdminDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
+const AdminCustomerGroupsRoute = AdminCustomerGroupsRouteImport.update({
+  id: '/customer-groups',
+  path: '/customer-groups',
   getParentRoute: () => AdminRouteRoute,
 } as any)
 const AdminCategoriesRoute = AdminCategoriesRouteImport.update({
@@ -193,11 +205,13 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRouteRouteWithChildren
   '/onboarding': typeof OnboardingRouteRouteWithChildren
   '/admin/categories': typeof AdminCategoriesRoute
+  '/admin/customer-groups': typeof AdminCustomerGroupsRoute
   '/admin/dashboard': typeof AdminDashboardRoute
   '/admin/inventory': typeof AdminInventoryRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/shipping': typeof AdminShippingRoute
   '/auth/login': typeof AuthLoginRoute
+  '/auth/set-password': typeof AuthSetPasswordRoute
   '/auth/signout': typeof AuthSignoutRoute
   '/auth/signup': typeof AuthSignupRoute
   '/auth/verify-email': typeof AuthVerifyEmailRoute
@@ -224,11 +238,13 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRouteRouteWithChildren
   '/onboarding': typeof OnboardingRouteRouteWithChildren
   '/admin/categories': typeof AdminCategoriesRoute
+  '/admin/customer-groups': typeof AdminCustomerGroupsRoute
   '/admin/dashboard': typeof AdminDashboardRoute
   '/admin/inventory': typeof AdminInventoryRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/shipping': typeof AdminShippingRoute
   '/auth/login': typeof AuthLoginRoute
+  '/auth/set-password': typeof AuthSetPasswordRoute
   '/auth/signout': typeof AuthSignoutRoute
   '/auth/signup': typeof AuthSignupRoute
   '/auth/verify-email': typeof AuthVerifyEmailRoute
@@ -256,11 +272,13 @@ export interface FileRoutesById {
   '/auth': typeof AuthRouteRouteWithChildren
   '/onboarding': typeof OnboardingRouteRouteWithChildren
   '/admin/categories': typeof AdminCategoriesRoute
+  '/admin/customer-groups': typeof AdminCustomerGroupsRoute
   '/admin/dashboard': typeof AdminDashboardRoute
   '/admin/inventory': typeof AdminInventoryRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/shipping': typeof AdminShippingRoute
   '/auth/login': typeof AuthLoginRoute
+  '/auth/set-password': typeof AuthSetPasswordRoute
   '/auth/signout': typeof AuthSignoutRoute
   '/auth/signup': typeof AuthSignupRoute
   '/auth/verify-email': typeof AuthVerifyEmailRoute
@@ -289,11 +307,13 @@ export interface FileRouteTypes {
     | '/auth'
     | '/onboarding'
     | '/admin/categories'
+    | '/admin/customer-groups'
     | '/admin/dashboard'
     | '/admin/inventory'
     | '/admin/settings'
     | '/admin/shipping'
     | '/auth/login'
+    | '/auth/set-password'
     | '/auth/signout'
     | '/auth/signup'
     | '/auth/verify-email'
@@ -320,11 +340,13 @@ export interface FileRouteTypes {
     | '/auth'
     | '/onboarding'
     | '/admin/categories'
+    | '/admin/customer-groups'
     | '/admin/dashboard'
     | '/admin/inventory'
     | '/admin/settings'
     | '/admin/shipping'
     | '/auth/login'
+    | '/auth/set-password'
     | '/auth/signout'
     | '/auth/signup'
     | '/auth/verify-email'
@@ -351,11 +373,13 @@ export interface FileRouteTypes {
     | '/auth'
     | '/onboarding'
     | '/admin/categories'
+    | '/admin/customer-groups'
     | '/admin/dashboard'
     | '/admin/inventory'
     | '/admin/settings'
     | '/admin/shipping'
     | '/auth/login'
+    | '/auth/set-password'
     | '/auth/signout'
     | '/auth/signup'
     | '/auth/verify-email'
@@ -458,6 +482,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthSignoutRouteImport
       parentRoute: typeof AuthRouteRoute
     }
+    '/auth/set-password': {
+      id: '/auth/set-password'
+      path: '/set-password'
+      fullPath: '/auth/set-password'
+      preLoaderRoute: typeof AuthSetPasswordRouteImport
+      parentRoute: typeof AuthRouteRoute
+    }
     '/auth/login': {
       id: '/auth/login'
       path: '/login'
@@ -491,6 +522,13 @@ declare module '@tanstack/react-router' {
       path: '/dashboard'
       fullPath: '/admin/dashboard'
       preLoaderRoute: typeof AdminDashboardRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
+    '/admin/customer-groups': {
+      id: '/admin/customer-groups'
+      path: '/customer-groups'
+      fullPath: '/admin/customer-groups'
+      preLoaderRoute: typeof AdminCustomerGroupsRouteImport
       parentRoute: typeof AdminRouteRoute
     }
     '/admin/categories': {
@@ -596,6 +634,7 @@ declare module '@tanstack/react-router' {
 
 interface AdminRouteRouteChildren {
   AdminCategoriesRoute: typeof AdminCategoriesRoute
+  AdminCustomerGroupsRoute: typeof AdminCustomerGroupsRoute
   AdminDashboardRoute: typeof AdminDashboardRoute
   AdminInventoryRoute: typeof AdminInventoryRoute
   AdminSettingsRoute: typeof AdminSettingsRoute
@@ -615,6 +654,7 @@ interface AdminRouteRouteChildren {
 
 const AdminRouteRouteChildren: AdminRouteRouteChildren = {
   AdminCategoriesRoute: AdminCategoriesRoute,
+  AdminCustomerGroupsRoute: AdminCustomerGroupsRoute,
   AdminDashboardRoute: AdminDashboardRoute,
   AdminInventoryRoute: AdminInventoryRoute,
   AdminSettingsRoute: AdminSettingsRoute,
@@ -638,6 +678,7 @@ const AdminRouteRouteWithChildren = AdminRouteRoute._addFileChildren(
 
 interface AuthRouteRouteChildren {
   AuthLoginRoute: typeof AuthLoginRoute
+  AuthSetPasswordRoute: typeof AuthSetPasswordRoute
   AuthSignoutRoute: typeof AuthSignoutRoute
   AuthSignupRoute: typeof AuthSignupRoute
   AuthVerifyEmailRoute: typeof AuthVerifyEmailRoute
@@ -645,6 +686,7 @@ interface AuthRouteRouteChildren {
 
 const AuthRouteRouteChildren: AuthRouteRouteChildren = {
   AuthLoginRoute: AuthLoginRoute,
+  AuthSetPasswordRoute: AuthSetPasswordRoute,
   AuthSignoutRoute: AuthSignoutRoute,
   AuthSignupRoute: AuthSignupRoute,
   AuthVerifyEmailRoute: AuthVerifyEmailRoute,

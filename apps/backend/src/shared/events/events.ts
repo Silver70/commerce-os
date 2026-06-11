@@ -106,3 +106,11 @@ export class CustomerRegisteredEvent {
     public readonly email: string,
   ) {}
 }
+
+export class CustomerCreatedByAdminEvent {
+  constructor(
+    public readonly customerId: string,
+    public readonly organizationId: string,
+    public readonly email: string,
+  ) {}
+}

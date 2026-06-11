@@ -7,6 +7,7 @@ import {
   BoxesIcon,
   ShoppingCartIcon,
   UsersIcon,
+  UsersRoundIcon,
   PercentIcon,
   TruckIcon,
   SettingsIcon,
@@ -53,6 +54,11 @@ const primaryNav: NavItem[] = [
   { title: "Inventory", url: "/admin/inventory", icon: BoxesIcon },
   { title: "Orders", url: "/admin/orders", icon: ShoppingCartIcon },
   { title: "Customers", url: "/admin/customers", icon: UsersIcon },
+  {
+    title: "Customer Groups",
+    url: "/admin/customer-groups",
+    icon: UsersRoundIcon,
+  },
   { title: "Discounts", url: "/admin/discounts", icon: PercentIcon },
 ];
 

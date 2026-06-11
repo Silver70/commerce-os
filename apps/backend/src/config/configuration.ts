@@ -14,6 +14,9 @@ export const validationSchema = Joi.object({
 
   CUSTOMER_JWT_SECRET: Joi.string().min(64).required(),
 
+  // Storefront base URL — used to build admin-shared set-password links.
+  STOREFRONT_URL: Joi.string().uri().default('http://localhost:3000'),
+
   STRIPE_SECRET_KEY: Joi.string().required(),
   STRIPE_WEBHOOK_SECRET: Joi.string().required(),
 

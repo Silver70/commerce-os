@@ -10,6 +10,7 @@ export const PERMISSIONS = {
   'orders.refund': ['super_admin'],
   'orders.create': ['super_admin', 'support_agent'],
   'customers.read': ['super_admin', 'product_manager', 'support_agent'],
+  'customers.create': ['super_admin', 'support_agent'],
   'customers.update': ['super_admin', 'support_agent'],
   'discounts.read': ['super_admin', 'product_manager'],
   'discounts.write': ['super_admin', 'product_manager'],

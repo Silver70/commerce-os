@@ -6,19 +6,31 @@ import {
   useQueryClient,
   useSuspenseQuery,
 } from "@tanstack/react-query";
-import { ArrowLeftIcon, ChevronRightIcon } from "lucide-react";
+import {
+  ArrowLeftIcon,
+  ChevronRightIcon,
+  CopyIcon,
+  CheckIcon,
+  KeyRoundIcon,
+} from "lucide-react";
 
 import { cn } from "~/lib/utils";
 import { formatMoney } from "~/lib/money";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
+import { Input } from "~/components/ui/input";
 import { Separator } from "~/components/ui/separator";
 import type { Customer, CustomerStatus, Order } from "~/types/api";
+import { customerGroupsQueryOptions } from "~/features/customer-groups/queries";
 import { customerQueryOptions, customersQueryOptions } from "../queries";
-import { updateCustomerStatusServerFn } from "../server";
+import {
+  updateCustomerStatusServerFn,
+  generateSetPasswordLinkServerFn,
+} from "../server";
 import { fullName } from "../utils";
 import { CustomerAvatar } from "../components/customer-avatar";
 import { CustomerStatusBadge } from "../components/customer-status-badge";
+import { EditCustomerSheet } from "../components/edit-customer-sheet";
 import { StatTile } from "../components/stat-tile";
 import { AddressRow } from "../components/address-row";
 // Cross-feature: the order-history section reads from the orders feature.
@@ -38,6 +50,13 @@ export function CustomerDetailPage() {
 
   const orders: Order[] = ordersData?.orders ?? [];
   const [mutError, setMutError] = React.useState<string | null>(null);
+  const [passwordLink, setPasswordLink] = React.useState<string | null>(null);
+  const [copied, setCopied] = React.useState(false);
+
+  const { data: groups = [] } = useQuery(customerGroupsQueryOptions());
+  const groupName = customer.groupId
+    ? (groups.find((g) => g.id === customer.groupId)?.name ?? "—")
+    : "None";
 
   const statusMutation = useMutation({
     mutationFn: (status: CustomerStatus) =>
@@ -56,6 +75,26 @@ export function CustomerDetailPage() {
         err instanceof Error ? err.message : "Failed to update status",
       ),
   });
+
+  const linkMutation = useMutation({
+    mutationFn: () => generateSetPasswordLinkServerFn({ data: { customerId } }),
+    onSuccess: (result) => {
+      setMutError(null);
+      setCopied(false);
+      setPasswordLink(result.setPasswordUrl);
+    },
+    onError: (err) =>
+      setMutError(
+        err instanceof Error ? err.message : "Failed to generate link",
+      ),
+  });
+
+  async function copyPasswordLink() {
+    if (!passwordLink) return;
+    await navigator.clipboard.writeText(passwordLink);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
 
   const name = fullName(customer);
 
@@ -107,21 +146,24 @@ export function CustomerDetailPage() {
             </div>
           </div>
 
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-9 shrink-0"
-            disabled={statusMutation.isPending}
-            onClick={() =>
-              statusMutation.mutate(
-                customer.status === "active" ? "disabled" : "active",
-              )
-            }
-          >
-            {customer.status === "active"
-              ? "Disable account"
-              : "Re-enable account"}
-          </Button>
+          <div className="flex shrink-0 items-center gap-2">
+            <EditCustomerSheet customer={customer} />
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9"
+              disabled={statusMutation.isPending}
+              onClick={() =>
+                statusMutation.mutate(
+                  customer.status === "active" ? "disabled" : "active",
+                )
+              }
+            >
+              {customer.status === "active"
+                ? "Disable account"
+                : "Re-enable account"}
+            </Button>
+          </div>
         </div>
 
         {mutError && (
@@ -174,6 +216,12 @@ export function CustomerDetailPage() {
                   {customer.marketingOptIn ? "Opted in" : "Opted out"}
                 </span>
               </div>
+              <div className="flex items-baseline justify-between">
+                <span className="w-28 shrink-0 text-xs font-medium text-muted-foreground">
+                  Group
+                </span>
+                <span className="text-sm">{groupName}</span>
+              </div>
             </div>
 
             <Separator />
@@ -183,6 +231,54 @@ export function CustomerDetailPage() {
                 Account status
               </p>
               <CustomerStatusBadge status={customer.status} />
+            </div>
+
+            <Separator />
+
+            {/* ── Set-password link ──────────────────────────────────────── */}
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Password
+                  </p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {customer.emailVerified
+                      ? "Account is active."
+                      : "No password set yet."}
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 shrink-0 gap-1.5"
+                  disabled={linkMutation.isPending}
+                  onClick={() => linkMutation.mutate()}
+                >
+                  <KeyRoundIcon className="h-3.5 w-3.5" />
+                  {linkMutation.isPending ? "Generating…" : "Set-password link"}
+                </Button>
+              </div>
+
+              {passwordLink && (
+                <div className="flex gap-2">
+                  <Input readOnly value={passwordLink} className="text-xs" />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-9 shrink-0 gap-1.5"
+                    onClick={copyPasswordLink}
+                  >
+                    {copied ? (
+                      <CheckIcon className="h-4 w-4" />
+                    ) : (
+                      <CopyIcon className="h-4 w-4" />
+                    )}
+                    {copied ? "Copied" : "Copy"}
+                  </Button>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>

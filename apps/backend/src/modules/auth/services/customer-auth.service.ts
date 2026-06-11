@@ -7,14 +7,19 @@ import {
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import * as jwt from 'jsonwebtoken';
-import { eq, and } from 'drizzle-orm';
+import * as crypto from 'crypto';
+import { eq, and, gt, isNull } from 'drizzle-orm';
 import { DRIZZLE_CLIENT } from '../../../shared/database/database.module';
 import type { DrizzleClient } from '../../../shared/database/database.module';
-import { customers } from '../../../shared/database/schema';
+import {
+  customers,
+  customerSetPasswordTokens,
+} from '../../../shared/database/schema';
 
 const BCRYPT_ROUNDS = 12;
 const ACCESS_TTL = '15m';
 const REFRESH_TTL = '7d';
+const SET_PASSWORD_TTL_MS = 72 * 60 * 60 * 1000; // 72 hours
 
 @Injectable()
 export class CustomerAuthService {
@@ -28,6 +33,90 @@ export class CustomerAuthService {
   }
 
   async register(email: string, password: string, orgId: string) {
+    await this.assertEmailAvailable(email, orgId);
+
+    const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
+    const [customer] = await this.db
+      .insert(customers)
+      .values({ email, passwordHash, organizationId: orgId })
+      .returning();
+    return customer;
+  }
+
+  /**
+   * Admin-created account: insert a customer with no password. The customer
+   * sets one later via a set-password token link (see createSetPasswordToken).
+   */
+  async createByAdmin(email: string, orgId: string) {
+    await this.assertEmailAvailable(email, orgId);
+
+    const [customer] = await this.db
+      .insert(customers)
+      .values({ email, passwordHash: null, organizationId: orgId })
+      .returning();
+    return customer;
+  }
+
+  /**
+   * Issue a single-use set-password token. The raw token is returned once (to
+   * the admin, who shares the link manually); only its hash is persisted.
+   */
+  async createSetPasswordToken(customerId: string, orgId: string) {
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + SET_PASSWORD_TTL_MS);
+
+    await this.db.insert(customerSetPasswordTokens).values({
+      organizationId: orgId,
+      customerId,
+      tokenHash: this.hashToken(token),
+      expiresAt,
+    });
+
+    return { token, expiresAt };
+  }
+
+  /**
+   * Consume a set-password token: validate it is unused and unexpired, set the
+   * customer's password, mark the token used, and auto-verify the email.
+   */
+  async setPassword(rawToken: string, newPassword: string) {
+    const [record] = await this.db
+      .select()
+      .from(customerSetPasswordTokens)
+      .where(
+        and(
+          eq(customerSetPasswordTokens.tokenHash, this.hashToken(rawToken)),
+          isNull(customerSetPasswordTokens.usedAt),
+          gt(customerSetPasswordTokens.expiresAt, new Date()),
+        ),
+      )
+      .limit(1);
+
+    if (!record) {
+      throw new UnauthorizedException('Invalid or expired token');
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
+    const [customer] = await this.db
+      .update(customers)
+      .set({ passwordHash, emailVerified: true, updatedAt: new Date() })
+      .where(
+        and(
+          eq(customers.id, record.customerId),
+          eq(customers.organizationId, record.organizationId),
+        ),
+      )
+      .returning();
+
+    await this.db
+      .update(customerSetPasswordTokens)
+      .set({ usedAt: new Date() })
+      .where(eq(customerSetPasswordTokens.id, record.id));
+
+    return customer;
+  }
+
+  private async assertEmailAvailable(email: string, orgId: string) {
     const existing = await this.db
       .select()
       .from(customers)
@@ -39,13 +128,11 @@ export class CustomerAuthService {
     if (existing.length > 0) {
       throw new ConflictException('Email already registered');
     }
+  }
 
-    const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
-    const [customer] = await this.db
-      .insert(customers)
-      .values({ email, passwordHash, organizationId: orgId })
-      .returning();
-    return customer;
+  /** SHA-256 of the raw token — deterministic so it can be looked up by index. */
+  private hashToken(rawToken: string): string {
+    return crypto.createHash('sha256').update(rawToken).digest('hex');
   }
 
   async login(email: string, password: string, orgId: string) {
@@ -59,6 +146,10 @@ export class CustomerAuthService {
 
     if (!customer) {
       throw new UnauthorizedException('Invalid credentials');
+    }
+
+    if (!customer.passwordHash) {
+      throw new UnauthorizedException('Password not set for this account');
     }
 
     const valid = await bcrypt.compare(password, customer.passwordHash);

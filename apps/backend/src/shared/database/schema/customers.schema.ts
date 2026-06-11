@@ -8,6 +8,7 @@ import {
   pgEnum,
 } from 'drizzle-orm/pg-core';
 import { organizations } from './organizations.schema';
+import { customerGroups } from './customer-groups.schema';
 
 export const customerStatusEnum = pgEnum('customer_status', [
   'active',
@@ -20,7 +21,11 @@ export const customers = pgTable('customers', {
     .notNull()
     .references(() => organizations.id, { onDelete: 'cascade' }),
   email: varchar('email', { length: 255 }).notNull(),
-  passwordHash: text('password_hash').notNull(),
+  // nullable: admin-created accounts have no password until set via token link
+  passwordHash: text('password_hash'),
+  groupId: uuid('group_id').references(() => customerGroups.id, {
+    onDelete: 'set null',
+  }),
   firstName: varchar('first_name', { length: 100 }),
   lastName: varchar('last_name', { length: 100 }),
   phone: varchar('phone', { length: 50 }),
