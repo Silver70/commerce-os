@@ -6,8 +6,10 @@ import {
 } from '@nestjs/common';
 import { CartRepository } from '../repositories/cart.repository';
 import { PricingEngineService } from '../../pricing/services/pricing-engine.service';
+import { PriceResolverService } from '../../pricing/services/price-resolver.service';
 import { DiscountRepository } from '../../pricing/repositories/discount.repository';
 import { add, subtract } from '../../../shared/utils/money.util';
+import type { CartItemWithVariant } from '../../pricing/services/pricing-engine.service';
 import type { CartWithItems } from '../repositories/cart.repository';
 import type { Cart } from '../../../shared/database/schema';
 
@@ -16,6 +18,7 @@ export class CartService {
   constructor(
     private readonly cartRepo: CartRepository,
     private readonly pricingEngine: PricingEngineService,
+    private readonly priceResolver: PriceResolverService,
     private readonly discountRepo: DiscountRepository,
   ) {}
 
@@ -56,11 +59,20 @@ export class CartService {
       throw new NotFoundException('Variant not found or not active');
     }
 
+    // Resolve the contract (price-list) price for this customer before stamping
+    // the line item. recalculate() re-resolves the whole cart afterward too.
+    const resolved = await this.priceResolver.resolve(
+      [variantId],
+      { orgId, storeId, customerId: cart.customerId },
+      new Map([[variantId, variant.price]]),
+    );
+    const unitPrice = resolved.get(variantId)?.unitPrice ?? variant.price;
+
     await this.cartRepo.upsertItem(
       cartId,
       variantId,
       quantity,
-      variant.price,
+      unitPrice,
       orgId,
       storeId,
     );
@@ -179,6 +191,16 @@ export class CartService {
 
     const { items, couponCode } = cartWithItems;
 
+    // Re-resolve contract (price-list) prices each recalc so the cart reflects
+    // current pricing — important when a guest cart is later associated to a
+    // customer, or when an admin edits a list. Persists + mutates `items`.
+    await this.applyContractPricing(
+      items,
+      orgId,
+      storeId,
+      cartWithItems.customerId,
+    );
+
     // Subtotal = sum of all item line totals at current unit prices
     const subtotal = items.reduce(
       (sum, item) => add(sum, item.quantity * item.unitPrice),
@@ -240,15 +262,48 @@ export class CartService {
         storeId,
       );
       if (existing) {
-        const withItems = await this.cartRepo.findWithItems(
-          existing.id,
-          orgId,
-          storeId,
-        );
-        if (withItems) return withItems;
+        // Recalc on fetch so contract prices refresh when the customer's
+        // pricing context is now known (e.g. just logged in).
+        return this.recalculate(existing.id, orgId, storeId);
       }
     }
     return this.createCart(orgId, storeId, customerId);
+  }
+
+  /**
+   * Re-resolves each line item's unit price against the customer's price lists,
+   * persisting and mutating the items in place. No-op for empty carts.
+   */
+  private async applyContractPricing(
+    items: CartItemWithVariant[],
+    orgId: string,
+    storeId: string,
+    customerId: string | null,
+  ): Promise<void> {
+    if (items.length === 0) return;
+
+    const variantIds = items.map((i) => i.variantId);
+    const basePrices = new Map(
+      items.map((i) => [i.variantId, i.variant.price]),
+    );
+    const resolved = await this.priceResolver.resolve(
+      variantIds,
+      { orgId, storeId, customerId },
+      basePrices,
+    );
+
+    for (const item of items) {
+      const next = resolved.get(item.variantId);
+      if (next && next.unitPrice !== item.unitPrice) {
+        item.unitPrice = next.unitPrice;
+        item.totalPrice = item.quantity * next.unitPrice;
+        await this.cartRepo.setItemUnitPrice(
+          item.id,
+          next.unitPrice,
+          item.quantity,
+        );
+      }
+    }
   }
 
   async markConverted(

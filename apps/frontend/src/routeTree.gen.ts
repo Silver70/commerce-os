@@ -28,6 +28,7 @@ import { Route as AdminDashboardRouteImport } from './routes/admin/dashboard'
 import { Route as AdminCustomerGroupsRouteImport } from './routes/admin/customer-groups'
 import { Route as AdminCategoriesRouteImport } from './routes/admin/categories'
 import { Route as AdminProductsIndexRouteImport } from './routes/admin/products_/index'
+import { Route as AdminPriceListsIndexRouteImport } from './routes/admin/price-lists_/index'
 import { Route as AdminOrdersIndexRouteImport } from './routes/admin/orders_/index'
 import { Route as AdminDiscountsIndexRouteImport } from './routes/admin/discounts_/index'
 import { Route as AdminCustomersIndexRouteImport } from './routes/admin/customers_/index'
@@ -35,6 +36,8 @@ import { Route as ApiAuthSignInRouteImport } from './routes/api.auth.sign-in'
 import { Route as ApiAuthCallbackRouteImport } from './routes/api.auth.callback'
 import { Route as AdminProductsNewRouteImport } from './routes/admin/products_/new'
 import { Route as AdminProductsProductIdRouteImport } from './routes/admin/products_/$productId'
+import { Route as AdminPriceListsNewRouteImport } from './routes/admin/price-lists_/new'
+import { Route as AdminPriceListsPriceListIdRouteImport } from './routes/admin/price-lists_/$priceListId'
 import { Route as AdminOrdersNewRouteImport } from './routes/admin/orders_/new'
 import { Route as AdminOrdersOrderIdRouteImport } from './routes/admin/orders_/$orderId'
 import { Route as AdminDiscountsNewRouteImport } from './routes/admin/discounts_/new'
@@ -136,6 +139,11 @@ const AdminProductsIndexRoute = AdminProductsIndexRouteImport.update({
   path: '/products/',
   getParentRoute: () => AdminRouteRoute,
 } as any)
+const AdminPriceListsIndexRoute = AdminPriceListsIndexRouteImport.update({
+  id: '/price-lists_/',
+  path: '/price-lists/',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
 const AdminOrdersIndexRoute = AdminOrdersIndexRouteImport.update({
   id: '/orders_/',
   path: '/orders/',
@@ -171,6 +179,17 @@ const AdminProductsProductIdRoute = AdminProductsProductIdRouteImport.update({
   path: '/products/$productId',
   getParentRoute: () => AdminRouteRoute,
 } as any)
+const AdminPriceListsNewRoute = AdminPriceListsNewRouteImport.update({
+  id: '/price-lists_/new',
+  path: '/price-lists/new',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
+const AdminPriceListsPriceListIdRoute =
+  AdminPriceListsPriceListIdRouteImport.update({
+    id: '/price-lists_/$priceListId',
+    path: '/price-lists/$priceListId',
+    getParentRoute: () => AdminRouteRoute,
+  } as any)
 const AdminOrdersNewRoute = AdminOrdersNewRouteImport.update({
   id: '/orders_/new',
   path: '/orders/new',
@@ -223,6 +242,8 @@ export interface FileRoutesByFullPath {
   '/admin/discounts/new': typeof AdminDiscountsNewRoute
   '/admin/orders/$orderId': typeof AdminOrdersOrderIdRoute
   '/admin/orders/new': typeof AdminOrdersNewRoute
+  '/admin/price-lists/$priceListId': typeof AdminPriceListsPriceListIdRoute
+  '/admin/price-lists/new': typeof AdminPriceListsNewRoute
   '/admin/products/$productId': typeof AdminProductsProductIdRoute
   '/admin/products/new': typeof AdminProductsNewRoute
   '/api/auth/callback': typeof ApiAuthCallbackRoute
@@ -230,6 +251,7 @@ export interface FileRoutesByFullPath {
   '/admin/customers/': typeof AdminCustomersIndexRoute
   '/admin/discounts/': typeof AdminDiscountsIndexRoute
   '/admin/orders/': typeof AdminOrdersIndexRoute
+  '/admin/price-lists/': typeof AdminPriceListsIndexRoute
   '/admin/products/': typeof AdminProductsIndexRoute
 }
 export interface FileRoutesByTo {
@@ -256,6 +278,8 @@ export interface FileRoutesByTo {
   '/admin/discounts/new': typeof AdminDiscountsNewRoute
   '/admin/orders/$orderId': typeof AdminOrdersOrderIdRoute
   '/admin/orders/new': typeof AdminOrdersNewRoute
+  '/admin/price-lists/$priceListId': typeof AdminPriceListsPriceListIdRoute
+  '/admin/price-lists/new': typeof AdminPriceListsNewRoute
   '/admin/products/$productId': typeof AdminProductsProductIdRoute
   '/admin/products/new': typeof AdminProductsNewRoute
   '/api/auth/callback': typeof ApiAuthCallbackRoute
@@ -263,6 +287,7 @@ export interface FileRoutesByTo {
   '/admin/customers': typeof AdminCustomersIndexRoute
   '/admin/discounts': typeof AdminDiscountsIndexRoute
   '/admin/orders': typeof AdminOrdersIndexRoute
+  '/admin/price-lists': typeof AdminPriceListsIndexRoute
   '/admin/products': typeof AdminProductsIndexRoute
 }
 export interface FileRoutesById {
@@ -290,6 +315,8 @@ export interface FileRoutesById {
   '/admin/discounts_/new': typeof AdminDiscountsNewRoute
   '/admin/orders_/$orderId': typeof AdminOrdersOrderIdRoute
   '/admin/orders_/new': typeof AdminOrdersNewRoute
+  '/admin/price-lists_/$priceListId': typeof AdminPriceListsPriceListIdRoute
+  '/admin/price-lists_/new': typeof AdminPriceListsNewRoute
   '/admin/products_/$productId': typeof AdminProductsProductIdRoute
   '/admin/products_/new': typeof AdminProductsNewRoute
   '/api/auth/callback': typeof ApiAuthCallbackRoute
@@ -297,6 +324,7 @@ export interface FileRoutesById {
   '/admin/customers_/': typeof AdminCustomersIndexRoute
   '/admin/discounts_/': typeof AdminDiscountsIndexRoute
   '/admin/orders_/': typeof AdminOrdersIndexRoute
+  '/admin/price-lists_/': typeof AdminPriceListsIndexRoute
   '/admin/products_/': typeof AdminProductsIndexRoute
 }
 export interface FileRouteTypes {
@@ -325,6 +353,8 @@ export interface FileRouteTypes {
     | '/admin/discounts/new'
     | '/admin/orders/$orderId'
     | '/admin/orders/new'
+    | '/admin/price-lists/$priceListId'
+    | '/admin/price-lists/new'
     | '/admin/products/$productId'
     | '/admin/products/new'
     | '/api/auth/callback'
@@ -332,6 +362,7 @@ export interface FileRouteTypes {
     | '/admin/customers/'
     | '/admin/discounts/'
     | '/admin/orders/'
+    | '/admin/price-lists/'
     | '/admin/products/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -358,6 +389,8 @@ export interface FileRouteTypes {
     | '/admin/discounts/new'
     | '/admin/orders/$orderId'
     | '/admin/orders/new'
+    | '/admin/price-lists/$priceListId'
+    | '/admin/price-lists/new'
     | '/admin/products/$productId'
     | '/admin/products/new'
     | '/api/auth/callback'
@@ -365,6 +398,7 @@ export interface FileRouteTypes {
     | '/admin/customers'
     | '/admin/discounts'
     | '/admin/orders'
+    | '/admin/price-lists'
     | '/admin/products'
   id:
     | '__root__'
@@ -391,6 +425,8 @@ export interface FileRouteTypes {
     | '/admin/discounts_/new'
     | '/admin/orders_/$orderId'
     | '/admin/orders_/new'
+    | '/admin/price-lists_/$priceListId'
+    | '/admin/price-lists_/new'
     | '/admin/products_/$productId'
     | '/admin/products_/new'
     | '/api/auth/callback'
@@ -398,6 +434,7 @@ export interface FileRouteTypes {
     | '/admin/customers_/'
     | '/admin/discounts_/'
     | '/admin/orders_/'
+    | '/admin/price-lists_/'
     | '/admin/products_/'
   fileRoutesById: FileRoutesById
 }
@@ -545,6 +582,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminProductsIndexRouteImport
       parentRoute: typeof AdminRouteRoute
     }
+    '/admin/price-lists_/': {
+      id: '/admin/price-lists_/'
+      path: '/price-lists'
+      fullPath: '/admin/price-lists/'
+      preLoaderRoute: typeof AdminPriceListsIndexRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
     '/admin/orders_/': {
       id: '/admin/orders_/'
       path: '/orders'
@@ -592,6 +636,20 @@ declare module '@tanstack/react-router' {
       path: '/products/$productId'
       fullPath: '/admin/products/$productId'
       preLoaderRoute: typeof AdminProductsProductIdRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
+    '/admin/price-lists_/new': {
+      id: '/admin/price-lists_/new'
+      path: '/price-lists/new'
+      fullPath: '/admin/price-lists/new'
+      preLoaderRoute: typeof AdminPriceListsNewRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
+    '/admin/price-lists_/$priceListId': {
+      id: '/admin/price-lists_/$priceListId'
+      path: '/price-lists/$priceListId'
+      fullPath: '/admin/price-lists/$priceListId'
+      preLoaderRoute: typeof AdminPriceListsPriceListIdRouteImport
       parentRoute: typeof AdminRouteRoute
     }
     '/admin/orders_/new': {
@@ -644,11 +702,14 @@ interface AdminRouteRouteChildren {
   AdminDiscountsNewRoute: typeof AdminDiscountsNewRoute
   AdminOrdersOrderIdRoute: typeof AdminOrdersOrderIdRoute
   AdminOrdersNewRoute: typeof AdminOrdersNewRoute
+  AdminPriceListsPriceListIdRoute: typeof AdminPriceListsPriceListIdRoute
+  AdminPriceListsNewRoute: typeof AdminPriceListsNewRoute
   AdminProductsProductIdRoute: typeof AdminProductsProductIdRoute
   AdminProductsNewRoute: typeof AdminProductsNewRoute
   AdminCustomersIndexRoute: typeof AdminCustomersIndexRoute
   AdminDiscountsIndexRoute: typeof AdminDiscountsIndexRoute
   AdminOrdersIndexRoute: typeof AdminOrdersIndexRoute
+  AdminPriceListsIndexRoute: typeof AdminPriceListsIndexRoute
   AdminProductsIndexRoute: typeof AdminProductsIndexRoute
 }
 
@@ -664,11 +725,14 @@ const AdminRouteRouteChildren: AdminRouteRouteChildren = {
   AdminDiscountsNewRoute: AdminDiscountsNewRoute,
   AdminOrdersOrderIdRoute: AdminOrdersOrderIdRoute,
   AdminOrdersNewRoute: AdminOrdersNewRoute,
+  AdminPriceListsPriceListIdRoute: AdminPriceListsPriceListIdRoute,
+  AdminPriceListsNewRoute: AdminPriceListsNewRoute,
   AdminProductsProductIdRoute: AdminProductsProductIdRoute,
   AdminProductsNewRoute: AdminProductsNewRoute,
   AdminCustomersIndexRoute: AdminCustomersIndexRoute,
   AdminDiscountsIndexRoute: AdminDiscountsIndexRoute,
   AdminOrdersIndexRoute: AdminOrdersIndexRoute,
+  AdminPriceListsIndexRoute: AdminPriceListsIndexRoute,
   AdminProductsIndexRoute: AdminProductsIndexRoute,
 }
 

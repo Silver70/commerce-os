@@ -41,11 +41,15 @@ export class CheckoutService {
     const { organizationId: orgId, storeId } = requireStoreContext(tenantCtx);
 
     // 1. Load and validate cart
-    const cart = await this.cartRepo.findWithItems(cartId, orgId, storeId);
-    if (!cart) throw new NotFoundException('Cart not found');
-    if (cart.status !== 'active') {
+    const existing = await this.cartRepo.findById(cartId, orgId, storeId);
+    if (!existing) throw new NotFoundException('Cart not found');
+    if (existing.status !== 'active') {
       throw new ConflictException('Cart is no longer active');
     }
+
+    // Re-resolve contract prices to lock fresh pricing right before reserving
+    // inventory; the order line-item snapshots below capture these values.
+    const cart = await this.cartService.recalculate(cartId, orgId, storeId);
     if (cart.items.length === 0) {
       throw new BadRequestException('Cart is empty');
     }

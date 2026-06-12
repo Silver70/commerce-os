@@ -36,6 +36,7 @@ import { AddressRow } from "../components/address-row";
 // Cross-feature: the order-history section reads from the orders feature.
 import { ordersQueryOptions } from "~/features/orders/queries";
 import { OrderStatusBadge } from "~/features/orders/components/order-status-badge";
+import { CustomerPriceListsCard } from "~/features/price-lists/components/customer-price-lists-card";
 
 const route = getRouteApi("/admin/customers_/$customerId");
 
@@ -316,6 +317,9 @@ export function CustomerDetailPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* ── Price lists ────────────────────────────────────────────────────── */}
+      <CustomerPriceListsCard customerId={customerId} />
 
       {/* ── Order history ──────────────────────────────────────────────────── */}
       <Card className="overflow-hidden gap-0 py-0">

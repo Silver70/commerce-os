@@ -9,6 +9,7 @@ import {
   UsersIcon,
   UsersRoundIcon,
   PercentIcon,
+  TagsIcon,
   TruckIcon,
   SettingsIcon,
   ChevronsUpDownIcon,
@@ -60,6 +61,7 @@ const primaryNav: NavItem[] = [
     icon: UsersRoundIcon,
   },
   { title: "Discounts", url: "/admin/discounts", icon: PercentIcon },
+  { title: "Price Lists", url: "/admin/price-lists", icon: TagsIcon },
 ];
 
 const secondaryNav: NavItem[] = [

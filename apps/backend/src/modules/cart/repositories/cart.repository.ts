@@ -256,6 +256,22 @@ export class CartRepository {
     return row;
   }
 
+  /** Overwrite a line item's unit price (used when re-resolving contract prices). */
+  async setItemUnitPrice(
+    itemId: string,
+    unitPrice: number,
+    quantity: number,
+  ): Promise<void> {
+    await this.db
+      .update(cartItems)
+      .set({
+        unitPrice,
+        totalPrice: quantity * unitPrice,
+        updatedAt: new Date(),
+      })
+      .where(eq(cartItems.id, itemId));
+  }
+
   async updateItemQuantity(
     cartId: string,
     itemId: string,

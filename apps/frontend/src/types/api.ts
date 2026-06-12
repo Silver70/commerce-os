@@ -313,6 +313,56 @@ export type Coupon = {
   updatedAt: string;
 };
 
+// ─── Price Lists ──────────────────────────────────────────────────────────────
+
+export type PriceListType = "fixed" | "adjustment";
+// Computed client-side from isActive + startsAt + endsAt (mirrors DiscountStatus)
+export type PriceListStatus = "active" | "scheduled" | "expired";
+
+// Raw price_lists row from backend
+export type PriceList = {
+  id: string;
+  organizationId: string;
+  storeId: string;
+  name: string;
+  type: PriceListType;
+  // signed basis points, present only when type === "adjustment"
+  adjustmentBasisPoints: number | null;
+  priority: number;
+  isActive: boolean;
+  startsAt: string | null;
+  endsAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+// Explicit per-variant price (only used by type === "fixed")
+export type PriceListPrice = {
+  id: string;
+  organizationId: string;
+  priceListId: string;
+  variantId: string;
+  price: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+// Binds a price list to a customer or group (exactly one is set)
+export type PriceListAssignment = {
+  id: string;
+  organizationId: string;
+  priceListId: string;
+  customerId: string | null;
+  groupId: string | null;
+  createdAt: string;
+};
+
+// GET /admin/price-lists/:id returns the list plus its prices + assignments
+export type PriceListDetail = PriceList & {
+  prices: PriceListPrice[];
+  assignments: PriceListAssignment[];
+};
+
 // ─── Shipping ─────────────────────────────────────────────────────────────────
 
 export type RateType = "flat_rate" | "free" | "calculated";

@@ -3,6 +3,7 @@ import { UseGuards } from '@nestjs/common';
 import { StorefrontAuthGuard } from '../../auth/guards/storefront-auth.guard';
 import { ProductService } from '../services/product.service';
 import { CategoryService } from '../services/category.service';
+import { PriceResolverService } from '../../pricing/services/price-resolver.service';
 import {
   ProductType,
   ProductConnection,
@@ -51,7 +52,38 @@ export class ProductResolver {
   constructor(
     private readonly productService: ProductService,
     private readonly categoryService: CategoryService,
+    private readonly priceResolver: PriceResolverService,
   ) {}
+
+  /**
+   * Batch-resolves contract (price-list) prices for every active variant across
+   * the given products in a single pass — one resolve() call for the whole page
+   * to avoid N+1. Returns a variantId → unit price map (empty for guests).
+   */
+  private async resolveVariantPrices(
+    details: ProductDetail[],
+    tenant: TenantContext,
+  ): Promise<Map<string, number>> {
+    if (!tenant.storeId) return new Map();
+    const variants = details.flatMap((d) => d.variants);
+    if (variants.length === 0) return new Map();
+
+    const variantIds = variants.map((v) => v.id);
+    const basePrices = new Map(variants.map((v) => [v.id, v.price]));
+    const resolved = await this.priceResolver.resolve(
+      variantIds,
+      {
+        orgId: tenant.organizationId,
+        storeId: tenant.storeId,
+        customerId: tenant.customerId,
+      },
+      basePrices,
+    );
+
+    const out = new Map<string, number>();
+    for (const [id, r] of resolved) out.set(id, r.unitPrice);
+    return out;
+  }
 
   @Query(() => ProductConnection, { description: 'Paginated product listing' })
   async products(
@@ -72,8 +104,12 @@ export class ProductResolver {
       tenant,
     );
 
+    const priceOverrides = await this.resolveVariantPrices(
+      result.items,
+      tenant,
+    );
     const edges: ProductEdge[] = result.items.map((p) => ({
-      node: toProductType(p),
+      node: toProductType(p, priceOverrides),
       cursor: encodeCursor({ id: p.id }),
     }));
 
@@ -92,13 +128,15 @@ export class ProductResolver {
     @Args('slug', { nullable: true }) slug?: string,
   ): Promise<ProductType | null> {
     const tenant = ctx.req.tenantContext ?? { organizationId: '' };
+    let detail: ProductDetail | null = null;
     if (id) {
-      return toProductType(await this.productService.getDetail(id, tenant));
+      detail = await this.productService.getDetail(id, tenant);
+    } else if (slug) {
+      detail = await this.productService.getBySlug(slug, tenant);
     }
-    if (slug) {
-      return toProductType(await this.productService.getBySlug(slug, tenant));
-    }
-    return null;
+    if (!detail) return null;
+    const priceOverrides = await this.resolveVariantPrices([detail], tenant);
+    return toProductType(detail, priceOverrides);
   }
 
   @Query(() => [CategoryType])
@@ -127,8 +165,14 @@ export class ProductResolver {
   }
 }
 
-function toProductType(detail: ProductDetail): ProductType {
-  const prices = detail.variants.filter((v) => v.isActive).map((v) => v.price);
+function toProductType(
+  detail: ProductDetail,
+  priceOverrides?: Map<string, number>,
+): ProductType {
+  const priceOf = (v: ProductDetail['variants'][number]): number =>
+    priceOverrides?.get(v.id) ?? v.price;
+
+  const prices = detail.variants.filter((v) => v.isActive).map(priceOf);
 
   const minPrice = prices.length > 0 ? Math.min(...prices) : 0;
   const maxPrice = prices.length > 0 ? Math.max(...prices) : 0;
@@ -147,7 +191,7 @@ function toProductType(detail: ProductDetail): ProductType {
       id: v.id,
       sku: v.sku,
       name: v.name ?? undefined,
-      price: v.price,
+      price: priceOf(v),
       compareAtPrice: v.compareAtPrice ?? undefined,
       weight: v.weight ?? undefined,
       weightUnit: v.weightUnit ?? undefined,
