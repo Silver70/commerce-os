@@ -5,6 +5,7 @@ import { apiClient, authHeader } from "~/lib/api-client";
 import { getErrorMessage } from "~/lib/errors";
 import type {
   Customer,
+  CustomerAddress,
   CreatedCustomerResult,
   SetPasswordLinkResult,
 } from "~/types/api";
@@ -131,6 +132,53 @@ export const setPasswordServerFn = createServerFn({ method: "POST" })
       const res = await apiClient.post<{ success: boolean; email: string }>(
         "/api/customer/set-password",
         data,
+      );
+      return res.data;
+    } catch (err) {
+      throw new Error(getErrorMessage(err));
+    }
+  });
+
+// ─── Addresses ────────────────────────────────────────────────────────────────
+
+export const getCustomerAddressesServerFn = createServerFn({ method: "GET" })
+  .inputValidator(z.object({ customerId: z.string().min(1) }))
+  .handler(async ({ data }): Promise<CustomerAddress[]> => {
+    try {
+      const res = await apiClient.get<CustomerAddress[]>(
+        `/api/admin/customers/${data.customerId}/addresses`,
+        { headers: await storeHeaders() },
+      );
+      return res.data;
+    } catch (err) {
+      throw new Error(getErrorMessage(err));
+    }
+  });
+
+export const createCustomerAddressServerFn = createServerFn({ method: "POST" })
+  .inputValidator(
+    z.object({
+      customerId: z.string().min(1),
+      firstName: z.string().min(1).max(100),
+      lastName: z.string().min(1).max(100),
+      company: z.string().max(255).optional(),
+      line1: z.string().min(1).max(255),
+      line2: z.string().max(255).optional(),
+      city: z.string().min(1).max(100),
+      state: z.string().max(100).optional(),
+      postalCode: z.string().min(1).max(20),
+      countryCode: z.string().length(2),
+      phone: z.string().max(50).optional(),
+      isDefault: z.boolean().optional(),
+    }),
+  )
+  .handler(async ({ data }): Promise<CustomerAddress> => {
+    const { customerId, ...body } = data;
+    try {
+      const res = await apiClient.post<CustomerAddress>(
+        `/api/admin/customers/${customerId}/addresses`,
+        body,
+        { headers: await storeHeaders() },
       );
       return res.data;
     } catch (err) {

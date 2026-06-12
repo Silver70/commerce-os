@@ -30,3 +30,19 @@ export type DiscountCode = {
   value: number;
   label: string;
 };
+
+// Editable shipping-address draft. All fields are strings; empty optionals are
+// converted to `undefined` when building the create-order payload. Mirrors the
+// backend ManualOrderAddressDto / CreateAddressDto.
+export type ShippingAddress = {
+  firstName: string;
+  lastName: string;
+  company: string;
+  line1: string;
+  line2: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  countryCode: string;
+  phone: string;
+};

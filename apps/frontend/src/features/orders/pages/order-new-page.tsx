@@ -7,6 +7,7 @@ import {
   CreditCardIcon,
   FileTextIcon,
   LoaderCircleIcon,
+  MapPinIcon,
   MinusIcon,
   PackageIcon,
   PlusIcon,
@@ -31,11 +32,21 @@ import {
   SelectValue,
 } from "~/components/ui/select";
 import type { Customer } from "~/types/api";
-import { customersQueryOptions } from "~/features/customers/queries";
+import {
+  customersQueryOptions,
+  customerAddressesQueryOptions,
+} from "~/features/customers/queries";
 import { ProductSearch } from "../components/product-search";
+import { ShippingAddressSheet } from "../components/shipping-address-sheet";
 import { createOrderServerFn, type CreateOrderInput } from "../server";
 import { DISCOUNT_CODES, SHIPPING_METHODS } from "../mock-catalog";
-import type { CatalogVariant, DiscountCode, LineItem } from "../types";
+import { customerAddressToShipping } from "../utils";
+import type {
+  CatalogVariant,
+  DiscountCode,
+  LineItem,
+  ShippingAddress,
+} from "../types";
 
 const PAYMENT_METHOD_LABELS: Record<string, string> = {
   cash: "Cash",
@@ -43,32 +54,6 @@ const PAYMENT_METHOD_LABELS: Record<string, string> = {
   card_manual: "Card (manual entry)",
   cheque: "Cheque",
   other: "Other",
-};
-
-type AddressForm = {
-  firstName: string;
-  lastName: string;
-  company: string;
-  line1: string;
-  line2: string;
-  city: string;
-  state: string;
-  postalCode: string;
-  countryCode: string;
-  phone: string;
-};
-
-const EMPTY_ADDRESS: AddressForm = {
-  firstName: "",
-  lastName: "",
-  company: "",
-  line1: "",
-  line2: "",
-  city: "",
-  state: "",
-  postalCode: "",
-  countryCode: "US",
-  phone: "",
 };
 
 function customerName(c: Pick<Customer, "firstName" | "lastName" | "email">) {
@@ -100,8 +85,31 @@ export function OrderNewPage() {
     error: customersErrorObj,
   } = useQuery(customersQueryOptions({ limit: 100 }));
 
-  // Shipping address (pre-filled from selected customer's default address)
-  const [addr, setAddr] = React.useState<AddressForm>(EMPTY_ADDRESS);
+  // Shipping address — defaults to the customer's saved (default) address; the
+  // sheet lets the admin pick another saved address or enter a new one.
+  const [shippingAddr, setShippingAddr] =
+    React.useState<ShippingAddress | null>(null);
+  const [addrSheetOpen, setAddrSheetOpen] = React.useState(false);
+
+  const { data: customerAddresses = [], isLoading: addressesLoading } =
+    useQuery({
+      ...customerAddressesQueryOptions(customer?.id ?? ""),
+      enabled: !!customer,
+    });
+
+  // Once a customer's addresses load, default the shipping address to their
+  // default (or first) saved address. We only fill while it's still empty, so a
+  // manual choice made via the sheet is never clobbered.
+  React.useEffect(() => {
+    if (!customer) {
+      setShippingAddr(null);
+      return;
+    }
+    if (shippingAddr) return;
+    const def =
+      customerAddresses.find((a) => a.isDefault) ?? customerAddresses[0];
+    if (def) setShippingAddr(customerAddressToShipping(def));
+  }, [customer, customerAddresses, shippingAddr]);
 
   // Order options
   const [shipping, setShipping] = React.useState("standard");
@@ -177,19 +185,9 @@ export function OrderNewPage() {
   function selectCustomer(c: Customer) {
     setCustomer(c);
     setCustQuery("");
-    // Prefill the recipient name/phone from the customer record. (The admin
-    // detail endpoint doesn't expose saved addresses, so the address lines are
-    // filled in manually below.)
-    setAddr((p) => ({
-      ...p,
-      firstName: c.firstName ?? "",
-      lastName: c.lastName ?? "",
-      phone: c.phone ?? "",
-    }));
-  }
-
-  function updateAddr(patch: Partial<AddressForm>) {
-    setAddr((p) => ({ ...p, ...patch }));
+    // Reset so the effect repopulates from the newly-selected customer's
+    // default saved address.
+    setShippingAddr(null);
   }
 
   function applyDiscount() {
@@ -216,7 +214,8 @@ export function OrderNewPage() {
           .slice(0, 8)
       : [];
 
-  const canCreate = items.length > 0 && customer !== null;
+  const canCreate =
+    items.length > 0 && customer !== null && shippingAddr !== null;
 
   // ─── Submit ──────────────────────────────────────────────────────────────
 
@@ -239,9 +238,14 @@ export function OrderNewPage() {
 
   function handleCreate() {
     if (!customer || items.length === 0) return;
+    if (!shippingAddr) {
+      setFormError("Add a shipping address before creating the order.");
+      return;
+    }
 
-    // Validate the required address fields client-side for friendlier errors.
-    const required: [keyof AddressForm, string][] = [
+    // Backstop validation (the address sheet validates on entry too).
+    const a = shippingAddr;
+    const required: [keyof ShippingAddress, string][] = [
       ["firstName", "first name"],
       ["lastName", "last name"],
       ["line1", "street address"],
@@ -249,12 +253,12 @@ export function OrderNewPage() {
       ["postalCode", "ZIP / postal code"],
     ];
     for (const [field, label] of required) {
-      if (!addr[field].trim()) {
+      if (!a[field].trim()) {
         setFormError(`Shipping address is missing a ${label}.`);
         return;
       }
     }
-    if (addr.countryCode.trim().length !== 2) {
+    if (a.countryCode.trim().length !== 2) {
       setFormError("Country must be a 2-letter code (e.g. US).");
       return;
     }
@@ -281,16 +285,16 @@ export function OrderNewPage() {
         unitPrice: i.unitPrice,
       })),
       shippingAddress: {
-        firstName: addr.firstName.trim(),
-        lastName: addr.lastName.trim(),
-        company: addr.company.trim() || undefined,
-        line1: addr.line1.trim(),
-        line2: addr.line2.trim() || undefined,
-        city: addr.city.trim(),
-        state: addr.state.trim() || undefined,
-        postalCode: addr.postalCode.trim(),
-        countryCode: addr.countryCode.trim().toUpperCase(),
-        phone: addr.phone.trim() || undefined,
+        firstName: a.firstName.trim(),
+        lastName: a.lastName.trim(),
+        company: a.company.trim() || undefined,
+        line1: a.line1.trim(),
+        line2: a.line2.trim() || undefined,
+        city: a.city.trim(),
+        state: a.state.trim() || undefined,
+        postalCode: a.postalCode.trim(),
+        countryCode: a.countryCode.trim().toUpperCase(),
+        phone: a.phone.trim() || undefined,
       },
       paymentType,
       shippingAmount: shippingCost,
@@ -443,7 +447,9 @@ export function OrderNewPage() {
                       </span>
                       <Input
                         value={priceToInput(item.unitPrice)}
-                        onChange={(e) => setPrice(item.variantId, e.target.value)}
+                        onChange={(e) =>
+                          setPrice(item.variantId, e.target.value)
+                        }
                         className="h-8 pl-5 text-right text-sm tabular-nums"
                       />
                     </div>
@@ -606,107 +612,95 @@ export function OrderNewPage() {
             </CardContent>
           </Card>
 
-          {/* Shipping address */}
+          {/* Shipping address — defaults to the customer's saved address */}
           <Card>
             <CardHeader className="border-b pb-4">
               <CardTitle className="text-sm font-semibold">
                 Shipping address
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3 pt-4">
-              <div className="grid grid-cols-2 gap-2.5">
-                <div className="space-y-1.5">
-                  <Label className="text-xs">First name</Label>
-                  <Input
-                    value={addr.firstName}
-                    onChange={(e) => updateAddr({ firstName: e.target.value })}
-                    className="h-8 text-sm"
-                  />
+            <CardContent className="pt-4">
+              {!customer ? (
+                <p className="text-sm text-muted-foreground">
+                  Select a customer to set the shipping address.
+                </p>
+              ) : addressesLoading && !shippingAddr ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <LoaderCircleIcon className="h-4 w-4 animate-spin" />
+                  Loading addresses…
                 </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Last name</Label>
-                  <Input
-                    value={addr.lastName}
-                    onChange={(e) => updateAddr({ lastName: e.target.value })}
-                    className="h-8 text-sm"
-                  />
+              ) : shippingAddr ? (
+                <div className="space-y-3">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted">
+                      <MapPinIcon className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                    <div className="min-w-0 flex-1 text-sm">
+                      <p className="font-medium">
+                        {shippingAddr.firstName} {shippingAddr.lastName}
+                      </p>
+                      {shippingAddr.company && (
+                        <p className="text-muted-foreground">
+                          {shippingAddr.company}
+                        </p>
+                      )}
+                      <p className="text-muted-foreground">
+                        {shippingAddr.line1}
+                        {shippingAddr.line2 ? `, ${shippingAddr.line2}` : ""}
+                      </p>
+                      <p className="text-muted-foreground">
+                        {[
+                          shippingAddr.city,
+                          shippingAddr.state,
+                          shippingAddr.postalCode,
+                        ]
+                          .filter(Boolean)
+                          .join(", ")}{" "}
+                        {shippingAddr.countryCode}
+                      </p>
+                      {shippingAddr.phone && (
+                        <p className="text-muted-foreground">
+                          {shippingAddr.phone}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setAddrSheetOpen(true)}
+                    className="text-xs font-medium text-orange-700 hover:text-orange-800"
+                  >
+                    Use a different address
+                  </button>
                 </div>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Company (optional)</Label>
-                <Input
-                  value={addr.company}
-                  onChange={(e) => updateAddr({ company: e.target.value })}
-                  className="h-8 text-sm"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Address</Label>
-                <Input
-                  value={addr.line1}
-                  onChange={(e) => updateAddr({ line1: e.target.value })}
-                  className="h-8 text-sm"
-                  placeholder="Street address"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Apartment, suite, etc. (optional)</Label>
-                <Input
-                  value={addr.line2}
-                  onChange={(e) => updateAddr({ line2: e.target.value })}
-                  className="h-8 text-sm"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-2.5">
-                <div className="space-y-1.5">
-                  <Label className="text-xs">City</Label>
-                  <Input
-                    value={addr.city}
-                    onChange={(e) => updateAddr({ city: e.target.value })}
-                    className="h-8 text-sm"
-                  />
+              ) : (
+                <div className="flex flex-col items-start gap-3">
+                  <p className="text-sm text-muted-foreground">
+                    This customer has no saved address yet.
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8"
+                    onClick={() => setAddrSheetOpen(true)}
+                  >
+                    <MapPinIcon className="mr-1.5 h-3.5 w-3.5" />
+                    Add shipping address
+                  </Button>
                 </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">ZIP / Postal</Label>
-                  <Input
-                    value={addr.postalCode}
-                    onChange={(e) => updateAddr({ postalCode: e.target.value })}
-                    className="h-8 text-sm"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Region / State (optional)</Label>
-                  <Input
-                    value={addr.state}
-                    onChange={(e) => updateAddr({ state: e.target.value })}
-                    className="h-8 text-sm"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Country code</Label>
-                  <Input
-                    value={addr.countryCode}
-                    onChange={(e) =>
-                      updateAddr({
-                        countryCode: e.target.value.toUpperCase().slice(0, 2),
-                      })
-                    }
-                    maxLength={2}
-                    placeholder="US"
-                    className="h-8 text-sm uppercase"
-                  />
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Phone (optional)</Label>
-                <Input
-                  value={addr.phone}
-                  onChange={(e) => updateAddr({ phone: e.target.value })}
-                  className="h-8 text-sm"
-                />
-              </div>
+              )}
             </CardContent>
           </Card>
+
+          {customer && (
+            <ShippingAddressSheet
+              open={addrSheetOpen}
+              onOpenChange={setAddrSheetOpen}
+              customerId={customer.id}
+              addresses={customerAddresses}
+              onSelect={setShippingAddr}
+            />
+          )}
 
           {/* Shipping method */}
           <Card>
@@ -931,7 +925,9 @@ export function OrderNewPage() {
                 <p className="text-center text-xs text-muted-foreground">
                   {items.length === 0
                     ? "Add at least one product to continue."
-                    : "Select a customer to continue."}
+                    : !customer
+                      ? "Select a customer to continue."
+                      : "Add a shipping address to continue."}
                 </p>
               )}
             </CardContent>

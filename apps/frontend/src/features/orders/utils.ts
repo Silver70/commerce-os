@@ -1,3 +1,42 @@
+import type { CustomerAddress } from "~/types/api";
+import type { ShippingAddress } from "./types";
+
+export const EMPTY_SHIPPING_ADDRESS: ShippingAddress = {
+  firstName: "",
+  lastName: "",
+  company: "",
+  line1: "",
+  line2: "",
+  city: "",
+  state: "",
+  postalCode: "",
+  countryCode: "US",
+  phone: "",
+};
+
+export function customerAddressToShipping(a: CustomerAddress): ShippingAddress {
+  return {
+    firstName: a.firstName,
+    lastName: a.lastName,
+    company: a.company ?? "",
+    line1: a.line1,
+    line2: a.line2 ?? "",
+    city: a.city,
+    state: a.state ?? "",
+    postalCode: a.postalCode,
+    countryCode: a.countryCode,
+    phone: a.phone ?? "",
+  };
+}
+
+/** One-line summary of an address for read-only display. */
+export function formatShippingAddress(a: ShippingAddress): string {
+  return [a.line1, a.line2, a.city, a.state, a.postalCode, a.countryCode]
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .join(", ");
+}
+
 // Helpers for rendering the order timeline on the detail page.
 
 export function timelineDotClass(eventType: string | undefined): string {

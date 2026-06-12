@@ -21,6 +21,7 @@ import {
   AdminUpdateCustomerDto,
   ListCustomersQueryDto,
 } from '../dto/admin-customer.dto';
+import { CreateAddressDto } from '../dto/create-address.dto';
 import type { TenantContext } from '../../../shared/tenant/tenant-context';
 
 @ApiTags('Customers')
@@ -102,5 +103,28 @@ export class AdminCustomerController {
       id,
       tenant.organizationId,
     );
+  }
+
+  @Get(':id/addresses')
+  @RequirePermission('customers.update')
+  @ApiOperation({ summary: "List a customer's saved addresses" })
+  @ApiResponse({ status: 200 })
+  listAddresses(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentTenant() tenant: TenantContext,
+  ) {
+    return this.customerService.listAddresses(id, tenant.organizationId);
+  }
+
+  @Post(':id/addresses')
+  @RequirePermission('customers.update')
+  @ApiOperation({ summary: 'Add an address to a customer' })
+  @ApiResponse({ status: 201 })
+  addAddress(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: CreateAddressDto,
+    @CurrentTenant() tenant: TenantContext,
+  ) {
+    return this.customerService.addAddress(id, tenant.organizationId, dto);
   }
 }
