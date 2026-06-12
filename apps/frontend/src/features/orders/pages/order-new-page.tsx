@@ -1,10 +1,12 @@
 import * as React from "react";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeftIcon,
   ChevronRightIcon,
   CreditCardIcon,
   FileTextIcon,
+  LoaderCircleIcon,
   MinusIcon,
   PackageIcon,
   PlusIcon,
@@ -15,6 +17,7 @@ import {
 } from "lucide-react";
 
 import { cn } from "~/lib/utils";
+import { formatPrice, toCents } from "~/lib/money";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
@@ -27,76 +30,78 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select";
+import type { Customer } from "~/types/api";
+import { customersQueryOptions } from "~/features/customers/queries";
 import { ProductSearch } from "../components/product-search";
-import {
-  CUSTOMER_CATALOG,
-  DISCOUNT_CODES,
-  SHIPPING_METHODS,
-} from "../mock-catalog";
-import type {
-  CatalogCustomer,
-  CatalogProduct,
-  DiscountCode,
-  LineItem,
-} from "../types";
+import { createOrderServerFn, type CreateOrderInput } from "../server";
+import { DISCOUNT_CODES, SHIPPING_METHODS } from "../mock-catalog";
+import type { CatalogVariant, DiscountCode, LineItem } from "../types";
+
+const PAYMENT_METHOD_LABELS: Record<string, string> = {
+  cash: "Cash",
+  bank_transfer: "Bank transfer",
+  card_manual: "Card (manual entry)",
+  cheque: "Cheque",
+  other: "Other",
+};
+
+type AddressForm = {
+  firstName: string;
+  lastName: string;
+  company: string;
+  line1: string;
+  line2: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  countryCode: string;
+  phone: string;
+};
+
+const EMPTY_ADDRESS: AddressForm = {
+  firstName: "",
+  lastName: "",
+  company: "",
+  line1: "",
+  line2: "",
+  city: "",
+  state: "",
+  postalCode: "",
+  countryCode: "US",
+  phone: "",
+};
+
+function customerName(c: Pick<Customer, "firstName" | "lastName" | "email">) {
+  const name = [c.firstName, c.lastName].filter(Boolean).join(" ").trim();
+  return name || c.email;
+}
+
+/** cents → editable dollar string (no forced decimals while typing). */
+function priceToInput(cents: number) {
+  return (cents / 100).toString();
+}
 
 export function OrderNewPage() {
-  // Line items
-  const [items, setItems] = React.useState<LineItem[]>([
-    {
-      id: "seed1",
-      catalogId: "p1",
-      product: "Wave Board Pro",
-      variant: "S / Red",
-      sku: "WAVE-S-RED",
-      gradient: "from-blue-400 via-blue-500 to-indigo-700",
-      qty: 1,
-      unitPrice: 149.99,
-    },
-    {
-      id: "seed2",
-      catalogId: "p4",
-      product: "Blue Rashguard",
-      variant: "S / Blue",
-      sku: "RASH-S-BLUE",
-      gradient: "from-cyan-400 via-teal-500 to-cyan-700",
-      qty: 2,
-      unitPrice: 49.99,
-    },
-    {
-      id: "seed3",
-      catalogId: "p8",
-      product: "Canvas Tote Bag",
-      variant: "Natural",
-      sku: "ACC-0045-N",
-      gradient: "from-rose-400 via-rose-500 to-rose-700",
-      qty: 1,
-      unitPrice: 24.0,
-    },
-  ]);
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+
+  // Line items (prices in cents)
+  const [items, setItems] = React.useState<LineItem[]>([]);
 
   // Customer
-  const [customer, setCustomer] = React.useState<CatalogCustomer | null>(
-    CUSTOMER_CATALOG[0],
-  );
+  const [customer, setCustomer] = React.useState<Customer | null>(null);
   const [custQuery, setCustQuery] = React.useState("");
   const [custFocused, setCustFocused] = React.useState(false);
 
-  // Shipping address (pre-filled from selected customer)
-  const [addrName, setAddrName] = React.useState(CUSTOMER_CATALOG[0].name);
-  const [addrLine1, setAddrLine1] = React.useState(
-    CUSTOMER_CATALOG[0].address.line1,
-  );
-  const [addrCity, setAddrCity] = React.useState(
-    CUSTOMER_CATALOG[0].address.city,
-  );
-  const [addrRegion, setAddrRegion] = React.useState(
-    CUSTOMER_CATALOG[0].address.region,
-  );
-  const [addrZip, setAddrZip] = React.useState(CUSTOMER_CATALOG[0].address.zip);
-  const [addrCountry, setAddrCountry] = React.useState(
-    CUSTOMER_CATALOG[0].address.country,
-  );
+  const {
+    data: customers = [],
+    isLoading: customersLoading,
+    isError: customersError,
+    error: customersErrorObj,
+  } = useQuery(customersQueryOptions({ limit: 100 }));
+
+  // Shipping address (pre-filled from selected customer's default address)
+  const [addr, setAddr] = React.useState<AddressForm>(EMPTY_ADDRESS);
 
   // Order options
   const [shipping, setShipping] = React.useState("standard");
@@ -109,71 +114,82 @@ export function OrderNewPage() {
     React.useState<DiscountCode | null>(null);
   const [discountError, setDiscountError] = React.useState("");
   const [note, setNote] = React.useState("");
+  const [formError, setFormError] = React.useState("");
 
-  // ─── Computed totals ─────────────────────────────────────────────────────
+  // ─── Computed totals (all in cents) ──────────────────────────────────────
 
   const subtotal = items.reduce((s, i) => s + i.qty * i.unitPrice, 0);
-  const shippingCost =
-    SHIPPING_METHODS.find((m) => m.id === shipping)?.price ?? 0;
+  const shippingCost = Math.round(
+    (SHIPPING_METHODS.find((m) => m.id === shipping)?.price ?? 0) * 100,
+  );
   const discountAmount = appliedDiscount
     ? appliedDiscount.type === "percent"
-      ? subtotal * (appliedDiscount.value / 100)
-      : Math.min(appliedDiscount.value, subtotal)
+      ? Math.round(subtotal * (appliedDiscount.value / 100))
+      : Math.min(appliedDiscount.value * 100, subtotal)
     : 0;
-  const tax = (subtotal - discountAmount) * 0.06;
-  const total = subtotal + shippingCost - discountAmount + tax;
+  const taxAmount = Math.round((subtotal - discountAmount) * 0.06);
+  const total = subtotal - discountAmount + taxAmount + shippingCost;
 
   // ─── Actions ─────────────────────────────────────────────────────────────
 
-  function addItem(p: CatalogProduct) {
+  function addItem(v: CatalogVariant) {
     setItems((prev) => {
-      const existing = prev.find((i) => i.catalogId === p.id);
+      const existing = prev.find((i) => i.variantId === v.variantId);
       if (existing)
         return prev.map((i) =>
-          i.catalogId === p.id ? { ...i, qty: i.qty + 1 } : i,
+          i.variantId === v.variantId ? { ...i, qty: i.qty + 1 } : i,
         );
       return [
         ...prev,
         {
-          id: String(Date.now()),
-          catalogId: p.id,
-          product: p.product,
-          variant: p.variant,
-          sku: p.sku,
-          gradient: p.gradient,
+          variantId: v.variantId,
+          productName: v.productName,
+          variantName: v.variantName,
+          sku: v.sku,
+          imageUrl: v.imageUrl,
           qty: 1,
-          unitPrice: p.price,
+          unitPrice: v.unitPrice,
         },
       ];
     });
   }
 
-  function setQty(id: string, qty: number) {
+  function setQty(variantId: string, qty: number) {
     if (qty < 1) return;
-    setItems((prev) => prev.map((i) => (i.id === id ? { ...i, qty } : i)));
+    setItems((prev) =>
+      prev.map((i) => (i.variantId === variantId ? { ...i, qty } : i)),
+    );
   }
 
-  function setPrice(id: string, raw: string) {
-    const n = parseFloat(raw);
-    if (!isNaN(n) && n >= 0)
-      setItems((prev) =>
-        prev.map((i) => (i.id === id ? { ...i, unitPrice: n } : i)),
-      );
+  function setPrice(variantId: string, raw: string) {
+    const cents = toCents(raw);
+    setItems((prev) =>
+      prev.map((i) =>
+        i.variantId === variantId ? { ...i, unitPrice: cents } : i,
+      ),
+    );
   }
 
-  function removeItem(id: string) {
-    setItems((prev) => prev.filter((i) => i.id !== id));
+  function removeItem(variantId: string) {
+    setItems((prev) => prev.filter((i) => i.variantId !== variantId));
   }
 
-  function selectCustomer(c: CatalogCustomer) {
+  function selectCustomer(c: Customer) {
     setCustomer(c);
-    setAddrName(c.name);
-    setAddrLine1(c.address.line1);
-    setAddrCity(c.address.city);
-    setAddrRegion(c.address.region);
-    setAddrZip(c.address.zip);
-    setAddrCountry(c.address.country);
     setCustQuery("");
+    // Prefill the recipient name/phone from the customer record. (The admin
+    // detail endpoint doesn't expose saved addresses, so the address lines are
+    // filled in manually below.)
+    setAddr((p) => ({
+      ...p,
+      firstName: c.firstName ?? "",
+      lastName: c.lastName ?? "",
+      phone: c.phone ?? "",
+    }));
+  }
+
+  function updateAddr(patch: Partial<AddressForm>) {
+    setAddr((p) => ({ ...p, ...patch }));
   }
 
   function applyDiscount() {
@@ -189,14 +205,108 @@ export function OrderNewPage() {
 
   const custResults =
     custQuery.length > 0
-      ? CUSTOMER_CATALOG.filter(
-          (c) =>
-            c.name.toLowerCase().includes(custQuery.toLowerCase()) ||
-            c.email.toLowerCase().includes(custQuery.toLowerCase()),
-        )
+      ? customers
+          .filter((c) => {
+            const q = custQuery.toLowerCase();
+            return (
+              customerName(c).toLowerCase().includes(q) ||
+              c.email.toLowerCase().includes(q)
+            );
+          })
+          .slice(0, 8)
       : [];
 
   const canCreate = items.length > 0 && customer !== null;
+
+  // ─── Submit ──────────────────────────────────────────────────────────────
+
+  const createMutation = useMutation({
+    mutationFn: (payload: CreateOrderInput) =>
+      createOrderServerFn({ data: payload }),
+    onSuccess: (order) => {
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+      navigate({
+        to: "/admin/orders/$orderId",
+        params: { orderId: order.id },
+      });
+    },
+    onError: (err) => {
+      setFormError(
+        err instanceof Error ? err.message : "Failed to create order",
+      );
+    },
+  });
+
+  function handleCreate() {
+    if (!customer || items.length === 0) return;
+
+    // Validate the required address fields client-side for friendlier errors.
+    const required: [keyof AddressForm, string][] = [
+      ["firstName", "first name"],
+      ["lastName", "last name"],
+      ["line1", "street address"],
+      ["city", "city"],
+      ["postalCode", "ZIP / postal code"],
+    ];
+    for (const [field, label] of required) {
+      if (!addr[field].trim()) {
+        setFormError(`Shipping address is missing a ${label}.`);
+        return;
+      }
+    }
+    if (addr.countryCode.trim().length !== 2) {
+      setFormError("Country must be a 2-letter code (e.g. US).");
+      return;
+    }
+
+    const notes = [
+      note.trim() || null,
+      paymentType === "paid"
+        ? `Payment method: ${PAYMENT_METHOD_LABELS[paymentMethod] ?? paymentMethod}`
+        : null,
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    const payload: CreateOrderInput = {
+      customerEmail: customer.email,
+      customerName: customerName(customer),
+      customerId: customer.id,
+      items: items.map((i) => ({
+        variantId: i.variantId,
+        productName: i.productName,
+        variantName: i.variantName ?? undefined,
+        sku: i.sku ?? undefined,
+        quantity: i.qty,
+        unitPrice: i.unitPrice,
+      })),
+      shippingAddress: {
+        firstName: addr.firstName.trim(),
+        lastName: addr.lastName.trim(),
+        company: addr.company.trim() || undefined,
+        line1: addr.line1.trim(),
+        line2: addr.line2.trim() || undefined,
+        city: addr.city.trim(),
+        state: addr.state.trim() || undefined,
+        postalCode: addr.postalCode.trim(),
+        countryCode: addr.countryCode.trim().toUpperCase(),
+        phone: addr.phone.trim() || undefined,
+      },
+      paymentType,
+      shippingAmount: shippingCost,
+      discountAmount,
+      taxAmount,
+      couponCode: appliedDiscount
+        ? discountCode.trim().toUpperCase()
+        : undefined,
+      notes: notes || undefined,
+    };
+
+    setFormError("");
+    createMutation.mutate(payload);
+  }
+
+  const isPending = createMutation.isPending;
 
   // ─── Render ──────────────────────────────────────────────────────────────
 
@@ -227,20 +337,33 @@ export function OrderNewPage() {
           </Button>
           <Button
             size="lg"
-            disabled={!canCreate}
+            disabled={!canCreate || isPending}
+            onClick={handleCreate}
             className="h-9 px-5 bg-orange-700 text-white shadow-none hover:bg-orange-800 disabled:opacity-40"
           >
-            Create order
+            {isPending ? (
+              <LoaderCircleIcon className="h-4 w-4 animate-spin" />
+            ) : (
+              "Create order"
+            )}
           </Button>
         </div>
       </div>
+
+      {/* Form-level error */}
+      {formError && (
+        <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          {formError}
+        </div>
+      )}
 
       {/* Two-column grid */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[3fr_2fr]">
         {/* ── Left: product search + line items + note ──────────────────── */}
         <div className="space-y-5">
-          {/* Product search */}
-          <Card>
+          {/* Product search — overflow-visible + raised z so the results
+              dropdown isn't clipped by the card or hidden behind the next one */}
+          <Card className="relative z-20 overflow-visible">
             <CardHeader className="border-b pb-4">
               <CardTitle className="text-sm font-semibold">
                 Add products
@@ -286,24 +409,29 @@ export function OrderNewPage() {
                 {/* Rows */}
                 {items.map((item) => (
                   <div
-                    key={item.id}
+                    key={item.variantId}
                     className="flex items-center gap-3 border-b border-border/50 px-5 py-3.5 last:border-0"
                   >
                     {/* Product info */}
                     <div className="flex min-w-0 flex-1 items-center gap-3">
-                      <div
-                        className={cn(
-                          "h-10 w-10 shrink-0 rounded-lg bg-gradient-to-br",
-                          item.gradient,
-                        )}
-                      />
+                      {item.imageUrl ? (
+                        <img
+                          src={item.imageUrl}
+                          alt=""
+                          className="h-10 w-10 shrink-0 rounded-lg object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted">
+                          <PackageIcon className="h-4 w-4 text-muted-foreground" />
+                        </div>
+                      )}
                       <div className="min-w-0">
                         <p className="truncate text-sm font-medium leading-snug">
-                          {item.product}
+                          {item.productName}
                         </p>
                         <p className="truncate text-xs text-muted-foreground">
-                          {item.variant && `${item.variant} · `}
-                          <span className="font-mono">{item.sku}</span>
+                          {item.variantName && `${item.variantName} · `}
+                          <span className="font-mono">{item.sku ?? "—"}</span>
                         </p>
                       </div>
                     </div>
@@ -314,8 +442,8 @@ export function OrderNewPage() {
                         $
                       </span>
                       <Input
-                        value={item.unitPrice}
-                        onChange={(e) => setPrice(item.id, e.target.value)}
+                        value={priceToInput(item.unitPrice)}
+                        onChange={(e) => setPrice(item.variantId, e.target.value)}
                         className="h-8 pl-5 text-right text-sm tabular-nums"
                       />
                     </div>
@@ -325,7 +453,7 @@ export function OrderNewPage() {
                       <div className="flex items-center overflow-hidden rounded-lg border border-border">
                         <button
                           type="button"
-                          onClick={() => setQty(item.id, item.qty - 1)}
+                          onClick={() => setQty(item.variantId, item.qty - 1)}
                           className="flex h-8 w-8 items-center justify-center text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
                         >
                           <MinusIcon className="h-3.5 w-3.5" />
@@ -335,7 +463,7 @@ export function OrderNewPage() {
                         </span>
                         <button
                           type="button"
-                          onClick={() => setQty(item.id, item.qty + 1)}
+                          onClick={() => setQty(item.variantId, item.qty + 1)}
                           className="flex h-8 w-8 items-center justify-center text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
                         >
                           <PlusIcon className="h-3.5 w-3.5" />
@@ -345,13 +473,13 @@ export function OrderNewPage() {
 
                     {/* Line total */}
                     <span className="w-16 shrink-0 text-right text-sm font-semibold tabular-nums">
-                      ${(item.qty * item.unitPrice).toFixed(2)}
+                      {formatPrice(item.qty * item.unitPrice)}
                     </span>
 
                     {/* Remove */}
                     <button
                       type="button"
-                      onClick={() => removeItem(item.id)}
+                      onClick={() => removeItem(item.variantId)}
                       className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
                     >
                       <XIcon className="h-4 w-4" />
@@ -381,8 +509,9 @@ export function OrderNewPage() {
 
         {/* ── Right: customer, address, shipping, payment, summary ──────── */}
         <div className="space-y-5">
-          {/* Customer */}
-          <Card>
+          {/* Customer — overflow-visible + raised z so the search results
+              dropdown isn't clipped by the card or hidden behind the next one */}
+          <Card className="relative z-20 overflow-visible">
             <CardHeader className="border-b pb-4">
               <CardTitle className="text-sm font-semibold">Customer</CardTitle>
             </CardHeader>
@@ -393,13 +522,17 @@ export function OrderNewPage() {
                     <UserIcon className="h-4 w-4 text-muted-foreground" />
                   </div>
                   <div className="min-w-0 flex-1 space-y-0.5">
-                    <p className="text-sm font-medium">{customer.name}</p>
+                    <p className="text-sm font-medium">
+                      {customerName(customer)}
+                    </p>
                     <p className="text-xs text-muted-foreground">
                       {customer.email}
                     </p>
-                    <p className="text-xs text-muted-foreground">
-                      {customer.phone}
-                    </p>
+                    {customer.phone && (
+                      <p className="text-xs text-muted-foreground">
+                        {customer.phone}
+                      </p>
+                    )}
                   </div>
                   <button
                     type="button"
@@ -422,7 +555,23 @@ export function OrderNewPage() {
                   />
                   {custFocused && custQuery.length > 0 && (
                     <div className="absolute z-20 mt-1.5 w-full overflow-hidden rounded-xl border border-border bg-popover shadow-lg">
-                      {custResults.length > 0 ? (
+                      {customersError ? (
+                        <div className="px-4 py-5 text-center">
+                          <p className="text-sm text-destructive">
+                            Couldn't load customers.
+                          </p>
+                          <p className="mt-0.5 text-xs text-muted-foreground">
+                            {customersErrorObj instanceof Error
+                              ? customersErrorObj.message
+                              : "Please try again."}
+                          </p>
+                        </div>
+                      ) : customersLoading ? (
+                        <div className="flex items-center justify-center gap-2 px-4 py-5 text-sm text-muted-foreground">
+                          <LoaderCircleIcon className="h-4 w-4 animate-spin" />
+                          Loading customers…
+                        </div>
+                      ) : custResults.length > 0 ? (
                         custResults.map((c) => (
                           <button
                             key={c.id}
@@ -434,7 +583,9 @@ export function OrderNewPage() {
                               <UserIcon className="h-3.5 w-3.5 text-muted-foreground" />
                             </div>
                             <div>
-                              <p className="text-sm font-medium">{c.name}</p>
+                              <p className="text-sm font-medium">
+                                {customerName(c)}
+                              </p>
                               <p className="text-xs text-muted-foreground">
                                 {c.email}
                               </p>
@@ -463,57 +614,96 @@ export function OrderNewPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3 pt-4">
+              <div className="grid grid-cols-2 gap-2.5">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">First name</Label>
+                  <Input
+                    value={addr.firstName}
+                    onChange={(e) => updateAddr({ firstName: e.target.value })}
+                    className="h-8 text-sm"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Last name</Label>
+                  <Input
+                    value={addr.lastName}
+                    onChange={(e) => updateAddr({ lastName: e.target.value })}
+                    className="h-8 text-sm"
+                  />
+                </div>
+              </div>
               <div className="space-y-1.5">
-                <Label className="text-xs">Full name</Label>
+                <Label className="text-xs">Company (optional)</Label>
                 <Input
-                  value={addrName}
-                  onChange={(e) => setAddrName(e.target.value)}
+                  value={addr.company}
+                  onChange={(e) => updateAddr({ company: e.target.value })}
                   className="h-8 text-sm"
-                  placeholder="Recipient name"
                 />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">Address</Label>
                 <Input
-                  value={addrLine1}
-                  onChange={(e) => setAddrLine1(e.target.value)}
+                  value={addr.line1}
+                  onChange={(e) => updateAddr({ line1: e.target.value })}
                   className="h-8 text-sm"
                   placeholder="Street address"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Apartment, suite, etc. (optional)</Label>
+                <Input
+                  value={addr.line2}
+                  onChange={(e) => updateAddr({ line2: e.target.value })}
+                  className="h-8 text-sm"
                 />
               </div>
               <div className="grid grid-cols-2 gap-2.5">
                 <div className="space-y-1.5">
                   <Label className="text-xs">City</Label>
                   <Input
-                    value={addrCity}
-                    onChange={(e) => setAddrCity(e.target.value)}
+                    value={addr.city}
+                    onChange={(e) => updateAddr({ city: e.target.value })}
                     className="h-8 text-sm"
                   />
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs">ZIP / Postal</Label>
                   <Input
-                    value={addrZip}
-                    onChange={(e) => setAddrZip(e.target.value)}
+                    value={addr.postalCode}
+                    onChange={(e) => updateAddr({ postalCode: e.target.value })}
                     className="h-8 text-sm"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Region / State</Label>
+                  <Label className="text-xs">Region / State (optional)</Label>
                   <Input
-                    value={addrRegion}
-                    onChange={(e) => setAddrRegion(e.target.value)}
+                    value={addr.state}
+                    onChange={(e) => updateAddr({ state: e.target.value })}
                     className="h-8 text-sm"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Country</Label>
+                  <Label className="text-xs">Country code</Label>
                   <Input
-                    value={addrCountry}
-                    onChange={(e) => setAddrCountry(e.target.value)}
-                    className="h-8 text-sm"
+                    value={addr.countryCode}
+                    onChange={(e) =>
+                      updateAddr({
+                        countryCode: e.target.value.toUpperCase().slice(0, 2),
+                      })
+                    }
+                    maxLength={2}
+                    placeholder="US"
+                    className="h-8 text-sm uppercase"
                   />
                 </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Phone (optional)</Label>
+                <Input
+                  value={addr.phone}
+                  onChange={(e) => updateAddr({ phone: e.target.value })}
+                  className="h-8 text-sm"
+                />
               </div>
             </CardContent>
           </Card>
@@ -698,40 +888,43 @@ export function OrderNewPage() {
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between text-muted-foreground">
                   <span>Subtotal</span>
-                  <span className="tabular-nums">${subtotal.toFixed(2)}</span>
+                  <span className="tabular-nums">{formatPrice(subtotal)}</span>
                 </div>
                 <div className="flex justify-between text-muted-foreground">
                   <span>Shipping</span>
                   <span className="tabular-nums">
-                    {shippingCost === 0
-                      ? "Free"
-                      : `$${shippingCost.toFixed(2)}`}
+                    {shippingCost === 0 ? "Free" : formatPrice(shippingCost)}
                   </span>
                 </div>
                 {discountAmount > 0 && (
                   <div className="flex justify-between text-emerald-600">
                     <span>Discount</span>
                     <span className="tabular-nums">
-                      −${discountAmount.toFixed(2)}
+                      −{formatPrice(discountAmount)}
                     </span>
                   </div>
                 )}
                 <div className="flex justify-between text-muted-foreground">
                   <span>Tax (GST 6%)</span>
-                  <span className="tabular-nums">${tax.toFixed(2)}</span>
+                  <span className="tabular-nums">{formatPrice(taxAmount)}</span>
                 </div>
                 <Separator />
                 <div className="flex justify-between font-semibold">
                   <span>Total</span>
-                  <span className="tabular-nums">${total.toFixed(2)}</span>
+                  <span className="tabular-nums">{formatPrice(total)}</span>
                 </div>
               </div>
 
               <Button
+                onClick={handleCreate}
                 className="w-full bg-orange-700 text-white shadow-none hover:bg-orange-800 disabled:opacity-40"
-                disabled={!canCreate}
+                disabled={!canCreate || isPending}
               >
-                Create order
+                {isPending ? (
+                  <LoaderCircleIcon className="h-4 w-4 animate-spin" />
+                ) : (
+                  "Create order"
+                )}
               </Button>
 
               {!canCreate && (

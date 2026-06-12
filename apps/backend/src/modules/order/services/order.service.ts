@@ -295,12 +295,18 @@ export class OrderService {
   ): Promise<Order> {
     const currency = dto.currency ?? 'USD';
 
-    // Compute totals from line items
+    // Compute totals from line items + admin-supplied adjustments (all in cents)
     const subtotal = dto.items.reduce(
       (sum, item) => sum + item.quantity * item.unitPrice,
       0,
     );
-    const total = subtotal;
+    const discountAmount = dto.discountAmount ?? 0;
+    const taxAmount = dto.taxAmount ?? 0;
+    const shippingAmount = dto.shippingAmount ?? 0;
+    const total = Math.max(
+      0,
+      subtotal - discountAmount + taxAmount + shippingAmount,
+    );
 
     const orderNumber = await this.orderRepo.generateOrderNumber(
       orgId,
@@ -319,12 +325,12 @@ export class OrderService {
       status: isPaid ? 'paid' : 'pending',
       fulfillmentStatus: 'unfulfilled',
       subtotal,
-      discountAmount: 0,
-      taxAmount: 0,
-      shippingAmount: 0,
+      discountAmount,
+      taxAmount,
+      shippingAmount,
       total,
       currency,
-      couponCode: null,
+      couponCode: dto.couponCode ?? null,
       shippingAddress: {
         firstName: dto.shippingAddress.firstName,
         lastName: dto.shippingAddress.lastName,

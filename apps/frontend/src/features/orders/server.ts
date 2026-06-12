@@ -9,6 +9,61 @@ async function storeHeaders() {
   return { ...(await authHeader()), ...adminStoreHeader() };
 }
 
+// ─── Manual order creation (mirrors backend CreateOrderDto) ──────────────────
+
+const manualOrderAddressSchema = z.object({
+  firstName: z.string().min(1).max(100),
+  lastName: z.string().min(1).max(100),
+  company: z.string().max(255).optional(),
+  line1: z.string().min(1).max(255),
+  line2: z.string().max(255).optional(),
+  city: z.string().min(1).max(100),
+  state: z.string().max(100).optional(),
+  postalCode: z.string().min(1).max(20),
+  countryCode: z.string().length(2),
+  phone: z.string().max(50).optional(),
+});
+
+const manualOrderLineItemSchema = z.object({
+  variantId: z.string().optional(),
+  productName: z.string().min(1).max(255),
+  variantName: z.string().max(255).optional(),
+  sku: z.string().max(255).optional(),
+  quantity: z.number().int().min(1),
+  unitPrice: z.number().int().min(0),
+});
+
+const createOrderInputSchema = z.object({
+  customerEmail: z.string().email(),
+  customerName: z.string().min(1).max(255),
+  customerId: z.string().optional(),
+  items: z.array(manualOrderLineItemSchema).min(1, "Add at least one product"),
+  shippingAddress: manualOrderAddressSchema,
+  billingAddress: manualOrderAddressSchema.optional(),
+  paymentType: z.enum(["paid", "invoice"]),
+  currency: z.string().length(3).optional(),
+  shippingAmount: z.number().int().min(0).optional(),
+  discountAmount: z.number().int().min(0).optional(),
+  taxAmount: z.number().int().min(0).optional(),
+  couponCode: z.string().max(100).optional(),
+  notes: z.string().optional(),
+});
+
+export type CreateOrderInput = z.infer<typeof createOrderInputSchema>;
+
+export const createOrderServerFn = createServerFn({ method: "POST" })
+  .inputValidator(createOrderInputSchema)
+  .handler(async ({ data }): Promise<Order> => {
+    try {
+      const res = await apiClient.post<Order>("/api/admin/orders", data, {
+        headers: await storeHeaders(),
+      });
+      return res.data;
+    } catch (err) {
+      throw new Error(getErrorMessage(err));
+    }
+  });
+
 export const getOrdersServerFn = createServerFn({ method: "GET" })
   .inputValidator(
     z.object({

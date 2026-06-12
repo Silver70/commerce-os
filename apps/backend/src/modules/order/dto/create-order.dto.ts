@@ -156,6 +156,30 @@ export class CreateOrderDto {
   @Length(3, 3)
   declare currency?: string;
 
+  @ApiPropertyOptional({ description: 'Shipping cost in cents', default: 0 })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  declare shippingAmount?: number;
+
+  @ApiPropertyOptional({ description: 'Discount amount in cents', default: 0 })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  declare discountAmount?: number;
+
+  @ApiPropertyOptional({ description: 'Tax amount in cents', default: 0 })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  declare taxAmount?: number;
+
+  @ApiPropertyOptional({ description: 'Coupon code applied to the order' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  declare couponCode?: string;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()

@@ -3,7 +3,7 @@ import { getCustomersServerFn, getCustomerByIdServerFn } from "./server";
 import type { CustomerStatus } from "~/types/api";
 
 export const customersQueryOptions = (
-  params: { status?: CustomerStatus } = {},
+  params: { status?: CustomerStatus; limit?: number } = {},
 ) =>
   queryOptions({
     queryKey: ["customers", params],
