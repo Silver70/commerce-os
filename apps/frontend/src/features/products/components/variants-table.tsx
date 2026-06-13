@@ -26,7 +26,8 @@ import { stockState, variantLabel } from "../utils";
 // ─── Local validation schemas ───────────────────────────────────────────────
 
 const createVariantSchema = z.object({
-  sku: z.string().min(1, "SKU is required"),
+  // Optional — backend auto-generates a unique SKU when left blank.
+  sku: z.string().optional(),
   name: z.string().optional(),
   price: z.coerce.number().int().min(0, "Price is required"),
   compareAtPrice: z.coerce.number().int().min(0).optional(),
@@ -185,7 +186,7 @@ function AddVariantRow({
   const createMutation = useMutation({
     mutationFn: () => {
       const parsed = createVariantSchema.safeParse({
-        sku: sku.trim(),
+        sku: sku.trim() || undefined,
         name: name.trim() || undefined,
         price: toCents(price),
         compareAtPrice: compareAt ? toCents(compareAt) : undefined,
@@ -212,13 +213,12 @@ function AddVariantRow({
       <td colSpan={6} className="px-4 py-3">
         <div className="grid grid-cols-3 gap-3 sm:grid-cols-5">
           <div className="space-y-1">
-            <Label className="text-xs">
-              SKU <span className="text-destructive">*</span>
-            </Label>
+            <Label className="text-xs">SKU</Label>
             <Input
               value={sku}
               onChange={(e) => setSku(e.target.value)}
               className="h-8 font-mono text-xs"
+              placeholder="Auto-generated"
             />
           </div>
           <div className="space-y-1">

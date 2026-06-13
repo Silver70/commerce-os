@@ -19,7 +19,7 @@ async function storeHeaders() {
 // ─── Zod schemas (mirror backend DTOs) ───────────────────────────────────────
 
 const createProductVariantSchema = z.object({
-  sku: z.string().min(1),
+  sku: z.string().optional(),
   name: z.string().optional(),
   price: z.number().int().min(0),
   compareAtPrice: z.number().int().min(0).optional(),
@@ -60,7 +60,7 @@ const updateProductInputSchema = z.object({
 });
 
 const createVariantInputSchema = z.object({
-  sku: z.string().min(1),
+  sku: z.string().optional(),
   name: z.string().optional(),
   price: z.number().int().min(0),
   compareAtPrice: z.number().int().min(0).optional(),

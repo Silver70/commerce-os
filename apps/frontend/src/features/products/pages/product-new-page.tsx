@@ -66,7 +66,9 @@ const createProductSchema = z.object({
   ),
   variants: z.array(
     z.object({
-      sku: z.string().min(1, "SKU is required"),
+      // Auto-generated from title + option values; blank is fine, the backend
+      // fills in a unique fallback.
+      sku: z.string().optional(),
       name: z.string().optional(),
       price: z.number().int().min(0),
       compareAtPrice: z.number().int().min(0).optional(),
@@ -256,7 +258,7 @@ export function ProductNewPage() {
           : [],
         variants: variantsGenerated
           ? variants.map((v) => ({
-              sku: v.sku,
+              sku: v.sku.trim() || undefined,
               name: v.name || undefined,
               price: toCents(v.price),
               compareAtPrice: v.compareAt ? toCents(v.compareAt) : undefined,
@@ -512,7 +514,7 @@ export function ProductNewPage() {
               options={variantOptions}
               onChange={setVariantOptions}
               onGenerate={() => {
-                const generated = generateVariantDrafts(variantOptions);
+                const generated = generateVariantDrafts(variantOptions, title);
                 setVariants(generated);
                 setVariantsGenerated(true);
                 dirty();

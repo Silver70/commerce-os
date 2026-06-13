@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { generateUniqueSlug } from '../../../shared/utils/slug.util';
+import { generateUniqueSku } from '../../../shared/utils/sku.util';
 import {
   ProductCreatedEvent,
   ProductUpdatedEvent,
@@ -94,6 +95,7 @@ export class ProductService {
           storeId,
           dto.variants[i],
           i,
+          product.name,
         );
       }
     }
@@ -237,7 +239,14 @@ export class ProductService {
     if (!product || product.deletedAt) {
       throw new NotFoundException('Product not found');
     }
-    return this.createVariantInternal(product.id, organizationId, storeId, dto);
+    return this.createVariantInternal(
+      product.id,
+      organizationId,
+      storeId,
+      dto,
+      0,
+      product.name,
+    );
   }
 
   async updateVariant(
@@ -418,7 +427,7 @@ export class ProductService {
     organizationId: string,
     storeId: string,
     dto: {
-      sku: string;
+      sku?: string;
       name?: string;
       price: number;
       compareAtPrice?: number;
@@ -431,21 +440,30 @@ export class ProductService {
       initialStock?: number;
     },
     defaultPosition = 0,
+    productName = '',
   ): Promise<ProductVariant> {
-    const skuTaken = await this.productRepo.skuExists(
-      dto.sku,
-      organizationId,
-      storeId,
-    );
-    if (skuTaken) {
-      throw new ConflictException(`SKU "${dto.sku}" already exists`);
+    let sku = dto.sku?.trim();
+    if (sku) {
+      const skuTaken = await this.productRepo.skuExists(
+        sku,
+        organizationId,
+        storeId,
+      );
+      if (skuTaken) {
+        throw new ConflictException(`SKU "${sku}" already exists`);
+      }
+    } else {
+      // No SKU supplied — generate one that is unique within the store.
+      sku = await generateUniqueSku(productName, (s) =>
+        this.productRepo.skuExists(s, organizationId, storeId),
+      );
     }
 
     const variant = await this.productRepo.createVariant({
       organizationId,
       storeId,
       productId,
-      sku: dto.sku,
+      sku,
       name: dto.name,
       price: dto.price,
       compareAtPrice: dto.compareAtPrice,

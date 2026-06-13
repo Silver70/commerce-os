@@ -1,6 +1,5 @@
 import {
   IsString,
-  IsNotEmpty,
   IsOptional,
   IsArray,
   IsInt,
@@ -11,11 +10,11 @@ import {
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateVariantDto {
-  @ApiProperty()
+  @ApiPropertyOptional({ description: 'Auto-generated if omitted' })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
   @MaxLength(255)
-  declare sku: string;
+  declare sku?: string;
 
   @ApiPropertyOptional()
   @IsOptional()

@@ -49,11 +49,11 @@ export class CreateProductOptionDto {
 }
 
 export class CreateVariantInProductDto {
-  @ApiProperty()
+  @ApiPropertyOptional({ description: 'Auto-generated if omitted' })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
   @MaxLength(255)
-  declare sku: string;
+  declare sku?: string;
 
   @ApiPropertyOptional()
   @IsOptional()

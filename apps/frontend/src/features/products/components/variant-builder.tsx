@@ -117,13 +117,12 @@ function VariantDraftRow({
         <div className="border-t border-border/40 bg-background/60 px-6 py-5">
           <div className="grid grid-cols-2 gap-x-5 gap-y-4 sm:grid-cols-3">
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium">
-                SKU <span className="text-destructive">*</span>
-              </Label>
+              <Label className="text-xs font-medium">SKU</Label>
               <Input
                 value={v.sku}
                 onChange={(e) => onUpdate({ sku: e.target.value })}
                 className="h-9 font-mono text-sm"
+                placeholder="Auto-generated"
               />
             </div>
 

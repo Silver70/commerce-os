@@ -14,8 +14,63 @@ export function toIntOrUndefined(s: string): number | undefined {
   return isNaN(n) || n < 0 ? undefined : n;
 }
 
-/** Cartesian product of filled option groups -> blank variant drafts. */
-export function generateVariantDrafts(options: OptionGroup[]): VariantDraft[] {
+/** Acronym for the product title, e.g. "Wave Board Pro" -> "WBP". */
+function skuTitleCode(title: string): string {
+  const words = title
+    .toUpperCase()
+    .replace(/[^A-Z0-9\s]/g, " ")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (words.length === 0) return "";
+  if (words.length === 1) return words[0].slice(0, 3);
+  return words.map((w) => w[0]).join("");
+}
+
+/** Compact code for an option value, e.g. "Large" -> "LAR". */
+function skuValueCode(value: string): string {
+  return value
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "")
+    .slice(0, 3);
+}
+
+/**
+ * Build a compact SKU from the product title acronym + per-value codes,
+ * e.g. "Wave Board Pro" + ["Large", "Red"] -> "WBP-LAR-RED". With no option
+ * values the variant is numbered sequentially (WBP-01, WBP-02…). `seen` tracks
+ * SKUs already emitted in this batch so each stays unique.
+ */
+export function buildVariantSku(
+  productTitle: string,
+  values: string[],
+  seen: Set<string>,
+): string {
+  const code = skuTitleCode(productTitle) || "SKU";
+  const valueCodes = values.map(skuValueCode).filter(Boolean);
+
+  let sku: string;
+  if (valueCodes.length > 0) {
+    sku = [code, ...valueCodes].join("-");
+    if (seen.has(sku)) {
+      let n = 2;
+      while (seen.has(`${sku}-${n}`)) n++;
+      sku = `${sku}-${n}`;
+    }
+  } else {
+    let n = 1;
+    while (seen.has(`${code}-${String(n).padStart(2, "0")}`)) n++;
+    sku = `${code}-${String(n).padStart(2, "0")}`;
+  }
+  seen.add(sku);
+  return sku;
+}
+
+/** Cartesian product of filled option groups -> variant drafts w/ auto SKUs. */
+export function generateVariantDrafts(
+  options: OptionGroup[],
+  productTitle = "",
+): VariantDraft[] {
   const filled = options.filter((o) => o.name.trim() && o.values.length > 0);
   if (filled.length === 0) return [];
 
@@ -27,9 +82,10 @@ export function generateVariantDrafts(options: OptionGroup[]): VariantDraft[] {
     [],
   );
 
+  const seen = new Set<string>();
   return combinations.map((combo, i) => ({
     id: `gen-${Date.now()}-${i}`,
-    sku: "",
+    sku: buildVariantSku(productTitle, combo, seen),
     name: combo.join(" / "),
     price: "",
     compareAt: "",
