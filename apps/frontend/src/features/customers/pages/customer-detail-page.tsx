@@ -22,7 +22,11 @@ import { Input } from "~/components/ui/input";
 import { Separator } from "~/components/ui/separator";
 import type { Customer, CustomerStatus, Order } from "~/types/api";
 import { customerGroupsQueryOptions } from "~/features/customer-groups/queries";
-import { customerQueryOptions, customersQueryOptions } from "../queries";
+import {
+  customerQueryOptions,
+  customersQueryOptions,
+  customerAddressesQueryOptions,
+} from "../queries";
 import {
   updateCustomerStatusServerFn,
   generateSetPasswordLinkServerFn,
@@ -33,6 +37,7 @@ import { CustomerStatusBadge } from "../components/customer-status-badge";
 import { EditCustomerSheet } from "../components/edit-customer-sheet";
 import { StatTile } from "../components/stat-tile";
 import { AddressRow } from "../components/address-row";
+import { AddAddressSheet } from "../components/add-address-sheet";
 // Cross-feature: the order-history section reads from the orders feature.
 import { ordersQueryOptions } from "~/features/orders/queries";
 import { OrderStatusBadge } from "~/features/orders/components/order-status-badge";
@@ -48,6 +53,9 @@ export function CustomerDetailPage() {
     customerQueryOptions(customerId),
   ).data;
   const { data: ordersData } = useQuery(ordersQueryOptions({ customerId }));
+  const { data: addresses = [], isLoading: addressesLoading } = useQuery(
+    customerAddressesQueryOptions(customerId),
+  );
 
   const orders: Order[] = ordersData?.orders ?? [];
   const [mutError, setMutError] = React.useState<string | null>(null);
@@ -302,18 +310,26 @@ export function CustomerDetailPage() {
 
       {/* ── Addresses ──────────────────────────────────────────────────────── */}
       <Card>
-        <CardHeader className="border-b pb-4">
+        <CardHeader className="flex flex-row items-center justify-between border-b pb-4">
           <CardTitle className="text-sm font-semibold">Addresses</CardTitle>
+          <AddAddressSheet
+            customerId={customerId}
+            hasExisting={addresses.length > 0}
+            firstName={customer.firstName}
+            lastName={customer.lastName}
+          />
         </CardHeader>
         <CardContent className="divide-y pt-0">
-          {!customer.addresses || customer.addresses.length === 0 ? (
+          {addressesLoading ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">
+              Loading addresses…
+            </p>
+          ) : addresses.length === 0 ? (
             <p className="py-6 text-center text-sm text-muted-foreground">
               No addresses saved.
             </p>
           ) : (
-            customer.addresses.map((addr) => (
-              <AddressRow key={addr.id} addr={addr} />
-            ))
+            addresses.map((addr) => <AddressRow key={addr.id} addr={addr} />)
           )}
         </CardContent>
       </Card>
