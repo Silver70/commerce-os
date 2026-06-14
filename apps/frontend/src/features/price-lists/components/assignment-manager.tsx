@@ -9,6 +9,13 @@ import {
 
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "~/components/ui/select";
 import type { PriceListAssignment } from "~/types/api";
 import { customerGroupsQueryOptions } from "~/features/customer-groups/queries";
 import { customersQueryOptions } from "~/features/customers/queries";
@@ -127,31 +134,35 @@ export function AssignmentManager({
 
         {/* Attach control */}
         <div className="flex flex-wrap items-center gap-2 border-t pt-4">
-          <select
+          <Select
             value={target}
-            onChange={(e) => {
-              setTarget(e.target.value as Target);
+            onValueChange={(v) => {
+              setTarget(v as Target);
               setSelectedId("");
             }}
-            className="h-9 rounded-md border border-input bg-transparent px-3 text-sm"
           >
-            <option value="group">Group</option>
-            <option value="customer">Customer</option>
-          </select>
-          <select
-            value={selectedId}
-            onChange={(e) => setSelectedId(e.target.value)}
-            className="h-9 min-w-48 flex-1 rounded-md border border-input bg-transparent px-3 text-sm"
-          >
-            <option value="">
-              Select a {target === "group" ? "group" : "customer"}…
-            </option>
-            {options.map((o) => (
-              <option key={o.id} value={o.id}>
-                {target === "group" ? groupName(o.id) : customerLabel(o.id)}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger className="h-9 w-32 text-sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="group">Group</SelectItem>
+              <SelectItem value="customer">Customer</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={selectedId} onValueChange={setSelectedId}>
+            <SelectTrigger className="h-9 min-w-48 flex-1 text-sm">
+              <SelectValue
+                placeholder={`Select a ${target === "group" ? "group" : "customer"}…`}
+              />
+            </SelectTrigger>
+            <SelectContent>
+              {options.map((o) => (
+                <SelectItem key={o.id} value={o.id}>
+                  {target === "group" ? groupName(o.id) : customerLabel(o.id)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Button
             size="sm"
             disabled={!selectedId || attachMutation.isPending}

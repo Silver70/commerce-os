@@ -12,6 +12,7 @@ import {
   HttpStatus,
   NotFoundException,
   BadRequestException,
+  ConflictException,
   ParseUUIDPipe,
 } from '@nestjs/common';
 import {
@@ -327,6 +328,21 @@ export class AdminPriceListController {
     if (dto.groupId) {
       const group = await this.groupRepo.findById(dto.groupId, organizationId);
       if (!group) throw new NotFoundException('Customer group not found');
+    }
+
+    const existing = await this.priceListRepo.findAssignments(
+      id,
+      organizationId,
+    );
+    const duplicate = existing.find((a) =>
+      dto.groupId ? a.groupId === dto.groupId : a.customerId === dto.customerId,
+    );
+    if (duplicate) {
+      throw new ConflictException(
+        dto.groupId
+          ? 'This price list is already assigned to that customer group.'
+          : 'This price list is already assigned to that customer.',
+      );
     }
 
     return this.priceListRepo.createAssignment({

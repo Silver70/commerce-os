@@ -18,10 +18,7 @@ import { Label } from "~/components/ui/label";
 import { Separator } from "~/components/ui/separator";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { priceListQueryOptions, priceListsQueryOptions } from "../queries";
-import {
-  deletePriceListServerFn,
-  updatePriceListServerFn,
-} from "../server";
+import { deletePriceListServerFn, updatePriceListServerFn } from "../server";
 import {
   basisPointsToPercent,
   computePriceListStatus,
@@ -45,7 +42,9 @@ export function PriceListDetailPage({ priceListId }: { priceListId: string }) {
   const [name, setName] = React.useState(detail.name);
   const [priority, setPriority] = React.useState(String(detail.priority));
   const [isActive, setIsActive] = React.useState(detail.isActive);
-  const [startDate, setStartDate] = React.useState(toDateInput(detail.startsAt));
+  const [startDate, setStartDate] = React.useState(
+    toDateInput(detail.startsAt),
+  );
   const [endDate, setEndDate] = React.useState(toDateInput(detail.endsAt));
   const [direction, setDirection] = React.useState<AdjustmentDirection>(
     (detail.adjustmentBasisPoints ?? 0) > 0 ? "markup" : "off",
