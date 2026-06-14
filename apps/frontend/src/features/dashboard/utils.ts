@@ -1,12 +1,16 @@
 import type { Period } from "~/types/api";
 
-/** Compact currency: $1.2M / $3.4k / $999. */
-export function fmt(n: number): string {
+/** Compact currency from integer cents: $1.2M / $3.4k / $999.00. */
+export function fmt(cents: number): string {
+  const n = cents / 100;
   return n >= 1_000_000
     ? `$${(n / 1_000_000).toFixed(1)}M`
     : n >= 1_000
       ? `$${(n / 1_000).toFixed(1)}k`
-      : `$${n.toLocaleString()}`;
+      : `$${n.toLocaleString(undefined, {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })}`;
 }
 
 /** Compact count: 1.2M / 3.4k / 999. */
