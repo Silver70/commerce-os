@@ -7,7 +7,12 @@ import {
 import type { ProductStatus } from "~/types/api";
 
 export const productsQueryOptions = (
-  params: { status?: ProductStatus; cursor?: string; limit?: number } = {},
+  params: {
+    status?: ProductStatus;
+    search?: string;
+    cursor?: string;
+    limit?: number;
+  } = {},
 ) =>
   queryOptions({
     queryKey: ["products", params],

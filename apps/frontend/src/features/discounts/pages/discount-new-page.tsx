@@ -1,6 +1,6 @@
 import * as React from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 import { ArrowLeftIcon, ChevronRightIcon, LoaderCircleIcon } from "lucide-react";
 
@@ -10,11 +10,27 @@ import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { Separator } from "~/components/ui/separator";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
-import type { DiscountType } from "~/types/api";
+import { EntityCombobox, type ComboboxOption } from "~/components/entity-combobox";
+import type { Category, DiscountType } from "~/types/api";
+import {
+  categoriesQueryOptions,
+  productsQueryOptions,
+} from "~/features/products/queries";
 import { discountsQueryOptions } from "../queries";
 import { createCouponServerFn, createDiscountServerFn } from "../server";
 import { DraftCouponCodesCard } from "../components/draft-coupon-codes-card";
 import type { AppliesTo, CouponCode } from "../types";
+
+/** Flatten the category tree into indented options for the combobox. */
+function flattenCategories(
+  nodes: Category[],
+  depth = 0,
+): ComboboxOption[] {
+  return nodes.flatMap((node) => [
+    { id: node.id, label: node.name, depth },
+    ...flattenCategories(node.children ?? [], depth + 1),
+  ]);
+}
 
 const createDiscountSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -39,6 +55,35 @@ export function DiscountNewPage() {
   const [appliesTo, setAppliesTo] = React.useState<AppliesTo>("order");
   const [category, setCategory] = React.useState("");
   const [product, setProduct] = React.useState("");
+  const [productQuery, setProductQuery] = React.useState("");
+
+  // Category options: tree is small, so load once and filter client-side.
+  const categoriesQuery = useQuery({
+    ...categoriesQueryOptions(),
+    enabled: appliesTo === "category",
+  });
+  const categoryOptions = React.useMemo(
+    () => flattenCategories(categoriesQuery.data ?? []),
+    [categoriesQuery.data],
+  );
+
+  // Product options: catalog can be large, so search server-side (debounced).
+  const productsQuery = useQuery({
+    ...productsQueryOptions({ search: productQuery || undefined, limit: 20 }),
+    enabled: appliesTo === "product",
+  });
+  const productOptions = React.useMemo<ComboboxOption[]>(
+    () =>
+      (productsQuery.data?.items ?? []).map((p) => ({ id: p.id, label: p.name })),
+    [productsQuery.data],
+  );
+  const debouncedProductSearch = React.useMemo(() => {
+    let timer: ReturnType<typeof setTimeout>;
+    return (q: string) => {
+      clearTimeout(timer);
+      timer = setTimeout(() => setProductQuery(q), 200);
+    };
+  }, []);
 
   // Conditions
   const [minPurchase, setMinPurchase] = React.useState("");
@@ -288,22 +333,35 @@ export function DiscountNewPage() {
 
               {appliesTo === "category" && (
                 <div className="ml-7 mt-1">
-                  <Input
-                    placeholder="Category ID"
+                  <EntityCombobox
+                    items={categoryOptions}
                     value={category}
-                    onChange={(e) => setCategory(e.target.value)}
-                    className="w-56"
+                    onChange={setCategory}
+                    placeholder="Search categories…"
+                    emptyText={
+                      categoriesQuery.isLoading
+                        ? "Loading…"
+                        : "No categories found."
+                    }
+                    className="w-72"
                   />
                 </div>
               )}
 
               {appliesTo === "product" && (
                 <div className="ml-7 mt-1">
-                  <Input
-                    placeholder="Product ID"
+                  <EntityCombobox
+                    items={productOptions}
                     value={product}
-                    onChange={(e) => setProduct(e.target.value)}
-                    className="w-56"
+                    onChange={setProduct}
+                    placeholder="Search products…"
+                    emptyText={
+                      productsQuery.isLoading
+                        ? "Loading…"
+                        : "No products found."
+                    }
+                    onQueryChange={debouncedProductSearch}
+                    className="w-72"
                   />
                 </div>
               )}

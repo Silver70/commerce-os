@@ -88,6 +88,7 @@ export const getProductsServerFn = createServerFn({ method: "GET" })
   .inputValidator(
     z.object({
       status: z.enum(["draft", "active", "archived"]).optional(),
+      search: z.string().optional(),
       cursor: z.string().optional(),
       limit: z.number().int().positive().optional(),
     }),
@@ -95,6 +96,7 @@ export const getProductsServerFn = createServerFn({ method: "GET" })
   .handler(async ({ data }): Promise<PaginatedResponse<Product>> => {
     const params = new URLSearchParams();
     if (data.status) params.set("status", data.status);
+    if (data.search) params.set("search", data.search);
     if (data.cursor) params.set("cursor", data.cursor);
     if (data.limit) params.set("limit", String(data.limit));
     try {
