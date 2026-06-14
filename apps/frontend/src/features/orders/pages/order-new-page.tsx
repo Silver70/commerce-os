@@ -31,15 +31,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select";
-import type { Customer } from "~/types/api";
+import type { Customer, ShippingMethod } from "~/types/api";
 import {
   customersQueryOptions,
   customerAddressesQueryOptions,
 } from "~/features/customers/queries";
+import { shippingMethodsQueryOptions } from "~/features/shipping/queries";
 import { ProductSearch } from "../components/product-search";
 import { ShippingAddressSheet } from "../components/shipping-address-sheet";
 import { createOrderServerFn, type CreateOrderInput } from "../server";
-import { DISCOUNT_CODES, SHIPPING_METHODS } from "../mock-catalog";
+import { DISCOUNT_CODES } from "../mock-catalog";
 import { customerAddressToShipping } from "../utils";
 import type {
   CatalogVariant,
@@ -64,6 +65,19 @@ function customerName(c: Pick<Customer, "firstName" | "lastName" | "email">) {
 /** cents → editable dollar string (no forced decimals while typing). */
 function priceToInput(cents: number) {
   return (cents / 100).toString();
+}
+
+/** Human-readable delivery estimate from a method's estimated-days range. */
+function estimatedDelivery(m: ShippingMethod): string {
+  const { estimatedDaysMin: min, estimatedDaysMax: max } = m;
+  if (min != null && max != null) {
+    return min === max
+      ? `${min} business day${min === 1 ? "" : "s"}`
+      : `${min}–${max} business days`;
+  }
+  if (max != null) return `Up to ${max} business days`;
+  if (min != null) return `${min}+ business days`;
+  return m.rateType === "free" ? "Free shipping" : "Delivery estimate varies";
 }
 
 export function OrderNewPage() {
@@ -111,8 +125,29 @@ export function OrderNewPage() {
     if (def) setShippingAddr(customerAddressToShipping(def));
   }, [customer, customerAddresses, shippingAddr]);
 
+  // Shipping methods — sourced from the store admin's configured methods. We
+  // show all active methods across zones (no zone filtering).
+  const {
+    data: shippingMethods = [],
+    isLoading: shippingMethodsLoading,
+    isError: shippingMethodsError,
+  } = useQuery(shippingMethodsQueryOptions());
+  const activeMethods = React.useMemo(
+    () => shippingMethods.filter((m) => m.isActive),
+    [shippingMethods],
+  );
+
   // Order options
-  const [shipping, setShipping] = React.useState("standard");
+  const [shipping, setShipping] = React.useState("");
+
+  // Default to the first active method once loaded; also recover if the chosen
+  // method is no longer available (e.g. deactivated while the page is open).
+  React.useEffect(() => {
+    if (activeMethods.length === 0) return;
+    if (!activeMethods.some((m) => m.id === shipping)) {
+      setShipping(activeMethods[0].id);
+    }
+  }, [activeMethods, shipping]);
   const [paymentType, setPaymentType] = React.useState<"paid" | "invoice">(
     "paid",
   );
@@ -127,9 +162,8 @@ export function OrderNewPage() {
   // ─── Computed totals (all in cents) ──────────────────────────────────────
 
   const subtotal = items.reduce((s, i) => s + i.qty * i.unitPrice, 0);
-  const shippingCost = Math.round(
-    (SHIPPING_METHODS.find((m) => m.id === shipping)?.price ?? 0) * 100,
-  );
+  // Method prices are already stored in cents — no conversion needed.
+  const shippingCost = activeMethods.find((m) => m.id === shipping)?.price ?? 0;
   const discountAmount = appliedDiscount
     ? appliedDiscount.type === "percent"
       ? Math.round(subtotal * (appliedDiscount.value / 100))
@@ -710,39 +744,65 @@ export function OrderNewPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2 pt-4">
-              {SHIPPING_METHODS.map((m) => (
-                <button
-                  key={m.id}
-                  type="button"
-                  onClick={() => setShipping(m.id)}
-                  className={cn(
-                    "flex w-full items-center gap-3 rounded-lg border px-3.5 py-3 text-left transition-colors",
-                    shipping === m.id
-                      ? "border-amber-400 bg-amber-50/50 dark:border-amber-700 dark:bg-amber-950/20"
-                      : "border-border hover:bg-muted/40",
-                  )}
-                >
-                  <div
+              {shippingMethodsLoading ? (
+                <div className="flex items-center gap-2 py-2 text-sm text-muted-foreground">
+                  <LoaderCircleIcon className="h-4 w-4 animate-spin" />
+                  Loading shipping methods…
+                </div>
+              ) : shippingMethodsError ? (
+                <p className="py-2 text-sm text-destructive">
+                  Couldn't load shipping methods.
+                </p>
+              ) : activeMethods.length === 0 ? (
+                <p className="py-2 text-sm text-muted-foreground">
+                  No active shipping methods. Configure them under{" "}
+                  <Link
+                    to="/admin/shipping"
+                    className="font-medium text-orange-700 hover:text-orange-800"
+                  >
+                    Shipping
+                  </Link>
+                  .
+                </p>
+              ) : (
+                activeMethods.map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => setShipping(m.id)}
                     className={cn(
-                      "flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
+                      "flex w-full items-center gap-3 rounded-lg border px-3.5 py-3 text-left transition-colors",
                       shipping === m.id
-                        ? "border-amber-500"
-                        : "border-muted-foreground/40",
+                        ? "border-amber-400 bg-amber-50/50 dark:border-amber-700 dark:bg-amber-950/20"
+                        : "border-border hover:bg-muted/40",
                     )}
                   >
-                    {shipping === m.id && (
-                      <div className="h-2 w-2 rounded-full bg-amber-500" />
-                    )}
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium">{m.label}</p>
-                    <p className="text-xs text-muted-foreground">{m.sub}</p>
-                  </div>
-                  <span className="shrink-0 text-sm font-semibold tabular-nums">
-                    {m.price === 0 ? "Free" : `$${m.price.toFixed(2)}`}
-                  </span>
-                </button>
-              ))}
+                    <div
+                      className={cn(
+                        "flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
+                        shipping === m.id
+                          ? "border-amber-500"
+                          : "border-muted-foreground/40",
+                      )}
+                    >
+                      {shipping === m.id && (
+                        <div className="h-2 w-2 rounded-full bg-amber-500" />
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">{m.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {estimatedDelivery(m)}
+                      </p>
+                    </div>
+                    <span className="shrink-0 text-sm font-semibold tabular-nums">
+                      {m.rateType === "free" || m.price === 0
+                        ? "Free"
+                        : formatPrice(m.price)}
+                    </span>
+                  </button>
+                ))
+              )}
             </CardContent>
           </Card>
 
