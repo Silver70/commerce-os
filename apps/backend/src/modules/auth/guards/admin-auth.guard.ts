@@ -3,7 +3,6 @@ import {
   CanActivate,
   ExecutionContext,
   UnauthorizedException,
-  ForbiddenException,
   Inject,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -151,10 +150,15 @@ export class AdminAuthGuard implements CanActivate {
   }
 
   /**
-   * Validates the requested store belongs to the org and is active.
-   * Falls back to the first active store of the org so dev / fresh sessions work.
-   * Returns `undefined` only when the org has no stores yet — org-level routes
-   * still function in that case.
+   * Resolves the active store for the request. The requested store id (from the
+   * `X-Store-Id` header or `wos-active-store` cookie) is treated as a hint: if it
+   * names a valid, active store in the org we honor it. Otherwise the hint is
+   * stale — e.g. a cookie left over from a different org, or a store that was
+   * since deleted/deactivated — and we fall back to the org's first active store
+   * rather than failing the whole request. The org boundary is still enforced:
+   * every query is scoped to `orgId`, so a foreign/forged id can never resolve to
+   * another tenant's store. Returns `undefined` only when the org has no stores
+   * yet — org-level routes still function in that case.
    */
   private async resolveStoreId(
     orgId: string,
@@ -168,17 +172,12 @@ export class AdminAuthGuard implements CanActivate {
           and(
             eq(stores.id, requestedStoreId),
             eq(stores.organizationId, orgId),
+            eq(stores.isActive, true),
           ),
         )
         .limit(1);
 
-      if (!store) {
-        throw new ForbiddenException('Store not found in this organization');
-      }
-      if (!store.isActive) {
-        throw new ForbiddenException('Store is inactive');
-      }
-      return store.id;
+      if (store) return store.id;
     }
 
     const [fallback] = await this.db
