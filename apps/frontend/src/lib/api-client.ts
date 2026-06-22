@@ -5,9 +5,12 @@ import type { UserInfo } from "@workos/authkit-tanstack-react-start";
 type ReqConfig = { headers?: Record<string, string> };
 type ApiResponse<T> = { data: T; status: number; headers: Headers };
 
+// No default Content-Type header: redaxios already sets `application/json`
+// when it stringifies an object body, and forcing that header onto a FormData
+// body would suppress the multipart boundary fetch needs to generate — which
+// breaks file uploads (the backend can't parse the body as multipart).
 const baseClient = axios.create({
   baseURL: import.meta.env.VITE_API_URL as string,
-  headers: { "Content-Type": "application/json" },
 });
 
 export async function authHeader(): Promise<Record<string, string>> {
