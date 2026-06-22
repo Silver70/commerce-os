@@ -14,6 +14,7 @@ import { getProductsServerFn } from "../server";
 import { PriceDisplay } from "../components/price-display";
 import { ProductStatusBadge } from "../components/product-status-badge";
 import { ProductThumbnail } from "../components/product-thumbnail";
+import { primaryImage } from "../utils";
 
 const COLUMNS: DataTableColumn<Product>[] = [
   {
@@ -23,9 +24,14 @@ const COLUMNS: DataTableColumn<Product>[] = [
       const variantCount = row.variants.length;
       const singleSku =
         variantCount === 1 ? (row.variants[0]?.sku ?? null) : null;
+      const image = primaryImage(row.media);
       return (
         <div className="flex items-center gap-3">
-          <ProductThumbnail name={row.name} />
+          <ProductThumbnail
+            name={row.name}
+            imageUrl={image?.url}
+            altText={image?.altText}
+          />
           <div className="min-w-0">
             <p className="text-sm font-medium leading-none">{row.name}</p>
             <p className="mt-0.5 font-mono text-xs text-muted-foreground">

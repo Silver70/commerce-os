@@ -1,5 +1,18 @@
-import type { ProductVariant } from "~/types/api";
+import type { ProductMedia, ProductVariant } from "~/types/api";
 import type { OptionGroup, VariantDraft } from "./types";
+
+/**
+ * The image that best represents a product: its primary image, else the first
+ * image by position. Returns null when the product has no image media.
+ */
+export function primaryImage(media: ProductMedia[]): ProductMedia | null {
+  const images = media.filter((m) => m.mediaType === "image");
+  if (images.length === 0) return null;
+  return (
+    images.find((m) => m.isPrimary) ??
+    [...images].sort((a, b) => a.position - b.position)[0]
+  );
+}
 
 // Copy shown beneath the status selector on the product form.
 export const STATUS_HINTS: Record<string, string> = {
