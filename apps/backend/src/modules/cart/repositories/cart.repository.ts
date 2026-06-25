@@ -1,10 +1,12 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, and, inArray, sql } from 'drizzle-orm';
 import { DRIZZLE_CLIENT } from '../../../shared/database/database.module';
 import type { DrizzleClient } from '../../../shared/database/database.module';
 import {
   carts,
   cartItems,
+  products,
+  productMedia,
   productVariants,
   productCategories,
 } from '../../../shared/database/schema';
@@ -354,6 +356,76 @@ export class CartRepository {
       .from(productCategories)
       .where(eq(productCategories.productId, productId));
     return rows.map((r) => r.categoryId);
+  }
+
+  /**
+   * Batch-resolves the product display name and primary image URL for a set of
+   * products in two queries (no N+1). Used to snapshot order line items at
+   * checkout so an order always shows the product name + image as it was at
+   * purchase time, independent of later catalog edits. The primary image is the
+   * `is_primary` media row, falling back to the lowest-position image.
+   */
+  async getProductSnapshots(
+    productIds: string[],
+    orgId: string,
+    storeId: string,
+  ): Promise<Map<string, { name: string; imageUrl: string | null }>> {
+    const out = new Map<string, { name: string; imageUrl: string | null }>();
+    if (productIds.length === 0) return out;
+
+    const productRows = await this.db
+      .select({ id: products.id, name: products.name })
+      .from(products)
+      .where(
+        and(
+          inArray(products.id, productIds),
+          eq(products.organizationId, orgId),
+          eq(products.storeId, storeId),
+        ),
+      );
+
+    const mediaRows = await this.db
+      .select({
+        productId: productMedia.productId,
+        url: productMedia.url,
+        isPrimary: productMedia.isPrimary,
+        position: productMedia.position,
+      })
+      .from(productMedia)
+      .where(
+        and(
+          inArray(productMedia.productId, productIds),
+          eq(productMedia.organizationId, orgId),
+          eq(productMedia.storeId, storeId),
+        ),
+      );
+
+    const bestImage = new Map<
+      string,
+      { url: string; isPrimary: boolean; position: number }
+    >();
+    for (const m of mediaRows) {
+      const cur = bestImage.get(m.productId);
+      const isBetter =
+        !cur ||
+        (m.isPrimary && !cur.isPrimary) ||
+        (m.isPrimary === cur.isPrimary && m.position < cur.position);
+      if (isBetter) {
+        bestImage.set(m.productId, {
+          url: m.url,
+          isPrimary: m.isPrimary,
+          position: m.position,
+        });
+      }
+    }
+
+    for (const p of productRows) {
+      out.set(p.id, {
+        name: p.name,
+        imageUrl: bestImage.get(p.id)?.url ?? null,
+      });
+    }
+    return out;
   }
 
   // ─── Private ─────────────────────────────────────────────────────────────────

@@ -130,8 +130,10 @@ export class CheckoutService {
       orgId,
       storeId,
     );
-    const customerEmail =
-      dto.email ?? this.getCustomerEmail() ?? 'guest@checkout';
+    const customerEmail = dto.email.trim();
+    if (!customerEmail) {
+      throw new BadRequestException('A contact email is required to check out');
+    }
     const customerName = this.buildCustomerName(shippingAddress);
 
     const order = await this.orderRepo.create({
@@ -166,21 +168,32 @@ export class CheckoutService {
       source: 'storefront',
     });
 
-    // 7. Create order line item snapshots
-    const lineItemData = cart.items.map((item, idx) => ({
-      organizationId: orgId,
+    // 7. Create order line item snapshots. Capture the product name + primary
+    // image as they are at purchase time so the order is immutable against later
+    // catalog edits (per the line-item snapshot rule).
+    const productSnapshots = await this.cartRepo.getProductSnapshots(
+      [...new Set(cart.items.map((item) => item.variant.productId))],
+      orgId,
       storeId,
-      orderId: order.id,
-      variantId: item.variantId,
-      productName: item.variant.name ?? item.variant.sku,
-      variantName: item.variant.name,
-      sku: item.variant.sku,
-      imageUrl: null as string | null,
-      quantity: item.quantity,
-      unitPrice: item.unitPrice,
-      totalPrice: item.quantity * item.unitPrice,
-      discountAmount: discountResult.items[idx]?.discountAmount ?? 0,
-    }));
+    );
+
+    const lineItemData = cart.items.map((item, idx) => {
+      const snapshot = productSnapshots.get(item.variant.productId);
+      return {
+        organizationId: orgId,
+        storeId,
+        orderId: order.id,
+        variantId: item.variantId,
+        productName: snapshot?.name ?? item.variant.name ?? item.variant.sku,
+        variantName: item.variant.name,
+        sku: item.variant.sku,
+        imageUrl: snapshot?.imageUrl ?? null,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        totalPrice: item.quantity * item.unitPrice,
+        discountAmount: discountResult.items[idx]?.discountAmount ?? 0,
+      };
+    });
 
     await this.orderRepo.createLineItems(lineItemData);
 
@@ -233,10 +246,5 @@ export class CheckoutService {
 
   private buildCustomerName(address: AddressInputDto): string {
     return `${address.firstName} ${address.lastName}`.trim();
-  }
-
-  private getCustomerEmail(): null {
-    // CustomerModule is not imported here to avoid circular deps; guest checkout uses dto.email
-    return null;
   }
 }

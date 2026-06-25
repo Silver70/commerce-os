@@ -15,17 +15,14 @@ import type { ProductDetail } from '../repositories/product.repository';
 import type { CategoryTreeNode } from '../repositories/category.repository';
 import { encodeCursor } from '../../../shared/utils/pagination.util';
 import { InputType, Field } from '@nestjs/graphql';
-import { IsOptional, IsString, IsEnum } from 'class-validator';
+import { IsOptional, IsString } from 'class-validator';
 import type { TenantContext } from '../../../shared/tenant/tenant-context';
 import type { Request } from 'express';
 
+// Storefront product filters. Status is intentionally omitted — the public API
+// only ever exposes `active` products (enforced in the resolver below).
 @InputType()
 export class ProductFilterInput {
-  @Field({ nullable: true })
-  @IsOptional()
-  @IsEnum(['draft', 'active', 'archived'])
-  status?: string;
-
   @Field({ nullable: true })
   @IsOptional()
   @IsString()
@@ -97,7 +94,8 @@ export class ProductResolver {
     const result = await this.productService.list(
       {
         ...filter,
-        status: filter?.status as 'draft' | 'active' | 'archived' | undefined,
+        // The storefront only ever sees published products.
+        status: 'active',
         cursor: after,
         limit,
       },
@@ -134,7 +132,9 @@ export class ProductResolver {
     } else if (slug) {
       detail = await this.productService.getBySlug(slug, tenant);
     }
-    if (!detail) return null;
+    // Never expose draft/archived products through the public storefront API,
+    // even when fetched directly by id or slug.
+    if (!detail || detail.status !== 'active') return null;
     const priceOverrides = await this.resolveVariantPrices([detail], tenant);
     return toProductType(detail, priceOverrides);
   }

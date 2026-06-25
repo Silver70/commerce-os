@@ -172,6 +172,31 @@ export class OrderService {
     return detail;
   }
 
+  /**
+   * Guest order lookup for the storefront confirmation/status page. Requires
+   * both the order number AND the email used at checkout — order numbers are
+   * sequential and guessable, so the email acts as the shared secret. Returns
+   * null (never reveals existence) when the number is unknown or the email does
+   * not match, so the endpoint can't be used to enumerate orders.
+   */
+  async getGuestOrderStatus(
+    orderNumber: string,
+    email: string,
+    orgId: string,
+    storeId: string,
+  ): Promise<OrderWithDetails | null> {
+    const order = await this.orderRepo.findByOrderNumber(
+      orderNumber,
+      orgId,
+      storeId,
+    );
+    const normalize = (s: string): string => s.trim().toLowerCase();
+    if (!order || normalize(order.customerEmail) !== normalize(email)) {
+      return null;
+    }
+    return this.orderRepo.findWithDetails(order.id, orgId, storeId);
+  }
+
   async listOrders(
     filters: OrderFilterDto,
     orgId: string,

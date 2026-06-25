@@ -92,6 +92,25 @@ export class OrderRepository {
     return row ?? null;
   }
 
+  async findByOrderNumber(
+    orderNumber: string,
+    orgId: string,
+    storeId: string,
+  ): Promise<Order | null> {
+    const [row] = await this.db
+      .select()
+      .from(orders)
+      .where(
+        and(
+          eq(orders.orderNumber, orderNumber),
+          eq(orders.organizationId, orgId),
+          eq(orders.storeId, storeId),
+        ),
+      )
+      .limit(1);
+    return row ?? null;
+  }
+
   async findWithDetails(
     orderId: string,
     orgId: string,

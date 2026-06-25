@@ -99,6 +99,35 @@ function mapOrderToType(order: {
 export class OrderResolver {
   constructor(private readonly orderService: OrderService) {}
 
+  @Query(() => OrderType, {
+    nullable: true,
+    description:
+      'Look up an order by its number + the email used at checkout. Powers the ' +
+      'guest order-confirmation/status page — no customer login required. ' +
+      'Returns null when the number is unknown or the email does not match.',
+  })
+  @UseGuards(StorefrontAuthGuard)
+  async orderStatus(
+    @Context() ctx: GqlContext,
+    @Args('orderNumber') orderNumber: string,
+    @Args('email') email: string,
+  ): Promise<OrderType | null> {
+    const tenant = ctx.req.tenantContext;
+    if (!tenant) {
+      throw new UnauthorizedException('Missing tenant context');
+    }
+    const { organizationId, storeId } = requireStoreContext(tenant);
+
+    const detail = await this.orderService.getGuestOrderStatus(
+      orderNumber,
+      email,
+      organizationId,
+      storeId,
+    );
+    if (!detail) return null;
+    return mapOrderToType(detail);
+  }
+
   @Query(() => OrderConnectionType, {
     description: "Get the current customer's paginated order history",
   })

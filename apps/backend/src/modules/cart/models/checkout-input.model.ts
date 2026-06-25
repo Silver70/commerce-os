@@ -94,12 +94,13 @@ export class CheckoutInput {
   declare shippingMethodId: string;
 
   @Field(() => String, {
-    nullable: true,
-    description: 'Email for guest checkout',
+    description:
+      'Contact email for the order. Required — used for the order confirmation ' +
+      'and the guest order-status lookup. Storefronts should pre-fill this from ' +
+      "the logged-in customer's profile when available.",
   })
-  @IsOptional()
   @IsEmail()
-  declare email?: string;
+  declare email: string;
 
   @Field(() => String, {
     nullable: true,
