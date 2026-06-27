@@ -50,7 +50,7 @@ export class CartResolver {
       organizationId,
       storeId,
     );
-    return toCartType(result);
+    return this.toCartType(result, organizationId, storeId);
   }
 
   @Mutation(() => CartType, { description: 'Create a new empty cart' })
@@ -62,7 +62,7 @@ export class CartResolver {
       storeId,
       tenant.customerId,
     );
-    return toCartType(result);
+    return this.toCartType(result, organizationId, storeId);
   }
 
   @Mutation(() => CartType, { description: 'Add a variant to the cart' })
@@ -80,7 +80,7 @@ export class CartResolver {
       organizationId,
       storeId,
     );
-    return toCartType(result);
+    return this.toCartType(result, organizationId, storeId);
   }
 
   @Mutation(() => CartType, {
@@ -101,7 +101,7 @@ export class CartResolver {
       organizationId,
       storeId,
     );
-    return toCartType(result);
+    return this.toCartType(result, organizationId, storeId);
   }
 
   @Mutation(() => CartType, { description: 'Remove a line item from the cart' })
@@ -117,7 +117,7 @@ export class CartResolver {
       organizationId,
       storeId,
     );
-    return toCartType(result);
+    return this.toCartType(result, organizationId, storeId);
   }
 
   @Mutation(() => CartType, { description: 'Apply a coupon code to the cart' })
@@ -133,7 +133,7 @@ export class CartResolver {
       organizationId,
       storeId,
     );
-    return toCartType(result);
+    return this.toCartType(result, organizationId, storeId);
   }
 
   @Mutation(() => CartType, {
@@ -149,7 +149,7 @@ export class CartResolver {
       organizationId,
       storeId,
     );
-    return toCartType(result);
+    return this.toCartType(result, organizationId, storeId);
   }
 
   @Mutation(() => CheckoutResultType, {
@@ -163,9 +163,52 @@ export class CartResolver {
     const tenant = tenantFrom(ctx);
     return this.checkoutService.checkout(cartId, input, tenant);
   }
+
+  /**
+   * Maps a CartWithItems to the GraphQL CartType, enriching each line item with
+   * the display data the storefront needs (product name, slug, primary image).
+   * Product snapshots are batch-resolved in one round trip (no N+1).
+   */
+  private async toCartType(
+    cart: CartWithItems,
+    orgId: string,
+    storeId: string,
+  ): Promise<CartType> {
+    const productIds = [
+      ...new Set(cart.items.map((item) => item.variant.productId)),
+    ];
+    const snapshots = await this.cartService.getProductSnapshots(
+      productIds,
+      orgId,
+      storeId,
+    );
+
+    return {
+      id: cart.id,
+      organizationId: cart.organizationId,
+      customerId: cart.customerId,
+      status: cart.status,
+      couponCode: cart.couponCode,
+      subtotal: cart.subtotal,
+      discountAmount: cart.discountAmount,
+      taxAmount: cart.taxAmount,
+      shippingAmount: cart.shippingAmount,
+      total: cart.total,
+      currency: cart.currency,
+      items: cart.items.map((item) =>
+        toCartItemType(item, snapshots.get(item.variant.productId)),
+      ),
+      expiresAt: cart.expiresAt,
+      createdAt: cart.createdAt,
+      updatedAt: cart.updatedAt,
+    };
+  }
 }
 
-function toCartItemType(item: CartWithItems['items'][number]): CartItemType {
+function toCartItemType(
+  item: CartWithItems['items'][number],
+  snapshot?: { name: string; slug: string; imageUrl: string | null },
+): CartItemType {
   return {
     id: item.id,
     cartId: item.cartId,
@@ -173,31 +216,16 @@ function toCartItemType(item: CartWithItems['items'][number]): CartItemType {
     quantity: item.quantity,
     unitPrice: item.unitPrice,
     totalPrice: item.totalPrice,
-    // CartItemWithVariant doesn't carry DB timestamps — use now as fallback
+    // Display data. Fall back to the variant's own fields if the product row
+    // can't be resolved (e.g. just-deleted product) so the cart still renders.
+    productName: snapshot?.name ?? item.variant.name ?? item.variant.sku,
+    productSlug: snapshot?.slug ?? '',
+    variantName: item.variant.name,
+    sku: item.variant.sku,
+    imageUrl: snapshot?.imageUrl ?? null,
+    // CartItemWithVariant doesn't carry DB timestamps — use now as fallback.
     // The actual timestamps live on the CartItem row returned from the repo.
-    // When using toCartType we only have CartItemWithVariant. For accurate
-    // timestamps we'd need a join. For now provide sensible defaults.
     createdAt: new Date(),
     updatedAt: new Date(),
-  };
-}
-
-function toCartType(cart: CartWithItems): CartType {
-  return {
-    id: cart.id,
-    organizationId: cart.organizationId,
-    customerId: cart.customerId,
-    status: cart.status,
-    couponCode: cart.couponCode,
-    subtotal: cart.subtotal,
-    discountAmount: cart.discountAmount,
-    taxAmount: cart.taxAmount,
-    shippingAmount: cart.shippingAmount,
-    total: cart.total,
-    currency: cart.currency,
-    items: cart.items.map(toCartItemType),
-    expiresAt: cart.expiresAt,
-    createdAt: cart.createdAt,
-    updatedAt: cart.updatedAt,
   };
 }

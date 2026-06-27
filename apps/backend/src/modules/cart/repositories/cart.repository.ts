@@ -369,12 +369,17 @@ export class CartRepository {
     productIds: string[],
     orgId: string,
     storeId: string,
-  ): Promise<Map<string, { name: string; imageUrl: string | null }>> {
-    const out = new Map<string, { name: string; imageUrl: string | null }>();
+  ): Promise<
+    Map<string, { name: string; slug: string; imageUrl: string | null }>
+  > {
+    const out = new Map<
+      string,
+      { name: string; slug: string; imageUrl: string | null }
+    >();
     if (productIds.length === 0) return out;
 
     const productRows = await this.db
-      .select({ id: products.id, name: products.name })
+      .select({ id: products.id, name: products.name, slug: products.slug })
       .from(products)
       .where(
         and(
@@ -422,6 +427,7 @@ export class CartRepository {
     for (const p of productRows) {
       out.set(p.id, {
         name: p.name,
+        slug: p.slug,
         imageUrl: bestImage.get(p.id)?.url ?? null,
       });
     }

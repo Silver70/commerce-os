@@ -22,6 +22,26 @@ export class CartItemType {
   })
   declare totalPrice: number;
 
+  @Field(() => String, { description: 'Product display name' })
+  declare productName: string;
+
+  @Field(() => String, {
+    description: 'Product slug for linking back to the PDP',
+  })
+  declare productSlug: string;
+
+  @Field(() => String, { nullable: true, description: 'Variant display name' })
+  declare variantName?: string | null;
+
+  @Field(() => String, { description: 'Variant SKU' })
+  declare sku: string;
+
+  @Field(() => String, {
+    nullable: true,
+    description: 'Primary product image URL',
+  })
+  declare imageUrl?: string | null;
+
   @Field()
   declare createdAt: Date;
 

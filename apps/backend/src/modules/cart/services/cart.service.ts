@@ -306,6 +306,21 @@ export class CartService {
     }
   }
 
+  /**
+   * Batch-resolve product display data (name, slug, primary image) for a set of
+   * products. Used by the cart resolver to enrich line items with the fields the
+   * storefront needs to render a cart row.
+   */
+  async getProductSnapshots(
+    productIds: string[],
+    orgId: string,
+    storeId: string,
+  ): Promise<
+    Map<string, { name: string; slug: string; imageUrl: string | null }>
+  > {
+    return this.cartRepo.getProductSnapshots(productIds, orgId, storeId);
+  }
+
   async markConverted(
     cartId: string,
     orgId: string,
