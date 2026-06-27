@@ -40,11 +40,13 @@ Every authenticated page shares the same shell:
 ```
 
 **Topbar (64px height)**
+
 - Left: Logo/brand mark (links to Dashboard). On mobile, hamburger menu toggle.
 - Center: Global search — command-palette style (`Cmd+K` / `Ctrl+K` shortcut). Searches across orders (by number/email), products (by name/SKU), and customers (by name/email). Results grouped by type with keyboard navigation.
 - Right: Organization switcher dropdown (shows current org name, list of orgs user belongs to, "Create new store" link for super_admin). User avatar with dropdown menu (profile, preferences, sign out).
 
 **Sidebar (240px width, collapsible to 64px icons-only)**
+
 - Navigation grouped into sections with subtle dividers (no section headers — the grouping is visual).
 - Primary group: Dashboard, Products, Inventory, Orders, Customers, Discounts.
 - Secondary group: Shipping, Settings.
@@ -75,15 +77,15 @@ Every page follows the same header structure:
 Not all sidebar items are visible to all roles. Items the user doesn't have access to are hidden entirely (not greyed out).
 
 | Sidebar Item | super_admin | product_manager | support_agent |
-|-------------|------------|----------------|--------------|
-| Dashboard | ✓ | ✓ | ✓ |
-| Products | ✓ | ✓ | ✓ (read-only) |
-| Inventory | ✓ | ✓ | ✓ (read-only) |
-| Orders | ✓ | ✓ (read-only) | ✓ |
-| Customers | ✓ | ✓ (read-only) | ✓ |
-| Discounts | ✓ | ✓ | Hidden |
-| Shipping | ✓ | Hidden | Hidden |
-| Settings | ✓ | Hidden | Hidden |
+| ------------ | ----------- | --------------- | ------------- |
+| Dashboard    | ✓           | ✓               | ✓             |
+| Products     | ✓           | ✓               | ✓ (read-only) |
+| Inventory    | ✓           | ✓               | ✓ (read-only) |
+| Orders       | ✓           | ✓ (read-only)   | ✓             |
+| Customers    | ✓           | ✓ (read-only)   | ✓             |
+| Discounts    | ✓           | ✓               | Hidden        |
+| Shipping     | ✓           | Hidden          | Hidden        |
+| Settings     | ✓           | Hidden          | Hidden        |
 
 ### 1.4 Notifications & Toasts
 
@@ -142,6 +144,7 @@ WorkOS AuthKit provides: email/password form, Google OAuth button, Microsoft OAu
 **When shown:** After "Create a new store" is clicked from org picker, or for first-time users with no orgs.
 
 **Step 1 — Store Details**
+
 ```
 ┌─────────────────────────────────────────┐
 │                                         │
@@ -167,6 +170,7 @@ WorkOS AuthKit provides: email/password form, Google OAuth button, Microsoft OAu
 ```
 
 **Step 2 — Shipping Basics**
+
 ```
 ┌─────────────────────────────────────────┐
 │                                         │
@@ -188,6 +192,7 @@ WorkOS AuthKit provides: email/password form, Google OAuth button, Microsoft OAu
 ```
 
 **Step 3 — Done**
+
 ```
 ┌─────────────────────────────────────────┐
 │                                         │
@@ -258,6 +263,7 @@ Behind the scenes: Step 1 creates the WorkOS Organization + DB tenant record. St
 ```
 
 **Stat Cards (top row)**
+
 - Today's Orders: count, percentage change vs yesterday.
 - Today's Revenue: sum of captured payments today, percentage change vs yesterday.
 - Pending Orders: count of orders in `pending` or `processing` status. Clickable → navigates to orders list filtered by pending.
@@ -265,12 +271,14 @@ Behind the scenes: Step 1 creates the WorkOS Organization + DB tenant record. St
 - All values scoped to current tenant. Percentages compared to same day last week (not yesterday) if yesterday was atypical — but MVP can use simple yesterday comparison.
 
 **Recent Orders (left column)**
+
 - Last 5 orders, most recent first.
 - Each row: order number, customer email, total (formatted), status badge, relative time.
 - Clicking a row navigates to the order detail page.
 - "View all orders" link at bottom.
 
 **Activity Feed (right column)**
+
 - Last 10 audit log entries, human-readable.
 - Each entry: actor name ("Jane", "System", "You"), action description, relative time.
 - Entries sourced from `audit_logs` table, filtered to current tenant.
@@ -316,6 +324,7 @@ Behind the scenes: Step 1 creates the WorkOS Organization + DB tenant record. St
 ```
 
 **Table columns:**
+
 - Checkbox: for bulk selection.
 - Image: primary product image thumbnail (48x48, rounded corners). Placeholder icon if no image.
 - Name: product name (bold, clickable link to detail), variant count below in muted text.
@@ -324,6 +333,7 @@ Behind the scenes: Step 1 creates the WorkOS Organization + DB tenant record. St
 - Price: price range if variants have different prices ("$29.99 – $49.99"), single price if uniform.
 
 **Interactions:**
+
 - Search: filters by product name, SKU (debounced, 300ms).
 - Status filter: dropdown with All, Active, Draft, Archived.
 - Category filter: dropdown populated from tenant's category tree (nested display with indentation).
@@ -404,6 +414,7 @@ This is the most complex form in the admin. It's organized into sections with a 
 - **SEO**: URL slug (auto-generated from title, editable). Meta title and description (for storefronts to use in `<head>`).
 
 **Save behavior:**
+
 - Sticky bar appears at bottom when form has unsaved changes.
 - "Save" button: validates with Zod, submits via REST, shows toast on success/failure.
 - Save dropdown (▼): "Save and continue editing", "Save and go back to list".
@@ -1153,6 +1164,7 @@ Settings is organized into sub-pages accessible via a secondary nav within the s
 Every list page has a designed empty state — not just blank white space.
 
 **Products (no products yet):**
+
 ```
 ┌──────────────────────────────────────────────┐
 │                                              │
@@ -1169,6 +1181,7 @@ Every list page has a designed empty state — not just blank white space.
 ```
 
 **Orders (no orders yet):**
+
 ```
 ┌──────────────────────────────────────────────┐
 │                                              │
@@ -1186,12 +1199,14 @@ Every list page has a designed empty state — not just blank white space.
 ```
 
 **Loading states:**
+
 - Tables: skeleton rows (animated pulse) matching the table column layout. 5 skeleton rows.
 - Cards/stats: skeleton rectangles matching card dimensions.
 - Detail pages: skeleton blocks matching the layout structure.
 - Never show a spinner alone. Always show the page structure with skeleton placeholders.
 
 **Error states:**
+
 - API errors on list pages: "Something went wrong loading products. [Try again]" with retry button.
 - 404 (entity not found): "This product doesn't exist or was deleted. [Back to products]".
 - 403 (no permission): "You don't have permission to view this page. Contact your store admin."
@@ -1202,11 +1217,11 @@ Every list page has a designed empty state — not just blank white space.
 
 The admin dashboard targets desktop-first but must be functional on tablets.
 
-| Breakpoint | Behavior |
-|-----------|----------|
-| Desktop (1280px+) | Full two-column layouts, expanded sidebar, all features visible |
-| Tablet (768px–1279px) | Sidebar collapses to icons-only by default. Two-column layouts stack to single column on product edit and order detail. Tables become horizontally scrollable. |
-| Mobile (below 768px) | Sidebar becomes overlay drawer. All layouts single-column. Tables show condensed columns (hide less important ones). Not the primary target — functional but not optimized. |
+| Breakpoint            | Behavior                                                                                                                                                                    |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Desktop (1280px+)     | Full two-column layouts, expanded sidebar, all features visible                                                                                                             |
+| Tablet (768px–1279px) | Sidebar collapses to icons-only by default. Two-column layouts stack to single column on product edit and order detail. Tables become horizontally scrollable.              |
+| Mobile (below 768px)  | Sidebar becomes overlay drawer. All layouts single-column. Tables show condensed columns (hide less important ones). Not the primary target — functional but not optimized. |
 
 ---
 
@@ -1214,30 +1229,31 @@ The admin dashboard targets desktop-first but must be functional on tablets.
 
 Total unique screens/views in the admin dashboard:
 
-| # | Screen | Route | Primary Role |
-|---|--------|-------|-------------|
-| 1 | Org Picker | `/org-select` | All |
-| 2 | Onboarding (3 steps) | `/onboarding` | super_admin |
-| 3 | Dashboard Home | `/dashboard` | All |
-| 4 | Product List | `/products` | All |
-| 5 | Product Create | `/products/new` | super_admin, product_manager |
-| 6 | Product Edit | `/products/:id` | super_admin, product_manager |
-| 7 | Category Management | `/products/categories` | super_admin, product_manager |
-| 8 | Inventory List | `/inventory` | All |
-| 9 | Order List | `/orders` | All |
-| 10 | Order Detail | `/orders/:id` | All |
-| 11 | Customer List | `/customers` | All |
-| 12 | Customer Detail | `/customers/:id` | All |
-| 13 | Discount List | `/discounts` | super_admin, product_manager |
-| 14 | Discount Create/Edit | `/discounts/new` or `/discounts/:id` | super_admin, product_manager |
-| 15 | Shipping Zones | `/shipping` | super_admin |
-| 16 | General Settings | `/settings/general` | super_admin |
-| 17 | Team Management | `/settings/team` | super_admin |
-| 18 | API Keys | `/settings/api-keys` | super_admin |
-| 19 | Tax Rates | `/settings/tax-rates` | super_admin |
-| 20 | Audit Log | `/settings/audit-log` | super_admin (all), others (own) |
+| #   | Screen               | Route                                | Primary Role                    |
+| --- | -------------------- | ------------------------------------ | ------------------------------- |
+| 1   | Org Picker           | `/org-select`                        | All                             |
+| 2   | Onboarding (3 steps) | `/onboarding`                        | super_admin                     |
+| 3   | Dashboard Home       | `/dashboard`                         | All                             |
+| 4   | Product List         | `/products`                          | All                             |
+| 5   | Product Create       | `/products/new`                      | super_admin, product_manager    |
+| 6   | Product Edit         | `/products/:id`                      | super_admin, product_manager    |
+| 7   | Category Management  | `/products/categories`               | super_admin, product_manager    |
+| 8   | Inventory List       | `/inventory`                         | All                             |
+| 9   | Order List           | `/orders`                            | All                             |
+| 10  | Order Detail         | `/orders/:id`                        | All                             |
+| 11  | Customer List        | `/customers`                         | All                             |
+| 12  | Customer Detail      | `/customers/:id`                     | All                             |
+| 13  | Discount List        | `/discounts`                         | super_admin, product_manager    |
+| 14  | Discount Create/Edit | `/discounts/new` or `/discounts/:id` | super_admin, product_manager    |
+| 15  | Shipping Zones       | `/shipping`                          | super_admin                     |
+| 16  | General Settings     | `/settings/general`                  | super_admin                     |
+| 17  | Team Management      | `/settings/team`                     | super_admin                     |
+| 18  | API Keys             | `/settings/api-keys`                 | super_admin                     |
+| 19  | Tax Rates            | `/settings/tax-rates`                | super_admin                     |
+| 20  | Audit Log            | `/settings/audit-log`                | super_admin (all), others (own) |
 
 **Modals / Sheets (not standalone pages):**
+
 - Stock adjustment modal (from Inventory)
 - Refund modal (from Order Detail)
 - Shipment creation form (from Order Detail)
