@@ -27,6 +27,9 @@ const createProductVariantSchema = z.object({
   weight: z.number().int().min(0).optional(),
   requiresShipping: z.boolean().optional(),
   optionValueIds: z.array(z.string()).optional(),
+  optionValues: z
+    .array(z.object({ option: z.string(), value: z.string() }))
+    .optional(),
   initialStock: z.number().int().min(0).optional(),
 });
 

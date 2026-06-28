@@ -13,6 +13,10 @@ export type VariantDraft = {
   allowBackorder: boolean;
   active: boolean;
   optionValueIds: string[];
+  // Which option values this variant represents, by option name + value. Sent
+  // on create so the backend can link the variant to the option values it
+  // creates in the same request (their ids don't exist client-side yet).
+  optionValues: { option: string; value: string }[];
 };
 
 export type OptionGroup = {

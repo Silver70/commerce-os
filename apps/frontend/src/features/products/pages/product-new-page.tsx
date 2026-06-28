@@ -76,6 +76,9 @@ const createProductSchema = z.object({
       weight: z.number().int().min(0).optional(),
       isActive: z.boolean(),
       optionValueIds: z.array(z.string()),
+      optionValues: z
+        .array(z.object({ option: z.string(), value: z.string() }))
+        .optional(),
       initialStock: z.number().int().min(0).optional(),
     }),
   ),
@@ -266,6 +269,7 @@ export function ProductNewPage() {
               weight: toIntOrUndefined(v.weight),
               isActive: v.active,
               optionValueIds: v.optionValueIds,
+              optionValues: v.optionValues,
               initialStock: toIntOrUndefined(v.initialStock),
             }))
           : [],

@@ -48,6 +48,18 @@ export class CreateProductOptionDto {
   declare values?: CreateOptionValueDto[];
 }
 
+export class VariantOptionValueRefDto {
+  @ApiProperty({ description: 'Option name (e.g. "Color")' })
+  @IsString()
+  @IsNotEmpty()
+  declare option: string;
+
+  @ApiProperty({ description: 'Option value (e.g. "Black")' })
+  @IsString()
+  @IsNotEmpty()
+  declare value: string;
+}
+
 export class CreateVariantInProductDto {
   @ApiPropertyOptional({ description: 'Auto-generated if omitted' })
   @IsOptional()
@@ -109,6 +121,19 @@ export class CreateVariantInProductDto {
   @IsArray()
   @IsString({ each: true })
   declare optionValueIds?: string[];
+
+  @ApiPropertyOptional({
+    description:
+      'Option values for this variant by option name + value. Used when ' +
+      'creating a product with its options and variants in one request, where ' +
+      'the option-value IDs do not exist yet — resolved server-side to real IDs.',
+    type: [VariantOptionValueRefDto],
+  })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => VariantOptionValueRefDto)
+  declare optionValues?: VariantOptionValueRefDto[];
 
   @ApiPropertyOptional({ description: 'Initial stock quantity' })
   @IsOptional()

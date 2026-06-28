@@ -108,6 +108,11 @@ export function generateVariantDrafts(
     allowBackorder: false,
     active: true,
     optionValueIds: [],
+    // combo[k] is the chosen value of the k-th filled option, in order.
+    optionValues: filled.map((opt, k) => ({
+      option: opt.name,
+      value: combo[k],
+    })),
   }));
 }
 

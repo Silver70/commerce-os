@@ -7,6 +7,7 @@ import { formatMoney } from "~/lib/money";
 import { Badge } from "~/components/ui/badge";
 import { ProductGallery } from "../components/product-gallery";
 import { VariantPicker } from "../components/variant-picker";
+import { VariantSelect } from "../components/variant-select";
 import { AddToCartButton } from "../components/add-to-cart-button";
 import { productQueryOptions } from "../queries";
 import { initialSelection, resolveVariant } from "../utils";
@@ -26,13 +27,29 @@ export function ProductDetailPage() {
 }
 
 function ProductDetail({ product }: { product: Product }) {
+  const activeVariants = product.variants.filter((v) => v.isActive);
+
+  // Use the structured option picker only when the product actually models
+  // options AND its variants are linked to option values. Otherwise (variants
+  // distinguished by name only — e.g. the demo seed) fall back to a simple
+  // by-name variant selector so the variants are still selectable.
+  const useStructuredOptions =
+    product.options.length > 0 &&
+    product.variants.some((v) => v.optionValues.length > 0);
+
   const [selection, setSelection] = React.useState<OptionSelection>(() =>
     initialSelection(product),
   );
-  const selectedVariant = resolveVariant(product, selection);
+  const [variantId, setVariantId] = React.useState<string | null>(
+    () => activeVariants[0]?.id ?? null,
+  );
 
   const handleSelect = (optionId: string, valueId: string) =>
     setSelection((prev) => ({ ...prev, [optionId]: valueId }));
+
+  const selectedVariant = useStructuredOptions
+    ? resolveVariant(product, selection)
+    : activeVariants.find((v) => v.id === variantId);
 
   const displayPrice = selectedVariant?.price ?? product.minPrice;
   const compareAt = selectedVariant?.compareAtPrice ?? null;
@@ -73,11 +90,19 @@ function ProductDetail({ product }: { product: Product }) {
             </div>
           </div>
 
-          <VariantPicker
-            product={product}
-            selection={selection}
-            onSelect={handleSelect}
-          />
+          {useStructuredOptions ? (
+            <VariantPicker
+              product={product}
+              selection={selection}
+              onSelect={handleSelect}
+            />
+          ) : (
+            <VariantSelect
+              variants={product.variants}
+              selectedId={variantId}
+              onSelect={setVariantId}
+            />
+          )}
 
           {selectedVariant?.sku && (
             <p className="text-xs text-muted-foreground">

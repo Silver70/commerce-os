@@ -1,10 +1,10 @@
 import { Link } from "@tanstack/react-router";
 import { storeConfig } from "~/config/store.config";
-import { CartButton } from "./cart-button";
+import { CartDrawer } from "~/features/cart/components/cart-drawer";
 
 /**
  * Storefront header: brand wordmark, primary nav (from `store.config`), and the
- * cart button. The config-driven nav uses `<a>` because its targets are
+ * cart drawer. The config-driven nav uses `<a>` because its targets are
  * arbitrary template config (could be any path); the brand wordmark links home
  * via a typed `<Link>` for client-side navigation.
  */
@@ -28,7 +28,7 @@ export function Header() {
           ))}
         </nav>
 
-        <CartButton />
+        <CartDrawer />
       </div>
     </header>
   );

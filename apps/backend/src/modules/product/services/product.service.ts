@@ -18,7 +18,10 @@ import type {
   ProductDetail,
   PaginatedProducts,
 } from '../repositories/product.repository';
-import type { CreateProductDto } from '../dto/create-product.dto';
+import type {
+  CreateProductDto,
+  CreateVariantInProductDto,
+} from '../dto/create-product.dto';
 import type { UpdateProductDto } from '../dto/update-product.dto';
 import type { CreateVariantDto } from '../dto/create-variant.dto';
 import type { UpdateVariantDto } from '../dto/update-variant.dto';
@@ -61,6 +64,11 @@ export class ProductService {
       seoDescription: dto.seoDescription,
     });
 
+    // Maps "<option>\0<value>" → freshly-created option-value id, so variants
+    // created in the same request can be linked to their option values (whose
+    // ids don't exist until the values are inserted just below).
+    const optionValueIdByRef = new Map<string, string>();
+
     if (dto.options && dto.options.length > 0) {
       this.assertOptionsUnique(dto.options);
       for (let i = 0; i < dto.options.length; i++) {
@@ -75,13 +83,17 @@ export class ProductService {
 
         if (optDto.values) {
           for (let j = 0; j < optDto.values.length; j++) {
-            await this.productRepo.createOptionValue({
+            const optionValue = await this.productRepo.createOptionValue({
               organizationId,
               storeId,
               optionId: option.id,
               value: optDto.values[j].value,
               position: optDto.values[j].position ?? j,
             });
+            optionValueIdByRef.set(
+              optionValueRefKey(optDto.name, optionValue.value),
+              optionValue.id,
+            );
           }
         }
       }
@@ -89,11 +101,16 @@ export class ProductService {
 
     if (dto.variants && dto.variants.length > 0) {
       for (let i = 0; i < dto.variants.length; i++) {
+        const variantDto = dto.variants[i];
+        const optionValueIds = this.resolveVariantOptionValueIds(
+          variantDto,
+          optionValueIdByRef,
+        );
         await this.createVariantInternal(
           product.id,
           organizationId,
           storeId,
-          dto.variants[i],
+          { ...variantDto, optionValueIds },
           i,
           product.name,
         );
@@ -396,6 +413,31 @@ export class ProductService {
    * via unique constraints; this gives the caller a clean 409 instead of a raw
    * constraint error.
    */
+  /**
+   * Resolve the option-value ids to link to a variant being created. Prefers
+   * explicit `optionValueIds` (used when adding a variant to an existing
+   * product). Otherwise resolves the `{ option, value }` refs against the
+   * option values created for this product in the same request — solving the
+   * chicken-and-egg of creating a product, its options, and its variants in
+   * one call, where the option-value ids don't exist client-side yet.
+   */
+  private resolveVariantOptionValueIds(
+    variantDto: CreateVariantInProductDto,
+    optionValueIdByRef: Map<string, string>,
+  ): string[] {
+    if (variantDto.optionValueIds && variantDto.optionValueIds.length > 0) {
+      return variantDto.optionValueIds;
+    }
+    if (variantDto.optionValues && variantDto.optionValues.length > 0) {
+      return variantDto.optionValues
+        .map((ref) =>
+          optionValueIdByRef.get(optionValueRefKey(ref.option, ref.value)),
+        )
+        .filter((id): id is string => id !== undefined);
+    }
+    return [];
+  }
+
   private assertOptionsUnique(
     options: { name: string; values?: { value: string }[] }[],
   ): void {
@@ -489,4 +531,9 @@ export class ProductService {
 
     return variant;
   }
+}
+
+/** Stable key for the (option name, option value) → option-value-id lookup. */
+function optionValueRefKey(option: string, value: string): string {
+  return `${option}\u0000${value}`;
 }
