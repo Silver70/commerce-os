@@ -94,3 +94,43 @@ export function clearCustomerSession(): void {
   deleteCookie(CUSTOMER_ACCESS_COOKIE, baseCookieOptions);
   deleteCookie(CUSTOMER_REFRESH_COOKIE, baseCookieOptions);
 }
+
+// ─── Pending order (guest confirmation) ─────────────────────────────────────
+// After checkout we stash the order number + email server-side so the guest
+// confirmation page can poll `orderStatus` (which needs both) without putting
+// the email in the URL.
+
+const PENDING_ORDER_COOKIE = "pendingOrder";
+
+export interface PendingOrder {
+  orderNumber: string;
+  email: string;
+}
+
+export function setPendingOrder(order: PendingOrder): void {
+  setCookie(PENDING_ORDER_COOKIE, JSON.stringify(order), {
+    ...baseCookieOptions,
+    maxAge: 60 * 60 * 24, // 1 day — long enough to confirm payment
+  });
+}
+
+export function getPendingOrder(): PendingOrder | null {
+  const raw = getCookie(PENDING_ORDER_COOKIE);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as PendingOrder;
+    if (
+      typeof parsed?.orderNumber === "string" &&
+      typeof parsed?.email === "string"
+    ) {
+      return parsed;
+    }
+  } catch {
+    // malformed cookie — treat as absent
+  }
+  return null;
+}
+
+export function clearPendingOrder(): void {
+  deleteCookie(PENDING_ORDER_COOKIE, baseCookieOptions);
+}

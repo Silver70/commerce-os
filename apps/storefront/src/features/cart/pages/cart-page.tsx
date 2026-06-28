@@ -42,9 +42,8 @@ export function CartPage() {
             <div className="rounded-xl border p-4">
               <CartSummary cart={cart} />
             </div>
-            {/* /checkout route arrives in the checkout phase; full-page nav. */}
             <Button asChild size="lg" className="w-full">
-              <a href="/checkout">Checkout</a>
+              <Link to="/checkout">Checkout</Link>
             </Button>
           </div>
         </div>

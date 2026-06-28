@@ -71,9 +71,13 @@ export function CartDrawer() {
 
             <SheetFooter className="border-t">
               <CartSummary cart={cart} />
-              {/* /checkout route arrives in the checkout phase; full-page nav. */}
-              <Button asChild size="lg" className="w-full">
-                <a href="/checkout">Checkout</a>
+              <Button
+                asChild
+                size="lg"
+                className="w-full"
+                onClick={() => setOpen(false)}
+              >
+                <Link to="/checkout">Checkout</Link>
               </Button>
               <Button
                 asChild
