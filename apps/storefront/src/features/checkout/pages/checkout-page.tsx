@@ -59,8 +59,13 @@ export function CheckoutPage() {
       countryCode: form.countryCode.toUpperCase(),
       orderSubtotal: subtotal,
     }),
-    enabled: countryReady && subtotal > 0 && !checkout,
+    enabled: countryReady && !checkout,
   });
+  const ratesError = ratesQuery.isError
+    ? ratesQuery.error instanceof Error
+      ? ratesQuery.error.message
+      : "Couldn’t load shipping options."
+    : undefined;
   const rates = ratesQuery.data ?? [];
   const selectedRate =
     rates.find((r) => r.methodId === shippingMethodId) ?? null;
@@ -167,7 +172,9 @@ export function CheckoutPage() {
             selectedId={shippingMethodId}
             onSelect={setShippingMethodId}
             currency={cart.currency}
+            hasCountry={countryReady}
             isLoading={ratesQuery.isFetching && rates.length === 0}
+            errorMessage={ratesError}
           />
         </section>
 

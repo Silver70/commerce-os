@@ -1,4 +1,4 @@
-import { Resolver, Query, Args, Context } from '@nestjs/graphql';
+import { Resolver, Query, Args, Context, Int } from '@nestjs/graphql';
 import { UnauthorizedException, UseGuards } from '@nestjs/common';
 import { StorefrontAuthGuard } from '../../auth/guards/storefront-auth.guard';
 import { ShippingService } from '../services/shipping.service';
@@ -23,7 +23,10 @@ export class ShippingResolver {
   async shippingRates(
     @Context() ctx: GqlContext,
     @Args('countryCode') countryCode: string,
-    @Args('orderSubtotal', { description: 'Cart subtotal in cents' })
+    @Args('orderSubtotal', {
+      type: () => Int,
+      description: 'Cart subtotal in cents',
+    })
     orderSubtotal: number,
   ): Promise<ShippingRateType[]> {
     const tenant = ctx.req.tenantContext;

@@ -1,6 +1,8 @@
 import * as React from "react";
+import { ChevronDown } from "lucide-react";
 import { Input } from "~/components/ui/input";
 import { cn } from "~/lib/utils";
+import { countries } from "~/config/countries";
 import type { ShippingAddressErrors, ShippingAddressFormState } from "../types";
 
 interface ShippingAddressFormProps {
@@ -28,6 +30,32 @@ export function ShippingAddressForm({
         <Input type="email" autoComplete="email" {...text("email")} />
       </Field>
 
+      {/* Country first — it determines available shipping rates. */}
+      <Field label="Country / region" error={errors.countryCode}>
+        <div className="relative">
+          <select
+            autoComplete="country"
+            aria-invalid={Boolean(errors.countryCode)}
+            value={value.countryCode}
+            onChange={(e) => onChange({ countryCode: e.target.value })}
+            className={cn(
+              "h-8 w-full appearance-none rounded-lg border border-input bg-transparent pr-8 pl-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 aria-invalid:border-destructive",
+              !value.countryCode && "text-muted-foreground",
+            )}
+          >
+            <option value="" disabled>
+              Select a country…
+            </option>
+            {countries.map((country) => (
+              <option key={country.code} value={country.code}>
+                {country.name}
+              </option>
+            ))}
+          </select>
+          <ChevronDown className="pointer-events-none absolute top-1/2 right-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+        </div>
+      </Field>
+
       <div className="grid grid-cols-2 gap-4">
         <Field label="First name" error={errors.firstName}>
           <Input autoComplete="given-name" {...text("firstName")} />
@@ -49,30 +77,16 @@ export function ShippingAddressForm({
         <Input autoComplete="address-line2" {...text("line2")} />
       </Field>
 
-      <div className="grid grid-cols-2 gap-4">
-        <Field label="City" error={errors.city}>
-          <Input autoComplete="address-level2" {...text("city")} />
-        </Field>
-        <Field label="State / Province (optional)" error={errors.state}>
-          <Input autoComplete="address-level1" {...text("state")} />
-        </Field>
-      </div>
+      <Field label="City" error={errors.city}>
+        <Input autoComplete="address-level2" {...text("city")} />
+      </Field>
 
       <div className="grid grid-cols-2 gap-4">
+        <Field label="State / province (optional)" error={errors.state}>
+          <Input autoComplete="address-level1" {...text("state")} />
+        </Field>
         <Field label="Postal code" error={errors.postalCode}>
           <Input autoComplete="postal-code" {...text("postalCode")} />
-        </Field>
-        <Field label="Country code" error={errors.countryCode}>
-          <Input
-            autoComplete="country"
-            placeholder="US"
-            maxLength={2}
-            value={value.countryCode}
-            aria-invalid={Boolean(errors.countryCode)}
-            onChange={(e) =>
-              onChange({ countryCode: e.target.value.toUpperCase() })
-            }
-          />
         </Field>
       </div>
 

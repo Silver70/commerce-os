@@ -8,6 +8,10 @@ interface ShippingRatePickerProps {
   onSelect: (methodId: string) => void;
   currency: string;
   isLoading?: boolean;
+  /** Whether a destination country has been chosen yet. */
+  hasCountry?: boolean;
+  /** Surfaced when the rates request fails. */
+  errorMessage?: string;
 }
 
 export function ShippingRatePicker({
@@ -16,7 +20,19 @@ export function ShippingRatePicker({
   onSelect,
   currency,
   isLoading,
+  hasCountry,
+  errorMessage,
 }: ShippingRatePickerProps) {
+  if (!hasCountry) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        Select your country to see shipping options.
+      </p>
+    );
+  }
+  if (errorMessage) {
+    return <p className="text-sm text-destructive">{errorMessage}</p>;
+  }
   if (isLoading) {
     return (
       <p className="text-sm text-muted-foreground">Loading shipping options…</p>
@@ -25,7 +41,7 @@ export function ShippingRatePicker({
   if (rates.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">
-        Enter your address to see shipping options.
+        No shipping options are available for this destination.
       </p>
     );
   }
