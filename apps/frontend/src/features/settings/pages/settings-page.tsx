@@ -1,15 +1,23 @@
 import * as React from "react";
 import { cn } from "~/lib/utils";
 import { GeneralSettings } from "../panels/general-settings";
+import { StoresSettings } from "../panels/stores-settings";
 import { TeamSettings } from "../panels/team-settings";
 import { ApiKeysSettings } from "../panels/api-keys-settings";
 import { TaxRatesSettings } from "../panels/tax-rates-settings";
 import { AuditLogSettings } from "../panels/audit-log-settings";
 
-type Section = "general" | "team" | "api-keys" | "tax-rates" | "audit-log";
+type Section =
+  | "general"
+  | "stores"
+  | "team"
+  | "api-keys"
+  | "tax-rates"
+  | "audit-log";
 
 const SETTINGS_NAV: { key: Section; label: string }[] = [
   { key: "general", label: "General" },
+  { key: "stores", label: "Stores" },
   { key: "team", label: "Team" },
   { key: "api-keys", label: "API Keys" },
   { key: "tax-rates", label: "Tax Rates" },
@@ -48,6 +56,7 @@ export function SettingsPage() {
 
         <div className="min-w-0 flex-1">
           {section === "general" && <GeneralSettings />}
+          {section === "stores" && <StoresSettings />}
           {section === "team" && <TeamSettings />}
           {section === "api-keys" && <ApiKeysSettings />}
           {section === "tax-rates" && <TaxRatesSettings />}

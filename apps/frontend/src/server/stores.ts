@@ -50,6 +50,67 @@ export const createStoreServerFn = createServerFn({ method: "POST" })
     }
   });
 
+// ─── Create Store (in-app) ────────────────────────────────────────────────────
+// Like createStore, but for the running admin app rather than onboarding: it
+// switches the active store to the newly created one WITHOUT touching the
+// `wos-onboarding-step` cookie. Setting that cookie (as createStoreServerFn
+// does) would bounce the user back into the onboarding wizard on the next
+// admin navigation — see routes/admin/route.tsx beforeLoad.
+
+export const createStoreInAppServerFn = createServerFn({ method: "POST" })
+  .inputValidator(
+    z.object({
+      name: z.string().min(2, "Store name must be at least 2 characters"),
+      currency: z.string().length(3, "Currency must be a 3-letter code"),
+      timezone: z.string().min(1, "Timezone is required"),
+    }),
+  )
+  .handler(async ({ data }): Promise<Store> => {
+    try {
+      const res = await apiClient.post<Store>("/api/admin/stores", data, {
+        headers: await authHeader(),
+      });
+      // Make the new store the active one so the admin lands in it immediately.
+      setCookie("wos-active-store", res.data.id, ONBOARDING_COOKIE_OPTS);
+      return res.data;
+    } catch (err) {
+      throw new Error(getErrorMessage(err));
+    }
+  });
+
+// ─── Toggle Store Active ──────────────────────────────────────────────────────
+
+export const setStoreActiveServerFn = createServerFn({ method: "POST" })
+  .inputValidator(
+    z.object({ storeId: z.string().min(1), isActive: z.boolean() }),
+  )
+  .handler(async ({ data }): Promise<Store> => {
+    try {
+      const res = await apiClient.patch<Store>(
+        `/api/admin/stores/${data.storeId}`,
+        { isActive: data.isActive },
+        { headers: { ...(await authHeader()), ...adminStoreHeader() } },
+      );
+      return res.data;
+    } catch (err) {
+      throw new Error(getErrorMessage(err));
+    }
+  });
+
+// ─── Delete Store ─────────────────────────────────────────────────────────────
+
+export const deleteStoreServerFn = createServerFn({ method: "POST" })
+  .inputValidator(z.object({ storeId: z.string().min(1) }))
+  .handler(async ({ data }) => {
+    try {
+      await apiClient.delete(`/api/admin/stores/${data.storeId}`, {
+        headers: { ...(await authHeader()), ...adminStoreHeader() },
+      });
+    } catch (err) {
+      throw new Error(getErrorMessage(err));
+    }
+  });
+
 // ─── Update Store ─────────────────────────────────────────────────────────────
 
 export const updateStoreServerFn = createServerFn({ method: "POST" })

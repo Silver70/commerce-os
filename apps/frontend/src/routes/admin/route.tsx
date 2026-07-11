@@ -6,6 +6,7 @@ import {
   Building2Icon,
   ChevronsUpDownIcon,
   CheckIcon,
+  PlusIcon,
 } from "lucide-react"
 import {
   getAuth,
@@ -31,6 +32,7 @@ import {
 } from "~/components/ui/sidebar"
 import { TooltipProvider } from "~/components/ui/tooltip"
 import { storesQueryOptions } from "~/features/settings/queries"
+import { AddStoreSheet } from "~/features/settings/components/add-store-sheet"
 import {
   ensureActiveStoreServerFn,
   getOnboardingStepServerFn,
@@ -90,6 +92,7 @@ function StoreSwitcher({ stores }: { stores: Store[] }) {
   const queryClient = useQueryClient()
   const activeId = getActiveStoreId()
   const active = stores.find((s) => s.id === activeId) ?? stores[0]
+  const [addOpen, setAddOpen] = React.useState(false)
 
   async function handleSelect(store: Store) {
     await setActiveStoreServerFn({ data: { storeId: store.id } })
@@ -99,28 +102,37 @@ function StoreSwitcher({ stores }: { stores: Store[] }) {
   if (!active) return null
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="outline" className="h-9 gap-2 font-normal">
-          <Building2Icon className="h-4 w-4 shrink-0" />
-          <span className="hidden sm:inline">{active.name}</span>
-          <ChevronsUpDownIcon className="h-4 w-4 text-muted-foreground" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-48">
-        <DropdownMenuLabel>Switch store</DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        {stores.map((store) => (
-          <DropdownMenuItem key={store.id} onSelect={() => void handleSelect(store)}>
-            <Building2Icon className="mr-2 h-4 w-4" />
-            {store.name}
-            {active.id === store.id && (
-              <CheckIcon className="ml-auto h-4 w-4" />
-            )}
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" className="h-9 gap-2 font-normal">
+            <Building2Icon className="h-4 w-4 shrink-0" />
+            <span className="hidden sm:inline">{active.name}</span>
+            <ChevronsUpDownIcon className="h-4 w-4 text-muted-foreground" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-48">
+          <DropdownMenuLabel>Switch store</DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          {stores.map((store) => (
+            <DropdownMenuItem key={store.id} onSelect={() => void handleSelect(store)}>
+              <Building2Icon className="mr-2 h-4 w-4" />
+              {store.name}
+              {active.id === store.id && (
+                <CheckIcon className="ml-auto h-4 w-4" />
+              )}
+            </DropdownMenuItem>
+          ))}
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onSelect={() => setAddOpen(true)}>
+            <PlusIcon className="mr-2 h-4 w-4" />
+            Add store
           </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <AddStoreSheet open={addOpen} onOpenChange={setAddOpen} />
+    </>
   )
 }
 
