@@ -11,13 +11,6 @@ import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "~/components/ui/select";
-import {
   Sheet,
   SheetClose,
   SheetContent,
@@ -26,9 +19,10 @@ import {
   SheetHeader,
   SheetTitle,
 } from "~/components/ui/sheet";
+import { CurrencyCombobox } from "~/components/currency-combobox";
+import { TimezoneCombobox } from "~/components/timezone-combobox";
 import { createStoreInAppServerFn } from "~/server/stores";
 import { createApiKeyFromSettingsServerFn } from "../server";
-import { CURRENCIES, TIMEZONES } from "../constants";
 
 // Creating a store also mints its first storefront API key, mirroring the
 // onboarding flow (step1 creates the store, step3 reveals the key). We do both
@@ -129,41 +123,27 @@ export function AddStoreSheet({
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-4">
                 <div className="space-y-1.5">
                   <Label htmlFor="new-store-currency">
                     Currency <span className="text-destructive">*</span>
                   </Label>
-                  <Select value={currency} onValueChange={setCurrency}>
-                    <SelectTrigger id="new-store-currency" className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {CURRENCIES.map((c) => (
-                        <SelectItem key={c.value} value={c.value}>
-                          {c.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <CurrencyCombobox
+                    id="new-store-currency"
+                    value={currency}
+                    onChange={setCurrency}
+                  />
                 </div>
 
                 <div className="space-y-1.5">
                   <Label htmlFor="new-store-tz">
                     Timezone <span className="text-destructive">*</span>
                   </Label>
-                  <Select value={timezone} onValueChange={setTimezone}>
-                    <SelectTrigger id="new-store-tz" className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {TIMEZONES.map((tz) => (
-                        <SelectItem key={tz.value} value={tz.value}>
-                          {tz.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <TimezoneCombobox
+                    id="new-store-tz"
+                    value={timezone}
+                    onChange={setTimezone}
+                  />
                 </div>
               </div>
 

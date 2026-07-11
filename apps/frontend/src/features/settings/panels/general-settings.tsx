@@ -6,18 +6,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { Separator } from "~/components/ui/separator";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "~/components/ui/select";
+import { CurrencyCombobox } from "~/components/currency-combobox";
+import { TimezoneCombobox } from "~/components/timezone-combobox";
 import { updateStoreServerFn } from "~/server/stores";
 import type { Organization, Store } from "~/types/api";
 import { organizationQueryOptions, storesQueryOptions } from "../queries";
 import { updateOrgServerFn } from "../server";
-import { CURRENCIES, TIMEZONES } from "../constants";
 import { getActiveStoreId } from "../utils";
 
 export function GeneralSettings() {
@@ -130,36 +124,24 @@ export function GeneralSettings() {
             <Label htmlFor="g-currency">
               Default currency <span className="text-destructive">*</span>
             </Label>
-            <Select value={currency} onValueChange={setCurrency}>
-              <SelectTrigger id="g-currency" className="max-w-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {CURRENCIES.map((c) => (
-                  <SelectItem key={c.value} value={c.value}>
-                    {c.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <CurrencyCombobox
+              id="g-currency"
+              value={currency}
+              onChange={setCurrency}
+              className="max-w-sm"
+            />
           </div>
 
           <div className="space-y-1.5">
             <Label htmlFor="g-tz">
               Timezone <span className="text-destructive">*</span>
             </Label>
-            <Select value={timezone} onValueChange={setTimezone}>
-              <SelectTrigger id="g-tz" className="max-w-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {TIMEZONES.map((t) => (
-                  <SelectItem key={t.value} value={t.value}>
-                    {t.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <TimezoneCombobox
+              id="g-tz"
+              value={timezone}
+              onChange={setTimezone}
+              className="max-w-sm"
+            />
           </div>
         </CardContent>
       </Card>

@@ -1,6 +1,3 @@
-import { ALL_COUNTRIES } from "./constants";
-
-/** Resolve an ISO country code to its display name, falling back to the code. */
-export function countryName(code: string): string {
-  return ALL_COUNTRIES.find((c) => c.code === code)?.name ?? code;
-}
+// The canonical country list now lives in ~/lib/countries. Re-exported here so
+// existing shipping imports (`../utils`) keep resolving.
+export { countryName } from "~/lib/countries";

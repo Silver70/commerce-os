@@ -6,13 +6,8 @@ import { Logo } from "~/components/Logo";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "~/components/ui/select";
+import { CurrencyCombobox } from "~/components/currency-combobox";
+import { TimezoneCombobox } from "~/components/timezone-combobox";
 import { createStoreServerFn } from "~/server/stores";
 
 export const Route = createFileRoute("/onboarding/step1")({
@@ -27,28 +22,6 @@ const step1Schema = z.object({
 
 type Step1Fields = z.infer<typeof step1Schema>;
 type Step1Errors = Partial<Record<keyof Step1Fields, string>>;
-
-const CURRENCIES = [
-  { value: "USD", label: "USD — US Dollar" },
-  { value: "EUR", label: "EUR — Euro" },
-  { value: "GBP", label: "GBP — British Pound" },
-  { value: "CAD", label: "CAD — Canadian Dollar" },
-  { value: "AUD", label: "AUD — Australian Dollar" },
-  { value: "JPY", label: "JPY — Japanese Yen" },
-];
-
-const TIMEZONES = [
-  { value: "UTC", label: "UTC" },
-  { value: "America/New_York", label: "Eastern (ET)" },
-  { value: "America/Chicago", label: "Central (CT)" },
-  { value: "America/Denver", label: "Mountain (MT)" },
-  { value: "America/Los_Angeles", label: "Pacific (PT)" },
-  { value: "Europe/London", label: "London (GMT)" },
-  { value: "Europe/Paris", label: "Paris (CET)" },
-  { value: "Asia/Tokyo", label: "Tokyo (JST)" },
-  { value: "Asia/Singapore", label: "Singapore (SGT)" },
-  { value: "Australia/Sydney", label: "Sydney (AEST)" },
-];
 
 function StepDots({ current }: { current: number }) {
   return (
@@ -142,23 +115,16 @@ function OnboardingStep1() {
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-4">
             <div className="space-y-1.5">
               <Label htmlFor="currency">
                 Currency <span className="text-destructive">*</span>
               </Label>
-              <Select value={currency} onValueChange={setCurrency}>
-                <SelectTrigger id="currency" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {CURRENCIES.map((c) => (
-                    <SelectItem key={c.value} value={c.value}>
-                      {c.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <CurrencyCombobox
+                id="currency"
+                value={currency}
+                onChange={setCurrency}
+              />
               {errors.currency && (
                 <p className="text-xs text-destructive pl-0.5">
                   {errors.currency}
@@ -170,18 +136,11 @@ function OnboardingStep1() {
               <Label htmlFor="timezone">
                 Timezone <span className="text-destructive">*</span>
               </Label>
-              <Select value={timezone} onValueChange={setTimezone}>
-                <SelectTrigger id="timezone" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {TIMEZONES.map((tz) => (
-                    <SelectItem key={tz.value} value={tz.value}>
-                      {tz.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <TimezoneCombobox
+                id="timezone"
+                value={timezone}
+                onChange={setTimezone}
+              />
               {errors.timezone && (
                 <p className="text-xs text-destructive pl-0.5">
                   {errors.timezone}

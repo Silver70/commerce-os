@@ -14,7 +14,7 @@ import {
 } from "~/components/ui/sheet";
 import type { ShippingZone } from "~/types/api";
 import type { ZoneFormValues } from "../types";
-import { CountryPicker } from "./country-picker";
+import { CountryPicker } from "~/components/country-picker";
 
 export function ZoneSheet({
   zone,
