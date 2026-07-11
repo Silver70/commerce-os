@@ -254,7 +254,7 @@ export function TaxRateSheet({
           </SheetClose>
           <Button
             disabled={!canSave || mutation.isPending}
-            className="flex-1 bg-orange-700 text-white shadow-none hover:bg-orange-800 disabled:opacity-50"
+            className="flex-1"
             onClick={() => mutation.mutate()}
           >
             {mutation.isPending ? "Saving…" : isEdit ? "Save changes" : "Add rate"}

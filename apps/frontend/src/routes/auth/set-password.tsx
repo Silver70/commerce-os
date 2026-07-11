@@ -93,7 +93,7 @@ function SetPasswordPage() {
 
                 <Button
                   type="submit"
-                  className="w-full bg-orange-700 text-white hover:bg-orange-800"
+                  className="w-full"
                   disabled={!passwordsMatch || mutation.isPending}
                 >
                   {mutation.isPending ? "Setting password…" : "Set password"}

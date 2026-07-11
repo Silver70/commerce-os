@@ -166,7 +166,7 @@ export function DiscountDetailPage() {
           <Button
             disabled={!canSave || updateMutation.isPending}
             onClick={() => updateMutation.mutate()}
-            className="bg-orange-700 px-5 text-white shadow-none hover:bg-orange-800 disabled:opacity-50"
+            className="px-5"
           >
             {updateMutation.isPending ? (
               <LoaderCircleIcon className="h-3.5 w-3.5 animate-spin" />

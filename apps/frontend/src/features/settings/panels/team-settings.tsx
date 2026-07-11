@@ -71,7 +71,7 @@ export function TeamSettings() {
           </p>
         </div>
         <Button
-          className="gap-2 bg-orange-700 px-5 text-white shadow-none hover:bg-orange-800"
+          className="gap-2 px-5"
           onClick={() => setInviteOpen(true)}
         >
           <PlusIcon className="h-4 w-4" />

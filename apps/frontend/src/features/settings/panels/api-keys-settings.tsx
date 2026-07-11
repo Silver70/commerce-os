@@ -82,7 +82,7 @@ export function ApiKeysSettings() {
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold">API Keys</h2>
         <Button
-          className="gap-2 bg-orange-700 px-5 text-white shadow-none hover:bg-orange-800"
+          className="gap-2 px-5"
           onClick={() => setGenOpen(true)}
         >
           <PlusIcon className="h-4 w-4" />

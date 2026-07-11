@@ -368,7 +368,7 @@ export function VariantOptionsCard({
           <Button
             size="sm"
             disabled={!canGenerate}
-            className="h-8 bg-orange-700 px-4 text-white shadow-none hover:bg-orange-800 disabled:opacity-40"
+            className="h-8 px-4"
             onClick={onGenerate}
           >
             Generate variants

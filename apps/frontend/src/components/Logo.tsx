@@ -6,5 +6,5 @@ export function Logo() {
         COMMERCE OS
       </span>
     </div>
-  )
+  );
 }

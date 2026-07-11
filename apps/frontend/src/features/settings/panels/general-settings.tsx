@@ -70,7 +70,7 @@ export function GeneralSettings() {
         <Button
           onClick={() => storeSaveMutation.mutate()}
           disabled={storeSaveMutation.isPending || !store}
-          className="gap-2 bg-orange-700 px-5 text-white shadow-none hover:bg-orange-800"
+          className="gap-2 px-5"
         >
           {storeSaveMutation.isSuccess ? <CheckIcon className="h-4 w-4" /> : null}
           {storeSaveMutation.isPending
@@ -174,7 +174,7 @@ export function GeneralSettings() {
               size="sm"
               onClick={() => orgSaveMutation.mutate()}
               disabled={orgSaveMutation.isPending || orgName.trim().length < 2}
-              className="h-7 gap-1.5 bg-orange-700 px-3 text-xs text-white shadow-none hover:bg-orange-800 disabled:opacity-50"
+              className="h-7 gap-1.5 px-3 text-xs"
             >
               {orgSaveMutation.isSuccess ? <CheckIcon className="h-3 w-3" /> : null}
               {orgSaveMutation.isPending

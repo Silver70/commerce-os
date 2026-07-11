@@ -120,7 +120,6 @@ export function PriceEditor({
           size="sm"
           disabled={!hasEdits || saveMutation.isPending}
           onClick={() => saveMutation.mutate()}
-          className="bg-orange-700 text-white hover:bg-orange-800 disabled:opacity-50"
         >
           {saveMutation.isPending ? (
             <LoaderCircleIcon className="h-3.5 w-3.5 animate-spin" />

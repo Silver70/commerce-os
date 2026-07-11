@@ -104,7 +104,7 @@ export function CustomerGroupsPage() {
             </div>
             <Button
               type="submit"
-              className="gap-2 bg-orange-700 text-white hover:bg-orange-800"
+              className="gap-2"
               disabled={!name.trim() || createMutation.isPending}
             >
               <PlusIcon className="h-4 w-4" />

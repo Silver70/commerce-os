@@ -86,7 +86,7 @@ export function InviteSheet({
           </SheetClose>
           <Button
             disabled={!canInvite}
-            className="flex-1 bg-orange-700 text-white shadow-none hover:bg-orange-800 disabled:opacity-50"
+            className="flex-1"
             onClick={() => {
               onInvite(email.trim(), role);
               onOpenChange(false);

@@ -342,7 +342,7 @@ export function ProductNewPage() {
           </Button>
           <Button
             size="lg"
-            className="h-9 px-5 bg-orange-700 text-white shadow-none hover:bg-orange-800"
+            className="h-9 px-5"
             onClick={() => handleSave("active")}
             disabled={isPending}
           >
@@ -695,7 +695,7 @@ export function ProductNewPage() {
               </Button>
               <Button
                 size="sm"
-                className="h-8 bg-orange-700 px-4 text-white shadow-none hover:bg-orange-800"
+                className="h-8 px-4"
                 onClick={() => handleSave("active")}
                 disabled={isPending}
               >

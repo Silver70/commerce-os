@@ -377,7 +377,7 @@ export function OrderNewPage() {
             size="lg"
             disabled={!canCreate || isPending}
             onClick={handleCreate}
-            className="h-9 px-5 bg-orange-700 text-white shadow-none hover:bg-orange-800 disabled:opacity-40"
+            className="h-9 px-5"
           >
             {isPending ? (
               <LoaderCircleIcon className="h-4 w-4 animate-spin" />
@@ -971,7 +971,7 @@ export function OrderNewPage() {
 
               <Button
                 onClick={handleCreate}
-                className="w-full bg-orange-700 text-white shadow-none hover:bg-orange-800 disabled:opacity-40"
+                className="w-full"
                 disabled={!canCreate || isPending}
               >
                 {isPending ? (

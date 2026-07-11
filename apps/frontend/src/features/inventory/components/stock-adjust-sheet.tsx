@@ -187,7 +187,7 @@ export function StockAdjustSheet({
                 Cancel
               </Button>
               <Button
-                className="flex-1 bg-orange-700 text-white shadow-none hover:bg-orange-800"
+                className="flex-1"
                 disabled={qty === 0 || !reason || adjustMutation.isPending}
                 onClick={() =>
                   adjustMutation.mutate({

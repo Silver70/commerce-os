@@ -259,7 +259,7 @@ export function OrderDetailPage() {
             <CardContent className="space-y-2.5 pt-4">
               {order.status === "paid" && (
                 <Button
-                  className="w-full justify-start gap-2.5 bg-orange-700 text-white shadow-none hover:bg-orange-800"
+                  className="w-full justify-start gap-2.5"
                   disabled={statusMutation.isPending}
                   onClick={() => statusMutation.mutate("processing")}
                 >
@@ -375,7 +375,7 @@ export function OrderDetailPage() {
                   <div className="flex items-center gap-2">
                     <Button
                       size="sm"
-                      className="h-8 bg-orange-700 px-3 text-white shadow-none hover:bg-orange-800"
+                      className="h-8 px-3"
                       disabled={noteMutation.isPending}
                       onClick={handleAddNote}
                     >

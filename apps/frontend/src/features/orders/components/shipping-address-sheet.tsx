@@ -345,7 +345,6 @@ export function ShippingAddressSheet({
           <Button
             onClick={handleConfirm}
             disabled={isSaving}
-            className="bg-orange-700 text-white shadow-none hover:bg-orange-800"
           >
             {isSaving ? (
               <LoaderCircleIcon className="h-4 w-4 animate-spin" />

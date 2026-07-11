@@ -167,7 +167,6 @@ export function AssignmentManager({
             size="sm"
             disabled={!selectedId || attachMutation.isPending}
             onClick={() => attachMutation.mutate()}
-            className="bg-orange-700 text-white hover:bg-orange-800 disabled:opacity-50"
           >
             {attachMutation.isPending ? (
               <LoaderCircleIcon className="h-3.5 w-3.5 animate-spin" />

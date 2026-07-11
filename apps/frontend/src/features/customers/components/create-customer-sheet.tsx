@@ -100,7 +100,7 @@ export function CreateCustomerSheet() {
   return (
     <Sheet open={open} onOpenChange={handleOpenChange}>
       <SheetTrigger asChild>
-        <Button className="gap-2 bg-orange-700 px-5 py-2.5 text-white shadow-none hover:bg-orange-800">
+        <Button className="gap-2 px-5 py-2.5">
           <PlusIcon className="h-4 w-4" />
           Add customer
         </Button>
@@ -254,21 +254,19 @@ export function CreateCustomerSheet() {
         <SheetFooter className="border-t">
           {createdLink ? (
             <SheetClose asChild>
-              <Button className="flex-1 bg-orange-700 py-3 text-white hover:bg-orange-800">
-                Done
-              </Button>
+              <Button className="flex-1">Done</Button>
             </SheetClose>
           ) : (
             <>
               <SheetClose asChild>
-                <Button variant="outline" className="flex-1 py-3">
+                <Button variant="outline" className="flex-1">
                   Cancel
                 </Button>
               </SheetClose>
               <Button
                 disabled={!canSubmit || mutation.isPending}
                 onClick={() => mutation.mutate()}
-                className="flex-1 bg-orange-700 py-3 text-white shadow-none hover:bg-orange-800 disabled:opacity-50"
+                className="flex-1"
               >
                 {mutation.isPending ? "Creating…" : "Create customer"}
               </Button>

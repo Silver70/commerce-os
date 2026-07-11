@@ -182,14 +182,14 @@ export function EditCustomerSheet({ customer }: { customer: Customer }) {
 
         <SheetFooter className="border-t">
           <SheetClose asChild>
-            <Button variant="outline" className="flex-1 py-3">
+            <Button variant="outline" className="flex-1">
               Cancel
             </Button>
           </SheetClose>
           <Button
             disabled={mutation.isPending}
             onClick={() => mutation.mutate()}
-            className="flex-1 bg-orange-700 py-3 text-white hover:bg-orange-800 disabled:opacity-50"
+            className="flex-1"
           >
             {mutation.isPending ? "Saving…" : "Save changes"}
           </Button>

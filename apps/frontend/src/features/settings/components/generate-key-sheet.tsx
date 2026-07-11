@@ -111,7 +111,7 @@ export function GenerateKeySheet({
               </SheetClose>
               <Button
                 disabled={!name.trim() || generateMutation.isPending}
-                className="flex-1 bg-orange-700 text-white shadow-none hover:bg-orange-800 disabled:opacity-50"
+                className="flex-1"
                 onClick={() => generateMutation.mutate()}
               >
                 {generateMutation.isPending ? "Generating…" : "Generate key"}
@@ -151,7 +151,7 @@ export function GenerateKeySheet({
             </div>
             <SheetFooter className="border-t">
               <Button
-                className="w-full bg-orange-700 text-white shadow-none hover:bg-orange-800"
+                className="w-full"
                 onClick={() => onOpenChange(false)}
               >
                 I've saved my key — done

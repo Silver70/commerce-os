@@ -185,7 +185,7 @@ export function ProductEditForm({
 
         <div className="flex items-center gap-2 pt-1">
           <Button
-            className="h-9 bg-orange-700 text-white hover:bg-orange-800"
+            className="h-9"
             onClick={() => updateMutation.mutate()}
             disabled={updateMutation.isPending}
           >

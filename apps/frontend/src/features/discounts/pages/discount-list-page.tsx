@@ -44,7 +44,7 @@ export function DiscountListPage() {
           </p>
         </div>
         <Button
-          className="gap-2 bg-orange-700 px-5 py-2.5 text-white shadow-none hover:bg-orange-800"
+          className="gap-2 px-5 py-2.5"
           asChild
         >
           <Link to="/admin/discounts/new">

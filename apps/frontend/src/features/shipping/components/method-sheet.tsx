@@ -250,7 +250,7 @@ export function MethodSheet({
           </SheetClose>
           <Button
             disabled={!canSave}
-            className="flex-1 bg-orange-700 text-white shadow-none hover:bg-orange-800 disabled:opacity-50"
+            className="flex-1"
             onClick={() => onSave(form)}
           >
             {isSaving ? "Saving…" : isEdit ? "Save changes" : "Add method"}

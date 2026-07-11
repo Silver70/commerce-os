@@ -134,7 +134,7 @@ export function ProductDetailPage() {
               </Button>
             ) : (
               <Button
-                className="gap-2 bg-orange-700 text-white shadow-none hover:bg-orange-800"
+                className="gap-2"
                 onClick={() => setIsEditing(true)}
               >
                 <PencilIcon className="h-4 w-4" />

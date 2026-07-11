@@ -195,7 +195,7 @@ export function DiscountNewPage() {
           <Button
             disabled={!canSave || createMutation.isPending}
             onClick={() => createMutation.mutate()}
-            className="bg-orange-700 px-5 text-white shadow-none hover:bg-orange-800 disabled:opacity-50"
+            className="px-5"
           >
             {createMutation.isPending ? (
               <LoaderCircleIcon className="h-3.5 w-3.5 animate-spin" />

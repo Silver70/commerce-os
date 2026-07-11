@@ -140,7 +140,7 @@ function VariantEditRow({
         <div className="mt-3 flex items-center gap-2">
           <Button
             size="sm"
-            className="h-7 px-3 text-xs bg-orange-700 text-white hover:bg-orange-800"
+            className="h-7 px-3 text-xs"
             onClick={() => updateMutation.mutate()}
             disabled={updateMutation.isPending}
           >
@@ -262,7 +262,7 @@ function AddVariantRow({
         <div className="mt-3 flex items-center gap-2">
           <Button
             size="sm"
-            className="h-7 px-3 text-xs bg-orange-700 text-white hover:bg-orange-800"
+            className="h-7 px-3 text-xs"
             onClick={() => createMutation.mutate()}
             disabled={createMutation.isPending}
           >
