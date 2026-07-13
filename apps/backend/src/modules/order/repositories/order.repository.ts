@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { eq, and, desc, lt, gte, lte, asc } from 'drizzle-orm';
+import { eq, and, desc, lt, gte, lte, asc, inArray, sql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 import { DRIZZLE_CLIENT } from '../../../shared/database/database.module';
 import type { DrizzleClient } from '../../../shared/database/database.module';
@@ -49,6 +49,20 @@ export interface ListOrdersResult {
   orders: Order[];
   nextCursor: string | null;
 }
+
+export interface CustomerOrderStats {
+  ordersCount: number;
+  totalSpent: number;
+}
+
+// Orders in these statuses count toward a customer's spend — mirrors the
+// revenue definition used by the dashboard metrics (excludes pending/refunded/cancelled).
+const SPEND_STATUSES: Order['status'][] = [
+  'paid',
+  'processing',
+  'shipped',
+  'delivered',
+];
 
 @Injectable()
 export class OrderRepository {
@@ -324,6 +338,41 @@ export class OrderRepository {
       .select()
       .from(orderLineItems)
       .where(eq(orderLineItems.orderId, orderId));
+  }
+
+  /** Orders count + total spent per customer, keyed by customerId. */
+  async getCustomerStats(
+    orgId: string,
+    customerIds: string[],
+  ): Promise<Map<string, CustomerOrderStats>> {
+    if (customerIds.length === 0) return new Map();
+
+    const rows = await this.db
+      .select({
+        customerId: orders.customerId,
+        ordersCount: sql<number>`count(*)::int`,
+        totalSpent: sql<number>`coalesce(sum(${orders.total}), 0)::int`,
+      })
+      .from(orders)
+      .where(
+        and(
+          eq(orders.organizationId, orgId),
+          inArray(orders.customerId, customerIds),
+          inArray(orders.status, SPEND_STATUSES),
+        ),
+      )
+      .groupBy(orders.customerId);
+
+    const stats = new Map<string, CustomerOrderStats>();
+    for (const row of rows) {
+      if (row.customerId) {
+        stats.set(row.customerId, {
+          ordersCount: row.ordersCount,
+          totalSpent: row.totalSpent,
+        });
+      }
+    }
+    return stats;
   }
 
   async generateOrderNumber(orgId: string, storeId: string): Promise<string> {

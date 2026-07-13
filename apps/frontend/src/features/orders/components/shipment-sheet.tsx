@@ -81,7 +81,7 @@ export function ShipmentSheet({
             Enter tracking details for this shipment.
           </SheetDescription>
         </SheetHeader>
-        <div className="mt-6 space-y-4">
+        <div className="mt-6 space-y-4 px-4">
           <div className="space-y-1.5">
             <Label htmlFor="carrier">
               Carrier <span className="text-destructive">*</span>

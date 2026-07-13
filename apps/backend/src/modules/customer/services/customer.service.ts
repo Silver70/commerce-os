@@ -10,6 +10,7 @@ import { CustomerAuthService } from '../../auth/services/customer-auth.service';
 import { CustomerRepository } from '../repositories/customer.repository';
 import type { ListCustomersOptions } from '../repositories/customer.repository';
 import { CustomerGroupRepository } from '../repositories/customer-group.repository';
+import { OrderRepository } from '../../order/repositories/order.repository';
 import {
   CustomerRegisteredEvent,
   CustomerCreatedByAdminEvent,
@@ -29,7 +30,10 @@ import type {
   UpdateAddressDto,
 } from '../dto/create-address.dto';
 
-export type SafeCustomer = Omit<Customer, 'passwordHash'>;
+export type SafeCustomer = Omit<Customer, 'passwordHash'> & {
+  ordersCount?: number;
+  totalSpent?: number;
+};
 
 export interface AuthPayload {
   accessToken: string;
@@ -60,6 +64,7 @@ export class CustomerService {
     private readonly customerAuth: CustomerAuthService,
     private readonly config: ConfigService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly orderRepo: OrderRepository,
   ) {}
 
   async register(
@@ -183,7 +188,18 @@ export class CustomerService {
     opts: ListCustomersOptions = {},
   ): Promise<SafeCustomer[]> {
     const customers = await this.customerRepo.findAll(orgId, opts);
-    return customers.map(sanitize);
+    const stats = await this.orderRepo.getCustomerStats(
+      orgId,
+      customers.map((c) => c.id),
+    );
+    return customers.map((c) => {
+      const stat = stats.get(c.id);
+      return {
+        ...sanitize(c),
+        ordersCount: stat?.ordersCount ?? 0,
+        totalSpent: stat?.totalSpent ?? 0,
+      };
+    });
   }
 
   // ─── Admin-managed accounts ─────────────────────────────────────────────────

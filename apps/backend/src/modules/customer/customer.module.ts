@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
+import { OrderModule } from '../order/order.module';
 import { CustomerRepository } from './repositories/customer.repository';
 import { CustomerGroupRepository } from './repositories/customer-group.repository';
 import { CustomerService } from './services/customer.service';
@@ -10,7 +11,7 @@ import { AdminCustomerGroupController } from './controllers/admin-customer-group
 import { CustomerController } from './controllers/customer.controller';
 
 @Module({
-  imports: [AuthModule],
+  imports: [AuthModule, OrderModule],
   controllers: [
     AdminCustomerController,
     AdminCustomerGroupController,
