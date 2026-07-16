@@ -1,8 +1,15 @@
 import * as React from "react";
-import { ChevronLeftIcon, ChevronRightIcon, XIcon } from "lucide-react";
+import {
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  LoaderCircleIcon,
+  SearchIcon,
+  XIcon,
+} from "lucide-react";
 
 import { cn } from "~/lib/utils";
 import { Button } from "~/components/ui/button";
+import { Input } from "~/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -36,11 +43,46 @@ export type DataTableFilter = {
   options: { label: string; value: string }[];
 };
 
+/**
+ * Search is server-side and owned by the parent: the table renders the input
+ * but never filters on it. Filtering here would only ever search the rows
+ * already loaded, which for a paginated list is just the current page.
+ */
+export type DataTableSearch = {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  /** True while the debounced query catches up with the input. */
+  pending?: boolean;
+};
+
+/**
+ * Server-driven pagination. When this is passed, `data` is already exactly one
+ * page: the table renders it as-is and never slices or filters it locally.
+ * Without it the table falls back to paging the array it was handed.
+ */
+export type DataTablePagination = {
+  page: number;
+  pageSize: number;
+  totalCount: number;
+  totalPages: number;
+  onPageChange: (page: number) => void;
+};
+
+/** Controlled (server-side) filter values. Omit for local filtering. */
+export type DataTableFilterState = {
+  values: Record<string, string>;
+  onChange: (key: string, value: string | null) => void;
+};
+
 export interface DataTableProps<T extends object> {
   data: T[];
   columns: DataTableColumn<T>[];
   rowKey?: (row: T) => string;
   filters?: DataTableFilter[];
+  filterState?: DataTableFilterState;
+  search?: DataTableSearch;
+  pagination?: DataTablePagination;
   pageSize?: number;
   action?: React.ReactNode;
   emptyMessage?: string;
@@ -75,47 +117,73 @@ export function DataTable<T extends object>({
   columns,
   rowKey,
   filters = [],
+  filterState,
+  search,
+  pagination,
   pageSize = 10,
   action,
   emptyMessage = "No results.",
 }: DataTableProps<T>) {
-  const [activeFilters, setActiveFilters] = React.useState<
+  // Server mode: `data` is already one page, filtered and counted upstream.
+  const serverMode = pagination !== undefined;
+
+  const [localFilters, setLocalFilters] = React.useState<
     Record<string, string>
   >({});
-  const [page, setPage] = React.useState(1);
+  const [localPage, setLocalPage] = React.useState(1);
+
+  const activeFilters = filterState?.values ?? localFilters;
 
   const filtered = React.useMemo(
     () =>
-      data.filter((row) =>
-        filters.every(({ key }) => {
-          const v = activeFilters[key];
-          return (
-            !v || String((row as Record<string, unknown>)[key] ?? "") === v
-          );
-        }),
-      ),
-    [data, activeFilters, filters],
+      serverMode
+        ? data
+        : data.filter((row) =>
+            filters.every(({ key }) => {
+              const v = activeFilters[key];
+              return (
+                !v || String((row as Record<string, unknown>)[key] ?? "") === v
+              );
+            }),
+          ),
+    [serverMode, data, activeFilters, filters],
   );
 
   React.useEffect(() => {
-    setPage(1);
-  }, [activeFilters]);
+    if (!serverMode) setLocalPage(1);
+  }, [serverMode, activeFilters, search?.value]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const pageData = filtered.slice((page - 1) * pageSize, page * pageSize);
+  const page = pagination?.page ?? localPage;
+  const size = pagination?.pageSize ?? pageSize;
+  const totalCount = pagination?.totalCount ?? filtered.length;
+  const totalPages =
+    pagination?.totalPages ?? Math.max(1, Math.ceil(filtered.length / size));
+
+  const pageData = serverMode
+    ? filtered
+    : filtered.slice((page - 1) * size, page * size);
+
   const pageNumbers = React.useMemo(
     () => buildPageList(page, totalPages),
     [page, totalPages],
   );
 
-  const hasActive = Object.values(activeFilters).some(Boolean);
+  const goToPage = pagination?.onPageChange ?? setLocalPage;
+
+  const hasActive =
+    Object.values(activeFilters).some(Boolean) || !!search?.value;
 
   function setFilter(key: string, value: string) {
-    setActiveFilters((prev) => ({ ...prev, [key]: value }));
+    if (filterState) filterState.onChange(key, value);
+    else setLocalFilters((prev) => ({ ...prev, [key]: value }));
   }
 
   function clearFilter(key: string) {
-    setActiveFilters((prev) => {
+    if (filterState) {
+      filterState.onChange(key, null);
+      return;
+    }
+    setLocalFilters((prev) => {
       const next = { ...prev };
       delete next[key];
       return next;
@@ -123,7 +191,12 @@ export function DataTable<T extends object>({
   }
 
   function clearAll() {
-    setActiveFilters({});
+    if (filterState) {
+      for (const key of Object.keys(activeFilters)) filterState.onChange(key, null);
+    } else {
+      setLocalFilters({});
+    }
+    search?.onChange("");
   }
 
   // ─── Render ───────────────────────────────────────────────────────────────
@@ -133,6 +206,23 @@ export function DataTable<T extends object>({
       {/* Toolbar */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap items-center gap-2">
+          {/* Search box */}
+          {search && (
+            <div className="relative w-full sm:w-64">
+              <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                type="search"
+                value={search.value}
+                onChange={(e) => search.onChange(e.target.value)}
+                placeholder={search.placeholder ?? "Search…"}
+                className="h-9 pl-8 pr-8"
+              />
+              {search.pending && (
+                <LoaderCircleIcon className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted-foreground" />
+              )}
+            </div>
+          )}
+
           {/* Filter selects */}
           {filters.map((f) => (
             <Select
@@ -236,11 +326,11 @@ export function DataTable<T extends object>({
       {/* Footer: count + pagination */}
       <div className="flex items-center justify-between text-sm text-muted-foreground">
         <span>
-          {filtered.length === 0
+          {totalCount === 0
             ? "No results"
             : totalPages === 1
-              ? `${filtered.length} result${filtered.length !== 1 ? "s" : ""}`
-              : `${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, filtered.length)} of ${filtered.length}`}
+              ? `${totalCount} result${totalCount !== 1 ? "s" : ""}`
+              : `${(page - 1) * size + 1}–${Math.min(page * size, totalCount)} of ${totalCount}`}
         </span>
 
         {totalPages > 1 && (
@@ -250,7 +340,7 @@ export function DataTable<T extends object>({
               size="icon"
               className="h-8 w-8"
               disabled={page === 1}
-              onClick={() => setPage((p) => p - 1)}
+              onClick={() => goToPage(page - 1)}
             >
               <ChevronLeftIcon className="h-4 w-4" />
             </Button>
@@ -270,7 +360,7 @@ export function DataTable<T extends object>({
                     page === p &&
                       "border-amber-500 bg-amber-500 text-white shadow-none hover:bg-amber-600",
                   )}
-                  onClick={() => setPage(p as number)}
+                  onClick={() => goToPage(p as number)}
                 >
                   {p}
                 </Button>
@@ -282,7 +372,7 @@ export function DataTable<T extends object>({
               size="icon"
               className="h-8 w-8"
               disabled={page === totalPages}
-              onClick={() => setPage((p) => p + 1)}
+              onClick={() => goToPage(page + 1)}
             >
               <ChevronRightIcon className="h-4 w-4" />
             </Button>

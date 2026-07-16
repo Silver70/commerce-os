@@ -152,7 +152,7 @@ export class OrderResolver {
       limit,
     );
 
-    const edges: OrderEdgeType[] = result.orders.map((order) => {
+    const edges: OrderEdgeType[] = result.items.map((order) => {
       const edge = new OrderEdgeType();
       edge.cursor = encodeCursor({ createdAt: order.createdAt.toISOString() });
       edge.node = mapOrderToType(order);

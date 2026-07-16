@@ -7,6 +7,7 @@ import type {
   Customer,
   CustomerAddress,
   CreatedCustomerResult,
+  PaginatedResponse,
   SetPasswordLinkResult,
 } from "~/types/api";
 
@@ -18,17 +19,19 @@ export const getCustomersServerFn = createServerFn({ method: "GET" })
   .inputValidator(
     z.object({
       status: z.enum(["active", "disabled"]).optional(),
-      cursor: z.string().optional(),
+      search: z.string().optional(),
+      page: z.number().int().positive().optional(),
       limit: z.number().int().positive().optional(),
     }),
   )
-  .handler(async ({ data }): Promise<Customer[]> => {
+  .handler(async ({ data }): Promise<PaginatedResponse<Customer>> => {
     const params = new URLSearchParams();
     if (data.status) params.set("status", data.status);
-    if (data.cursor) params.set("cursor", data.cursor);
+    if (data.search) params.set("search", data.search);
+    params.set("page", String(data.page ?? 1));
     if (data.limit) params.set("limit", String(data.limit));
     try {
-      const res = await apiClient.get<Customer[]>(
+      const res = await apiClient.get<PaginatedResponse<Customer>>(
         `/api/admin/customers?${params.toString()}`,
         { headers: await storeHeaders() },
       );

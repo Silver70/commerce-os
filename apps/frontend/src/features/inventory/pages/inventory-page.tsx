@@ -5,34 +5,32 @@ import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/data-table";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
-import type { InventoryItemView } from "~/types/api";
+import { useListControls } from "~/lib/use-list-controls";
+import { PAGE_SIZE, type InventoryItemView } from "~/types/api";
 import { inventoryQueryOptions } from "../queries";
-import { stockStatus } from "../utils";
 import { AvailableCell } from "../components/available-cell";
 import { StockAdjustSheet } from "../components/stock-adjust-sheet";
 
 export function InventoryPage() {
-  const allItems: InventoryItemView[] = useSuspenseQuery(
-    inventoryQueryOptions(),
+  const list = useListControls();
+  const [adjustItem, setAdjustItem] = React.useState<InventoryItemView | null>(
+    null,
+  );
+
+  // The tab IS the server-side stock filter — it can't be a client-side filter
+  // over the loaded page, which would only ever search the visible 25 rows.
+  const activeTab = (list.filters.status ?? "all") as "all" | "low" | "out";
+
+  const data = useSuspenseQuery(
+    inventoryQueryOptions({
+      status: activeTab === "all" ? undefined : activeTab,
+      search: list.debouncedSearch || undefined,
+      page: list.page,
+      limit: PAGE_SIZE,
+    }),
   ).data;
-  const lowItems: InventoryItemView[] = useSuspenseQuery(
-    inventoryQueryOptions({ lowStock: true }),
-  ).data;
 
-  const [activeTab, setActiveTab] = React.useState<"all" | "low" | "out">("all");
-  const [adjustItem, setAdjustItem] =
-    React.useState<InventoryItemView | null>(null);
-
-  const outItems = allItems.filter((i) => stockStatus(i) === "out");
-
-  const lowStockCount = lowItems.length;
-  const outStockCount = outItems.length;
-
-  const filteredData = React.useMemo(() => {
-    if (activeTab === "low") return lowItems;
-    if (activeTab === "out") return outItems;
-    return allItems;
-  }, [activeTab, allItems, lowItems, outItems]);
+  const { low: lowStockCount, out: outStockCount } = data.counts;
 
   const openAdjust = React.useCallback((item: InventoryItemView) => {
     setAdjustItem(item);
@@ -121,7 +119,9 @@ export function InventoryPage() {
 
       <Tabs
         value={activeTab}
-        onValueChange={(v) => setActiveTab(v as typeof activeTab)}
+        onValueChange={(v) =>
+          list.setFilter("status", v === "all" ? null : v)
+        }
       >
         <TabsList>
           <TabsTrigger value="all">All SKUs</TabsTrigger>
@@ -151,10 +151,22 @@ export function InventoryPage() {
       </Tabs>
 
       <DataTable
-        data={filteredData}
+        data={data.items}
         columns={columns}
         rowKey={(row) => row.id}
-        pageSize={25}
+        search={{
+          value: list.search,
+          onChange: list.setSearch,
+          placeholder: "Search product or SKU…",
+          pending: list.pending,
+        }}
+        pagination={{
+          page: list.page,
+          pageSize: data.limit,
+          totalCount: data.totalCount,
+          totalPages: data.totalPages,
+          onPageChange: list.goToPage,
+        }}
         emptyMessage="No inventory items match this filter."
       />
 

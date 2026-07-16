@@ -57,7 +57,8 @@ export class AuthController {
     const userId = tenant.userId!;
 
     // Idempotent: return existing org if user already has a membership
-    const memberships = await this.workosAuth.listOrganizationMemberships(userId);
+    const memberships =
+      await this.workosAuth.listOrganizationMemberships(userId);
     if (memberships.length > 0) {
       return { workosOrgId: memberships[0].organizationId };
     }
@@ -79,7 +80,9 @@ export class AuthController {
   @UseGuards(AdminAuthGuard)
   @ApiOperation({ summary: 'Get current admin user info' })
   async me(@CurrentTenant() tenant: TenantContext) {
-    const memberships = await this.workosAuth.listOrganizationMemberships(tenant.userId!);
+    const memberships = await this.workosAuth.listOrganizationMemberships(
+      tenant.userId!,
+    );
     return {
       userId: tenant.userId,
       email: tenant.email,

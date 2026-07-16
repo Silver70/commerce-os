@@ -1,5 +1,16 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { eq, and, isNull, SQL, ilike, inArray } from 'drizzle-orm';
+import {
+  eq,
+  and,
+  or,
+  asc,
+  count,
+  isNull,
+  sql,
+  SQL,
+  ilike,
+  inArray,
+} from 'drizzle-orm';
 import { DRIZZLE_CLIENT } from '../../../shared/database/database.module';
 import type { DrizzleClient } from '../../../shared/database/database.module';
 import {
@@ -24,7 +35,10 @@ import type {
 import {
   encodeCursor,
   decodeCursor,
+  offsetFor,
+  DEFAULT_PAGE_SIZE,
 } from '../../../shared/utils/pagination.util';
+import { likePattern } from '../../../shared/utils/search.util';
 import type { ProductFilterDto } from '../dto/product-filter.dto';
 
 export interface ProductDetail extends Product {
@@ -36,8 +50,44 @@ export interface ProductDetail extends Product {
 
 export interface PaginatedProducts {
   items: ProductDetail[];
+  /** Set in cursor mode (storefront GraphQL); null in page mode. */
   nextCursor: string | null;
   totalCount: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+/**
+ * Keyset cursor. Carries only the row id — the timestamp half of the sort key
+ * is read back out of the database rather than round-tripped through JS.
+ * Postgres timestamps hold microseconds and a JS Date only holds milliseconds,
+ * so encoding the timestamp here would truncate it and the cursor row would
+ * compare as "after itself" and be served twice.
+ */
+interface ProductCursor {
+  id: string;
+}
+
+export function encodeProductCursor(p: { id: string }): string {
+  return encodeCursor({ id: p.id });
+}
+
+function paginatedProducts(
+  items: ProductDetail[],
+  totalCount: number,
+  page: number,
+  limit: number,
+  nextCursor: string | null,
+): PaginatedProducts {
+  return {
+    items,
+    nextCursor,
+    totalCount,
+    page,
+    limit,
+    totalPages: Math.max(1, Math.ceil(totalCount / limit)),
+  };
 }
 
 @Injectable()
@@ -108,7 +158,10 @@ export class ProductRepository {
     orgId: string,
     storeId: string,
   ): Promise<PaginatedProducts> {
-    const limit = filter.limit ?? 20;
+    const limit = filter.limit ?? DEFAULT_PAGE_SIZE;
+    const page = filter.page ?? 1;
+    // Admin sends `page` (numbered pages); storefront GraphQL sends `cursor`.
+    const pageMode = filter.page !== undefined;
     const conditions: SQL[] = [
       eq(products.organizationId, orgId),
       eq(products.storeId, storeId),
@@ -122,7 +175,24 @@ export class ProductRepository {
       conditions.push(eq(products.vendor, filter.vendor));
     }
     if (filter.search) {
-      conditions.push(ilike(products.name, `%${filter.search}%`));
+      const pattern = likePattern(filter.search);
+      // Merchants search the catalog by SKU as often as by name, and SKUs live
+      // on variants — so match either.
+      const skuMatches = this.db
+        .select({ productId: productVariants.productId })
+        .from(productVariants)
+        .where(
+          and(
+            eq(productVariants.organizationId, orgId),
+            eq(productVariants.storeId, storeId),
+            ilike(productVariants.sku, pattern),
+          ),
+        );
+      const match = or(
+        ilike(products.name, pattern),
+        inArray(products.id, skuMatches),
+      );
+      if (match) conditions.push(match);
     }
     if (filter.categoryId) {
       const productIdsInCategory = await this.db
@@ -131,29 +201,40 @@ export class ProductRepository {
         .where(eq(productCategories.categoryId, filter.categoryId));
       const ids = productIdsInCategory.map((r) => r.productId);
       if (ids.length === 0) {
-        return { items: [], nextCursor: null, totalCount: 0 };
+        return paginatedProducts([], 0, page, limit, null);
       }
       conditions.push(inArray(products.id, ids));
     }
 
-    if (filter.cursor) {
-      const decoded = decodeCursor<{ id: string }>(filter.cursor);
-      conditions.push(eq(products.id, decoded.id));
+    // Cursor mode only. Row-value comparison against the full ORDER BY tuple:
+    // the subquery re-reads the cursor row's exact created_at inside Postgres,
+    // so no precision is lost and a row is never returned twice.
+    if (!pageMode && filter.cursor) {
+      const c = decodeCursor<ProductCursor>(filter.cursor);
+      conditions.push(
+        sql`(${products.createdAt}, ${products.id}) > (select p2.created_at, p2.id from products p2 where p2.id = ${c.id})`,
+      );
     }
 
-    const rows = await this.db
-      .select()
-      .from(products)
-      .where(and(...conditions))
-      .limit(limit + 1)
-      .orderBy(products.createdAt);
+    const where = and(...conditions);
 
-    const hasNext = rows.length > limit;
+    // Count runs concurrently with the page query, so it costs no extra
+    // round trip to the database.
+    const [rows, [{ value: totalCount }]] = await Promise.all([
+      this.db
+        .select()
+        .from(products)
+        .where(where)
+        .orderBy(asc(products.createdAt), asc(products.id))
+        .limit(pageMode ? limit : limit + 1)
+        .offset(pageMode ? offsetFor(page, limit) : 0),
+      this.db.select({ value: count() }).from(products).where(where),
+    ]);
+
+    const hasNext = !pageMode && rows.length > limit;
     const pageRows = hasNext ? rows.slice(0, limit) : rows;
-    const nextCursor =
-      hasNext && pageRows.length > 0
-        ? encodeCursor({ id: pageRows[pageRows.length - 1].id })
-        : null;
+    const last = pageRows[pageRows.length - 1];
+    const nextCursor = hasNext && last ? encodeProductCursor(last) : null;
 
     const items = await this.findDetailBatch(
       pageRows.map((r) => r.id),
@@ -162,7 +243,7 @@ export class ProductRepository {
       pageRows,
     );
 
-    return { items, nextCursor, totalCount: items.length };
+    return paginatedProducts(items, totalCount, page, limit, nextCursor);
   }
 
   private async findDetailBatch(

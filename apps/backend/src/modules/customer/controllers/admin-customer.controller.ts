@@ -41,7 +41,8 @@ export class AdminCustomerController {
     return this.customerService.listCustomers(tenant.organizationId, {
       status: query.status,
       groupId: query.groupId,
-      cursor: query.cursor,
+      search: query.search,
+      page: query.page,
       limit: query.limit,
     });
   }

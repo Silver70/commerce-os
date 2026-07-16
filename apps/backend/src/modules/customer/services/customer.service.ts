@@ -9,6 +9,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { CustomerAuthService } from '../../auth/services/customer-auth.service';
 import { CustomerRepository } from '../repositories/customer.repository';
 import type { ListCustomersOptions } from '../repositories/customer.repository';
+import type { Paginated } from '../../../shared/utils/pagination.util';
 import { CustomerGroupRepository } from '../repositories/customer-group.repository';
 import { OrderRepository } from '../../order/repositories/order.repository';
 import {
@@ -186,13 +187,14 @@ export class CustomerService {
   async listCustomers(
     orgId: string,
     opts: ListCustomersOptions = {},
-  ): Promise<SafeCustomer[]> {
-    const customers = await this.customerRepo.findAll(orgId, opts);
+  ): Promise<Paginated<SafeCustomer>> {
+    const page = await this.customerRepo.findAll(orgId, opts);
+    // Stats are only fetched for the rows on this page, not the whole table.
     const stats = await this.orderRepo.getCustomerStats(
       orgId,
-      customers.map((c) => c.id),
+      page.items.map((c) => c.id),
     );
-    return customers.map((c) => {
+    const items = page.items.map((c) => {
       const stat = stats.get(c.id);
       return {
         ...sanitize(c),
@@ -200,6 +202,7 @@ export class CustomerService {
         totalSpent: stat?.totalSpent ?? 0,
       };
     });
+    return { ...page, items };
   }
 
   // ─── Admin-managed accounts ─────────────────────────────────────────────────

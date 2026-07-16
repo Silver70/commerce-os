@@ -93,11 +93,12 @@ export function OrderNewPage() {
   const [custFocused, setCustFocused] = React.useState(false);
 
   const {
-    data: customers = [],
+    data: customersPage,
     isLoading: customersLoading,
     isError: customersError,
     error: customersErrorObj,
   } = useQuery(customersQueryOptions({ limit: 100 }));
+  const customers = customersPage?.items ?? [];
 
   // Shipping address — defaults to the customer's saved (default) address; the
   // sheet lets the admin pick another saved address or enter a new one.

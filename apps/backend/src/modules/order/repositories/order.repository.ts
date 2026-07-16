@@ -1,5 +1,17 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { eq, and, desc, lt, gte, lte, asc, inArray, sql } from 'drizzle-orm';
+import {
+  eq,
+  and,
+  or,
+  ilike,
+  desc,
+  gte,
+  lte,
+  asc,
+  count,
+  inArray,
+  sql,
+} from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 import { DRIZZLE_CLIENT } from '../../../shared/database/database.module';
 import type { DrizzleClient } from '../../../shared/database/database.module';
@@ -25,7 +37,10 @@ import type {
 import {
   encodeCursor,
   decodeCursor,
+  offsetFor,
+  DEFAULT_PAGE_SIZE,
 } from '../../../shared/utils/pagination.util';
+import { likePattern } from '../../../shared/utils/search.util';
 
 export interface OrderWithDetails extends Order {
   lineItems: (typeof orderLineItems.$inferSelect)[];
@@ -39,15 +54,37 @@ export interface ListOrdersParams {
   storeId: string;
   status?: string;
   customerId?: string;
+  search?: string;
   from?: Date;
   to?: Date;
+  /** Storefront GraphQL. Ignored when `page` is set. */
   cursor?: string;
+  /** 1-based. Admin REST uses numbered pages instead of a cursor. */
+  page?: number;
   limit?: number;
 }
 
+/**
+ * Keyset cursor. Carries only the row id — see ProductCursor for why the
+ * timestamp is re-read inside Postgres instead of round-tripped through a JS
+ * Date (millisecond truncation would make a row compare as "after itself").
+ */
+interface OrderCursor {
+  id: string;
+}
+
+export function encodeOrderCursor(o: { id: string }): string {
+  return encodeCursor({ id: o.id });
+}
+
 export interface ListOrdersResult {
-  orders: Order[];
+  items: Order[];
+  /** Set in cursor mode (storefront GraphQL); null in page mode. */
   nextCursor: string | null;
+  totalCount: number;
+  page: number;
+  limit: number;
+  totalPages: number;
 }
 
 export interface CustomerOrderStats {
@@ -178,7 +215,9 @@ export class OrderRepository {
   }
 
   async listWithFilters(params: ListOrdersParams): Promise<ListOrdersResult> {
-    const { orgId, storeId, limit = 20 } = params;
+    const { orgId, storeId, limit = DEFAULT_PAGE_SIZE } = params;
+    const page = params.page ?? 1;
+    const pageMode = params.page !== undefined;
     const conditions: SQL[] = [
       eq(orders.organizationId, orgId),
       eq(orders.storeId, storeId),
@@ -190,33 +229,58 @@ export class OrderRepository {
     if (params.customerId) {
       conditions.push(eq(orders.customerId, params.customerId));
     }
+    if (params.search) {
+      const pattern = likePattern(params.search);
+      const match = or(
+        ilike(orders.orderNumber, pattern),
+        ilike(orders.customerName, pattern),
+        ilike(orders.customerEmail, pattern),
+      );
+      if (match) conditions.push(match);
+    }
     if (params.from) {
       conditions.push(gte(orders.createdAt, params.from));
     }
     if (params.to) {
       conditions.push(lte(orders.createdAt, params.to));
     }
-    if (params.cursor) {
-      const decoded = decodeCursor<{ createdAt: string }>(params.cursor);
-      conditions.push(lt(orders.createdAt, new Date(decoded.createdAt)));
+    // Cursor mode only. Orders sort newest-first, so the row-value comparison
+    // walks backwards. The subquery re-reads the cursor row's exact created_at
+    // inside Postgres, so no timestamp precision is lost.
+    if (!pageMode && params.cursor) {
+      const c = decodeCursor<OrderCursor>(params.cursor);
+      conditions.push(
+        sql`(${orders.createdAt}, ${orders.id}) < (select o2.created_at, o2.id from orders o2 where o2.id = ${c.id})`,
+      );
     }
 
-    const rows = await this.db
-      .select()
-      .from(orders)
-      .where(and(...conditions))
-      .orderBy(desc(orders.createdAt))
-      .limit(limit + 1);
+    const where = and(...conditions);
 
-    const hasMore = rows.length > limit;
+    // Count runs alongside the page query — no extra database round trip.
+    const [rows, [{ value: totalCount }]] = await Promise.all([
+      this.db
+        .select()
+        .from(orders)
+        .where(where)
+        .orderBy(desc(orders.createdAt), desc(orders.id))
+        .limit(pageMode ? limit : limit + 1)
+        .offset(pageMode ? offsetFor(page, limit) : 0),
+      this.db.select({ value: count() }).from(orders).where(where),
+    ]);
+
+    const hasMore = !pageMode && rows.length > limit;
     const data = hasMore ? rows.slice(0, limit) : rows;
     const lastRow = data[data.length - 1];
-    const nextCursor =
-      hasMore && lastRow
-        ? encodeCursor({ createdAt: lastRow.createdAt.toISOString() })
-        : null;
+    const nextCursor = hasMore && lastRow ? encodeOrderCursor(lastRow) : null;
 
-    return { orders: data, nextCursor };
+    return {
+      items: data,
+      nextCursor,
+      totalCount,
+      page,
+      limit,
+      totalPages: Math.max(1, Math.ceil(totalCount / limit)),
+    };
   }
 
   async updateStatus(

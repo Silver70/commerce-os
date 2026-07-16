@@ -10,7 +10,7 @@ export const productsQueryOptions = (
   params: {
     status?: ProductStatus;
     search?: string;
-    cursor?: string;
+    page?: number;
     limit?: number;
   } = {},
 ) =>

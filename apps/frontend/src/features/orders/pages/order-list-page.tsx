@@ -9,9 +9,14 @@ import {
   type DataTableFilter,
 } from "~/components/data-table";
 import { formatMoney } from "~/lib/money";
-import type { Order, OrdersResponse } from "~/types/api";
+import { useListControls } from "~/lib/use-list-controls";
+import {
+  PAGE_SIZE,
+  type Order,
+  type OrderStatus,
+  type OrdersResponse,
+} from "~/types/api";
 import { ordersQueryOptions } from "../queries";
-import { getOrdersServerFn } from "../server";
 import { OrderStatusBadge } from "../components/order-status-badge";
 
 const COLUMNS: DataTableColumn<Order>[] = [
@@ -109,29 +114,16 @@ const FILTERS: DataTableFilter[] = [
 ];
 
 export function OrderListPage() {
-  const page: OrdersResponse = useSuspenseQuery(ordersQueryOptions()).data;
-  const [items, setItems] = React.useState<Order[]>(page.orders);
-  const [nextCursor, setNextCursor] = React.useState<string | null>(
-    page.nextCursor,
-  );
-  const [loadingMore, setLoadingMore] = React.useState(false);
+  const list = useListControls();
 
-  React.useEffect(() => {
-    setItems(page.orders);
-    setNextCursor(page.nextCursor);
-  }, [page]);
-
-  async function loadMore() {
-    if (!nextCursor || loadingMore) return;
-    setLoadingMore(true);
-    try {
-      const more = await getOrdersServerFn({ data: { cursor: nextCursor } });
-      setItems((prev) => [...prev, ...more.orders]);
-      setNextCursor(more.nextCursor);
-    } finally {
-      setLoadingMore(false);
-    }
-  }
+  const data: OrdersResponse = useSuspenseQuery(
+    ordersQueryOptions({
+      search: list.debouncedSearch || undefined,
+      status: (list.filters.status as OrderStatus) || undefined,
+      page: list.page,
+      limit: PAGE_SIZE,
+    }),
+  ).data;
 
   return (
     <div className="space-y-6">
@@ -143,17 +135,27 @@ export function OrderListPage() {
       </div>
 
       <DataTable
-        data={items}
+        data={data.items}
         columns={COLUMNS}
         rowKey={(row) => row.id}
         filters={FILTERS}
-        pageSize={25}
+        filterState={{ values: list.filters, onChange: list.setFilter }}
+        search={{
+          value: list.search,
+          onChange: list.setSearch,
+          placeholder: "Search order # or customer…",
+          pending: list.pending,
+        }}
+        pagination={{
+          page: list.page,
+          pageSize: data.limit,
+          totalCount: data.totalCount,
+          totalPages: data.totalPages,
+          onPageChange: list.goToPage,
+        }}
         emptyMessage="No orders match your filters."
         action={
-          <Button
-            className="gap-2 px-5 py-2.5"
-            asChild
-          >
+          <Button className="gap-2 px-5 py-2.5" asChild>
             <Link to="/admin/orders/new">
               <PlusIcon className="h-4 w-4" />
               Create order
@@ -161,14 +163,6 @@ export function OrderListPage() {
           </Button>
         }
       />
-
-      {nextCursor && (
-        <div className="flex justify-center">
-          <Button variant="outline" onClick={loadMore} disabled={loadingMore}>
-            {loadingMore ? "Loading…" : "Load more"}
-          </Button>
-        </div>
-      )}
     </div>
   );
 }

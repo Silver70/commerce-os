@@ -80,7 +80,9 @@ describe('CustomerAuthService', () => {
 
       await expect(
         service.login('buyer@example.com', 'secret123', orgId),
-      ).rejects.toThrow(new UnauthorizedException('Password not set for this account'));
+      ).rejects.toThrow(
+        new UnauthorizedException('Password not set for this account'),
+      );
       expect(bcrypt.compare).not.toHaveBeenCalled();
     });
 

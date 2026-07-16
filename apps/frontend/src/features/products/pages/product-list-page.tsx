@@ -8,9 +8,9 @@ import {
   type DataTableColumn,
   type DataTableFilter,
 } from "~/components/data-table";
-import type { Product } from "~/types/api";
+import { useListControls } from "~/lib/use-list-controls";
+import { PAGE_SIZE, type Product, type ProductStatus } from "~/types/api";
 import { productsQueryOptions } from "../queries";
-import { getProductsServerFn } from "../server";
 import { PriceDisplay } from "../components/price-display";
 import { ProductStatusBadge } from "../components/product-status-badge";
 import { ProductThumbnail } from "../components/product-thumbnail";
@@ -90,29 +90,16 @@ const FILTERS: DataTableFilter[] = [
 
 export function ProductListPage() {
   const queryClient = useQueryClient();
-  const { data: page } = useSuspenseQuery(productsQueryOptions());
-  const [items, setItems] = React.useState<Product[]>(page.items);
-  const [nextCursor, setNextCursor] = React.useState<string | null>(
-    page.nextCursor,
+  const list = useListControls();
+
+  const { data } = useSuspenseQuery(
+    productsQueryOptions({
+      search: list.debouncedSearch || undefined,
+      status: (list.filters.status as ProductStatus) || undefined,
+      page: list.page,
+      limit: PAGE_SIZE,
+    }),
   );
-  const [loadingMore, setLoadingMore] = React.useState(false);
-
-  React.useEffect(() => {
-    setItems(page.items);
-    setNextCursor(page.nextCursor);
-  }, [page]);
-
-  async function loadMore() {
-    if (!nextCursor || loadingMore) return;
-    setLoadingMore(true);
-    try {
-      const more = await getProductsServerFn({ data: { cursor: nextCursor } });
-      setItems((prev) => [...prev, ...more.items]);
-      setNextCursor(more.nextCursor);
-    } finally {
-      setLoadingMore(false);
-    }
-  }
 
   // Invalidate on mount so store switching forces a fresh fetch
   React.useEffect(() => {
@@ -126,9 +113,9 @@ export function ProductListPage() {
           <h1 className="text-2xl font-semibold">Products</h1>
           <p className="text-sm text-muted-foreground">
             Manage your product catalog, pricing, and availability.
-            {page.totalCount > 0 && (
+            {data.totalCount > 0 && (
               <span className="ml-1 text-muted-foreground">
-                ({page.totalCount} total)
+                ({data.totalCount} total)
               </span>
             )}
           </p>
@@ -136,16 +123,26 @@ export function ProductListPage() {
       </div>
 
       <DataTable
-        data={items}
+        data={data.items}
         columns={COLUMNS}
         rowKey={(row) => row.id}
         filters={FILTERS}
-        pageSize={25}
+        filterState={{ values: list.filters, onChange: list.setFilter }}
+        search={{
+          value: list.search,
+          onChange: list.setSearch,
+          placeholder: "Search name or SKU…",
+          pending: list.pending,
+        }}
+        pagination={{
+          page: list.page,
+          pageSize: data.limit,
+          totalCount: data.totalCount,
+          totalPages: data.totalPages,
+          onPageChange: list.goToPage,
+        }}
         action={
-          <Button
-            className="gap-2 px-5 py-2.5"
-            asChild
-          >
+          <Button className="gap-2 px-5 py-2.5" asChild>
             <Link to="/admin/products/new">
               <PlusIcon className="h-4 w-4" />
               Add product
@@ -154,14 +151,6 @@ export function ProductListPage() {
         }
         emptyMessage="No products match your filters."
       />
-
-      {nextCursor && (
-        <div className="flex justify-center">
-          <Button variant="outline" onClick={loadMore} disabled={loadingMore}>
-            {loadingMore ? "Loading…" : "Load more"}
-          </Button>
-        </div>
-      )}
     </div>
   );
 }

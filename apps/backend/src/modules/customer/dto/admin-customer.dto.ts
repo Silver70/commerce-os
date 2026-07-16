@@ -90,13 +90,20 @@ export class ListCustomersQueryDto {
   declare groupId?: string;
 
   @ApiPropertyOptional({
-    description: 'Cursor for the next page (from previous response)',
+    description: 'Free-text search across email, first name & last name',
   })
   @IsOptional()
   @IsString()
-  declare cursor?: string;
+  declare search?: string;
 
-  @ApiPropertyOptional({ minimum: 1, maximum: 100 })
+  @ApiPropertyOptional({ description: '1-based page number.', minimum: 1 })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Type(() => Number)
+  declare page?: number;
+
+  @ApiPropertyOptional({ minimum: 1, maximum: 100, default: 25 })
   @IsOptional()
   @IsInt()
   @Min(1)

@@ -57,7 +57,7 @@ export function CustomerDetailPage() {
     customerAddressesQueryOptions(customerId),
   );
 
-  const orders: Order[] = ordersData?.orders ?? [];
+  const orders: Order[] = ordersData?.items ?? [];
   const [mutError, setMutError] = React.useState<string | null>(null);
   const [passwordLink, setPasswordLink] = React.useState<string | null>(null);
   const [copied, setCopied] = React.useState(false);

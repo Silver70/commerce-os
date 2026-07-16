@@ -13,7 +13,7 @@ import {
 } from '../models/product.model';
 import type { ProductDetail } from '../repositories/product.repository';
 import type { CategoryTreeNode } from '../repositories/category.repository';
-import { encodeCursor } from '../../../shared/utils/pagination.util';
+import { encodeProductCursor } from '../repositories/product.repository';
 import { InputType, Field } from '@nestjs/graphql';
 import { IsOptional, IsString } from 'class-validator';
 import type { TenantContext } from '../../../shared/tenant/tenant-context';
@@ -108,7 +108,9 @@ export class ProductResolver {
     );
     const edges: ProductEdge[] = result.items.map((p) => ({
       node: toProductType(p, priceOverrides),
-      cursor: encodeCursor({ id: p.id }),
+      // Must match the repository's keyset, or a client that pages from an
+      // edge cursor rather than pageInfo.endCursor would get garbage back.
+      cursor: encodeProductCursor(p),
     }));
 
     const pageInfo: PageInfo = {

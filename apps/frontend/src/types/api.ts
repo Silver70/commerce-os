@@ -467,14 +467,25 @@ export type Invitation = {
 
 // ─── Pagination ───────────────────────────────────────────────────────────────
 
+/**
+ * Every paginated admin list returns this envelope. Admin uses numbered pages
+ * (offset + a real count); the cursor is storefront-GraphQL-only and is null
+ * on every admin response.
+ */
 export type PaginatedResponse<T> = {
   items: T[];
-  nextCursor: string | null;
+  page: number;
+  limit: number;
   totalCount: number;
+  totalPages: number;
+  nextCursor?: string | null;
 };
 
-// Orders list uses a different envelope key — matches backend ListOrdersResult
-export type OrdersResponse = {
-  orders: Order[];
-  nextCursor: string | null;
+export type OrdersResponse = PaginatedResponse<Order>;
+
+/** Inventory additionally returns the counts behind its all/low/out tabs. */
+export type InventoryResponse = PaginatedResponse<InventoryItemView> & {
+  counts: { all: number; low: number; out: number };
 };
+
+export const PAGE_SIZE = 25;

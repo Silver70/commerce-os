@@ -39,7 +39,7 @@ export function AssignmentManager({
   const groupsQuery = useQuery(customerGroupsQueryOptions());
   const customersQuery = useQuery(customersQueryOptions());
   const groups = groupsQuery.data ?? [];
-  const customers = customersQuery.data ?? [];
+  const customers = customersQuery.data?.items ?? [];
 
   const groupName = (id: string) =>
     groups.find((g) => g.id === id)?.name ?? `Group ${id.slice(0, 8)}`;

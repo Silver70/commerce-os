@@ -5,6 +5,7 @@ import {
   Patch,
   Param,
   Body,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -21,6 +22,7 @@ import { RequirePermission } from '../../auth/decorators/require-permission.deco
 import { CurrentTenant } from '../../auth/decorators/current-tenant.decorator';
 import { InventoryService } from '../services/inventory.service';
 import { AdjustInventoryDto } from '../dto/adjust-inventory.dto';
+import { ListInventoryQueryDto } from '../dto/list-inventory.dto';
 import type { TenantContext } from '../../../shared/tenant/tenant-context';
 import { requireStoreContext } from '../../../shared/tenant/tenant.util';
 
@@ -41,11 +43,21 @@ export class AdminInventoryController {
 
   @Get()
   @RequirePermission('inventory.update')
-  @ApiOperation({ summary: 'List all inventory items for the active store' })
+  @ApiOperation({
+    summary: 'List inventory items for the active store (paginated)',
+  })
   @ApiResponse({ status: 200 })
-  async listAll(@CurrentTenant() tenant: TenantContext) {
+  async listAll(
+    @Query() query: ListInventoryQueryDto,
+    @CurrentTenant() tenant: TenantContext,
+  ) {
     const { organizationId, storeId } = requireStoreContext(tenant);
-    return this.inventoryService.getAllForOrg(organizationId, storeId);
+    return this.inventoryService.getAllForOrg(organizationId, storeId, {
+      status: query.status,
+      search: query.search,
+      page: query.page,
+      limit: query.limit,
+    });
   }
 
   @Get('low-stock')

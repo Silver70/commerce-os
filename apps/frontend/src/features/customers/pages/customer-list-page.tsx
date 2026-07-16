@@ -8,7 +8,12 @@ import {
   type DataTableFilter,
 } from "~/components/data-table";
 import { formatMoney } from "~/lib/money";
-import type { Customer } from "~/types/api";
+import { useListControls } from "~/lib/use-list-controls";
+import {
+  PAGE_SIZE,
+  type Customer,
+  type CustomerStatus,
+} from "~/types/api";
 import { customersQueryOptions } from "../queries";
 import { fullName } from "../utils";
 import { CustomerAvatar } from "../components/customer-avatar";
@@ -114,7 +119,16 @@ const FILTERS: DataTableFilter[] = [
 ];
 
 export function CustomerListPage() {
-  const customers: Customer[] = useSuspenseQuery(customersQueryOptions()).data;
+  const list = useListControls();
+
+  const data = useSuspenseQuery(
+    customersQueryOptions({
+      search: list.debouncedSearch || undefined,
+      status: (list.filters.status as CustomerStatus) || undefined,
+      page: list.page,
+      limit: PAGE_SIZE,
+    }),
+  ).data;
 
   return (
     <div className="space-y-6">
@@ -123,18 +137,31 @@ export function CustomerListPage() {
           <h1 className="text-2xl font-semibold">Customers</h1>
           <p className="text-sm text-muted-foreground">
             View and manage customer accounts.
-            <span className="ml-1">({customers.length} total)</span>
+            <span className="ml-1">({data.totalCount} total)</span>
           </p>
         </div>
         <CreateCustomerSheet />
       </div>
 
       <DataTable
-        data={customers}
+        data={data.items}
         columns={COLUMNS}
         rowKey={(row) => row.id}
         filters={FILTERS}
-        pageSize={25}
+        filterState={{ values: list.filters, onChange: list.setFilter }}
+        search={{
+          value: list.search,
+          onChange: list.setSearch,
+          placeholder: "Search name or email…",
+          pending: list.pending,
+        }}
+        pagination={{
+          page: list.page,
+          pageSize: data.limit,
+          totalCount: data.totalCount,
+          totalPages: data.totalPages,
+          onPageChange: list.goToPage,
+        }}
         emptyMessage="No customers match your filters."
       />
     </div>

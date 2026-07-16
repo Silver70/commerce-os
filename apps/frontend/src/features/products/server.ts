@@ -92,7 +92,7 @@ export const getProductsServerFn = createServerFn({ method: "GET" })
     z.object({
       status: z.enum(["draft", "active", "archived"]).optional(),
       search: z.string().optional(),
-      cursor: z.string().optional(),
+      page: z.number().int().positive().optional(),
       limit: z.number().int().positive().optional(),
     }),
   )
@@ -100,7 +100,7 @@ export const getProductsServerFn = createServerFn({ method: "GET" })
     const params = new URLSearchParams();
     if (data.status) params.set("status", data.status);
     if (data.search) params.set("search", data.search);
-    if (data.cursor) params.set("cursor", data.cursor);
+    params.set("page", String(data.page ?? 1));
     if (data.limit) params.set("limit", String(data.limit));
     try {
       const res = await apiClient.get<PaginatedResponse<Product>>(

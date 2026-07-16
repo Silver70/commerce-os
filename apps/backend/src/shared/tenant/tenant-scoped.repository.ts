@@ -49,9 +49,11 @@ export abstract class TenantScopedRepository<TTable extends TenantTable> {
     if (filters) conditions.push(filters);
     // Drizzle's .from() has a conditional generic (TableLikeHasEmptySelection)
     // that can't be resolved when TTable is still generic — cast required here.
-
+    // ESLint's type checker disagrees and `lint --fix` will happily delete the
+    // cast, which does not compile. Keep the suppression.
     const rows = (await this.db
       .select()
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
       .from(this.table as PgTable)
       .where(and(...conditions))) as unknown as InferSelectModel<TTable>[];
     return rows;
@@ -60,6 +62,7 @@ export abstract class TenantScopedRepository<TTable extends TenantTable> {
   async findById(id: string): Promise<InferSelectModel<TTable> | null> {
     const rows = (await this.db
       .select()
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
       .from(this.table as PgTable)
       .where(and(eq(this.table.id, id), ...this.tenantFilters))
       .limit(1)) as unknown as InferSelectModel<TTable>[];

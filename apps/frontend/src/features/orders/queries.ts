@@ -2,7 +2,15 @@ import { queryOptions } from "@tanstack/react-query";
 import { getOrdersServerFn, getOrderByIdServerFn } from "./server";
 import type { OrderStatus } from "~/types/api";
 
-export const ordersQueryOptions = (params: { status?: OrderStatus; customerId?: string; cursor?: string } = {}) =>
+export const ordersQueryOptions = (
+  params: {
+    status?: OrderStatus;
+    customerId?: string;
+    search?: string;
+    page?: number;
+    limit?: number;
+  } = {},
+) =>
   queryOptions({
     queryKey: ["orders", params],
     queryFn: () => getOrdersServerFn({ data: params }),

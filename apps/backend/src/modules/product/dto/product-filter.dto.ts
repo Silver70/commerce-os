@@ -24,13 +24,25 @@ export class ProductFilterDto {
   vendor?: string;
 
   @ApiPropertyOptional({
-    description: 'Cursor for pagination (base64 encoded)',
+    description:
+      'Cursor for pagination (base64). Storefront GraphQL only — ignored when `page` is set.',
   })
   @IsOptional()
   @IsString()
   cursor?: string;
 
-  @ApiPropertyOptional({ default: 20 })
+  @ApiPropertyOptional({
+    description:
+      '1-based page number. Admin REST uses this instead of `cursor`.',
+    minimum: 1,
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Type(() => Number)
+  page?: number;
+
+  @ApiPropertyOptional({ default: 25 })
   @IsOptional()
   @IsInt()
   @Min(1)

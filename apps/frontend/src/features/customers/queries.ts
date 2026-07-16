@@ -7,7 +7,12 @@ import {
 import type { CustomerStatus } from "~/types/api";
 
 export const customersQueryOptions = (
-  params: { status?: CustomerStatus; limit?: number } = {},
+  params: {
+    status?: CustomerStatus;
+    search?: string;
+    page?: number;
+    limit?: number;
+  } = {},
 ) =>
   queryOptions({
     queryKey: ["customers", params],

@@ -25,9 +25,7 @@ export class AdminAuthGuard implements CanActivate {
     @Inject(DRIZZLE_CLIENT) private readonly db: DrizzleClient,
   ) {
     const clientId = config.getOrThrow<string>('WORKOS_CLIENT_ID');
-    const jwksUrl = new URL(
-      `https://api.workos.com/sso/jwks/${clientId}`,
-    );
+    const jwksUrl = new URL(`https://api.workos.com/sso/jwks/${clientId}`);
     this.jwks = createRemoteJWKSet(jwksUrl);
   }
 

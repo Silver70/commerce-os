@@ -36,7 +36,7 @@ const ORDER_STATUS_STYLES: Record<OrderStatus, string> = {
 
 export function RecentOrders() {
   const data: OrdersResponse = useSuspenseQuery(ordersQueryOptions({})).data;
-  const orders = data.orders.slice(0, 7);
+  const orders = data.items.slice(0, 7);
 
   return (
     <Card>

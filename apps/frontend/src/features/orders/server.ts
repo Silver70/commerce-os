@@ -79,7 +79,8 @@ export const getOrdersServerFn = createServerFn({ method: "GET" })
         ])
         .optional(),
       customerId: z.string().optional(),
-      cursor: z.string().optional(),
+      search: z.string().optional(),
+      page: z.number().int().positive().optional(),
       limit: z.number().int().positive().optional(),
     }),
   )
@@ -87,7 +88,8 @@ export const getOrdersServerFn = createServerFn({ method: "GET" })
     const params = new URLSearchParams();
     if (data.status) params.set("status", data.status);
     if (data.customerId) params.set("customerId", data.customerId);
-    if (data.cursor) params.set("cursor", data.cursor);
+    if (data.search) params.set("search", data.search);
+    params.set("page", String(data.page ?? 1));
     if (data.limit) params.set("limit", String(data.limit));
     try {
       const res = await apiClient.get<OrdersResponse>(

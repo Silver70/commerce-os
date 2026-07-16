@@ -1,16 +1,30 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { eq, and, lt, desc, type SQL } from 'drizzle-orm';
+import { eq, and, or, ilike, desc, count, type SQL } from 'drizzle-orm';
 import { DRIZZLE_CLIENT } from '../../../shared/database/database.module';
 import type { DrizzleClient } from '../../../shared/database/database.module';
 import { customers, addresses } from '../../../shared/database/schema';
 import type { Customer, Address } from '../../../shared/database/schema';
-import { decodeCursor } from '../../../shared/utils/pagination.util';
+import {
+  offsetFor,
+  DEFAULT_PAGE_SIZE,
+} from '../../../shared/utils/pagination.util';
+import { likePattern } from '../../../shared/utils/search.util';
 
 export interface ListCustomersOptions {
   status?: Customer['status'];
   groupId?: string;
+  search?: string;
   limit?: number;
-  cursor?: string;
+  /** 1-based. Customers are admin-only, so there is no cursor mode here. */
+  page?: number;
+}
+
+export interface PaginatedCustomers {
+  items: Customer[];
+  totalCount: number;
+  page: number;
+  limit: number;
+  totalPages: number;
 }
 
 @Injectable()
@@ -42,22 +56,43 @@ export class CustomerRepository {
   async findAll(
     orgId: string,
     opts: ListCustomersOptions = {},
-  ): Promise<Customer[]> {
+  ): Promise<PaginatedCustomers> {
+    const limit = opts.limit ?? DEFAULT_PAGE_SIZE;
+    const page = opts.page ?? 1;
     const conditions: SQL[] = [eq(customers.organizationId, orgId)];
     if (opts.status) conditions.push(eq(customers.status, opts.status));
     if (opts.groupId) conditions.push(eq(customers.groupId, opts.groupId));
-    if (opts.cursor) {
-      const decoded = decodeCursor<{ createdAt: string }>(opts.cursor);
-      conditions.push(lt(customers.createdAt, new Date(decoded.createdAt)));
+    if (opts.search) {
+      const pattern = likePattern(opts.search);
+      const match = or(
+        ilike(customers.email, pattern),
+        ilike(customers.firstName, pattern),
+        ilike(customers.lastName, pattern),
+      );
+      if (match) conditions.push(match);
     }
 
-    const query = this.db
-      .select()
-      .from(customers)
-      .where(and(...conditions))
-      .orderBy(desc(customers.createdAt));
+    const where = and(...conditions);
 
-    return opts.limit ? query.limit(opts.limit) : query;
+    // Count runs alongside the page query — no extra database round trip.
+    const [items, [{ value: totalCount }]] = await Promise.all([
+      this.db
+        .select()
+        .from(customers)
+        .where(where)
+        .orderBy(desc(customers.createdAt), desc(customers.id))
+        .limit(limit)
+        .offset(offsetFor(page, limit)),
+      this.db.select({ value: count() }).from(customers).where(where),
+    ]);
+
+    return {
+      items,
+      totalCount,
+      page,
+      limit,
+      totalPages: Math.max(1, Math.ceil(totalCount / limit)),
+    };
   }
 
   async update(

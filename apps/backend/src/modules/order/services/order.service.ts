@@ -207,9 +207,11 @@ export class OrderService {
       storeId,
       status: filters.status,
       customerId: filters.customerId,
+      search: filters.search,
       from: filters.from ? new Date(filters.from) : undefined,
       to: filters.to ? new Date(filters.to) : undefined,
       cursor: filters.cursor,
+      page: filters.page,
       limit: filters.limit,
     });
   }
