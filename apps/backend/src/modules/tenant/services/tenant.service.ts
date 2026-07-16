@@ -3,7 +3,6 @@ import { eq } from 'drizzle-orm';
 import { DRIZZLE_CLIENT } from '../../../shared/database/database.module';
 import type { DrizzleClient } from '../../../shared/database/database.module';
 import { organizations } from '../../../shared/database/schema';
-import { generateSlug } from '../../../shared/utils/slug.util';
 
 @Injectable()
 export class TenantService {
@@ -16,24 +15,6 @@ export class TenantService {
       .where(eq(organizations.id, id))
       .limit(1);
     return org ?? null;
-  }
-
-  async findByWorkosId(workosOrgId: string) {
-    const [org] = await this.db
-      .select()
-      .from(organizations)
-      .where(eq(organizations.workosOrgId, workosOrgId))
-      .limit(1);
-    return org ?? null;
-  }
-
-  async create(data: { workosOrgId: string; name: string }) {
-    const slug = generateSlug(data.name);
-    const [org] = await this.db
-      .insert(organizations)
-      .values({ ...data, slug })
-      .returning();
-    return org;
   }
 
   async update(

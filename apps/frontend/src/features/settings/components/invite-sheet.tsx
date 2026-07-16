@@ -47,7 +47,7 @@ export function InviteSheet({
         <SheetHeader className="border-b">
           <SheetTitle>Invite team member</SheetTitle>
           <SheetDescription>
-            They'll receive an email invite via WorkOS and can log in immediately
+            They'll receive an email invite and can log in immediately
             after accepting.
           </SheetDescription>
         </SheetHeader>

@@ -10,7 +10,6 @@ import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 import * as React from "react";
 import type { QueryClient } from "@tanstack/react-query";
-import { AuthKitProvider } from "@workos/authkit-tanstack-react-start/client";
 import { DefaultCatchBoundary } from "~/components/DefaultCatchBoundary";
 import { NotFound } from "~/components/NotFound";
 import appCss from "~/styles/app.css?url";
@@ -73,9 +72,7 @@ export const Route = createRootRouteWithContext<{
 function RootComponent() {
   return (
     <RootDocument>
-      <AuthKitProvider>
-        <Outlet />
-      </AuthKitProvider>
+      <Outlet />
     </RootDocument>
   );
 }

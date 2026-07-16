@@ -1,6 +1,5 @@
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { getAuth } from "@workos/authkit-tanstack-react-start";
 import {
   Select,
   SelectContent,

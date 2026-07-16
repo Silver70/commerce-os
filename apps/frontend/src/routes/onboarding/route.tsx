@@ -1,13 +1,20 @@
-import { createFileRoute, Outlet, redirect } from '@tanstack/react-router'
-import { getAuth, getSignInUrl } from '@workos/authkit-tanstack-react-start'
+import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
+import { getAdminSessionServerFn } from "~/server/auth";
 
-export const Route = createFileRoute('/onboarding')({
-  beforeLoad: async () => {
-    const { user } = await getAuth()
-    if (!user) throw redirect({ href: await getSignInUrl() })
+export const Route = createFileRoute("/onboarding")({
+  beforeLoad: async ({ location }) => {
+    const session = await getAdminSessionServerFn();
+    if (!session) {
+      throw redirect({
+        to: "/auth/login",
+        search: { redirect: location.href },
+      });
+    }
+    // See admin/route.tsx: bounce so the rotated cookie is the one that's read.
+    if (session.refreshed) throw redirect({ href: location.href });
   },
   component: OnboardingLayout,
-})
+});
 
 function OnboardingLayout() {
   return (
@@ -32,5 +39,5 @@ function OnboardingLayout() {
         <Outlet />
       </div>
     </div>
-  )
+  );
 }

@@ -8,11 +8,10 @@ export const validationSchema = Joi.object({
 
   DATABASE_URL: Joi.string().required(),
 
-  WORKOS_API_KEY: Joi.string().required(),
-  WORKOS_CLIENT_ID: Joi.string().required(),
-  WORKOS_REDIRECT_URI: Joi.string().uri().required(),
-
   CUSTOMER_JWT_SECRET: Joi.string().min(64).required(),
+
+  // Secret for self-issued admin (dashboard) JWTs. Replaces WorkOS-signed tokens.
+  ADMIN_JWT_SECRET: Joi.string().min(64).required(),
 
   // Storefront base URL — used to build admin-shared set-password links.
   STOREFRONT_URL: Joi.string().uri().default('http://localhost:3000'),

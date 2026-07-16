@@ -1,7 +1,8 @@
-import { createFileRoute, redirect } from '@tanstack/react-router'
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
-export const Route = createFileRoute('/auth/verify-email')({
+// Email verification isn't implemented yet — send users to sign-in.
+export const Route = createFileRoute("/auth/verify-email")({
   beforeLoad: () => {
-    throw redirect({ href: '/api/auth/sign-in' })
+    throw redirect({ to: "/auth/login" });
   },
-})
+});

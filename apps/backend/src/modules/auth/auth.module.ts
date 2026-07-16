@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { WorkosAuthService } from './services/workos-auth.service';
+import { AdminAuthService } from './services/admin-auth.service';
 import { CustomerAuthService } from './services/customer-auth.service';
 import { ApiKeyService } from './services/api-key.service';
 import { AdminAuthGuard } from './guards/admin-auth.guard';
@@ -11,7 +11,7 @@ import { AuthController } from './controllers/auth.controller';
 @Module({
   controllers: [AuthController],
   providers: [
-    WorkosAuthService,
+    AdminAuthService,
     CustomerAuthService,
     ApiKeyService,
     AdminAuthGuard,
@@ -20,7 +20,7 @@ import { AuthController } from './controllers/auth.controller';
     SetRlsContextInterceptor,
   ],
   exports: [
-    WorkosAuthService,
+    AdminAuthService,
     CustomerAuthService,
     ApiKeyService,
     AdminAuthGuard,

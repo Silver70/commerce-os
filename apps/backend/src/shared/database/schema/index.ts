@@ -1,4 +1,7 @@
 export * from './organizations.schema';
+export * from './admin-users.schema';
+export * from './organization-members.schema';
+export * from './admin-sessions.schema';
 export * from './stores.schema';
 export * from './api-keys.schema';
 export * from './products.schema';

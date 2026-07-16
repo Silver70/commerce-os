@@ -1,5 +1,5 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { signOut } from "@workos/authkit-tanstack-react-start";
+import { createFileRoute, redirect } from "@tanstack/react-router";
+import { adminLogoutServerFn } from "~/server/auth";
 import {
   clearActiveStoreCookieServerFn,
   clearOnboardingCookieServerFn,
@@ -11,6 +11,8 @@ export const Route = createFileRoute("/auth/signout")({
       clearActiveStoreCookieServerFn(),
       clearOnboardingCookieServerFn(),
     ]);
-    await signOut();
+    // Revokes the refresh token server-side and clears the session cookies.
+    await adminLogoutServerFn();
+    throw redirect({ to: "/auth/login" });
   },
 });

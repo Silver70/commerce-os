@@ -6,28 +6,20 @@ import {
   Inject,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { eq, and, asc } from 'drizzle-orm';
 import type { Request } from 'express';
-import { WorkosAuthService } from '../services/workos-auth.service';
+import { AdminAuthService } from '../services/admin-auth.service';
 import { DRIZZLE_CLIENT } from '../../../shared/database/database.module';
 import type { DrizzleClient } from '../../../shared/database/database.module';
 import { organizations, stores } from '../../../shared/database/schema';
-import type { TenantContext } from '../../../shared/tenant/tenant-context';
 
 @Injectable()
 export class AdminAuthGuard implements CanActivate {
-  private readonly jwks: ReturnType<typeof createRemoteJWKSet>;
-
   constructor(
-    private readonly workosAuth: WorkosAuthService,
+    private readonly adminAuth: AdminAuthService,
     private readonly config: ConfigService,
     @Inject(DRIZZLE_CLIENT) private readonly db: DrizzleClient,
-  ) {
-    const clientId = config.getOrThrow<string>('WORKOS_CLIENT_ID');
-    const jwksUrl = new URL(`https://api.workos.com/sso/jwks/${clientId}`);
-    this.jwks = createRemoteJWKSet(jwksUrl);
-  }
+  ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<Request>();
@@ -36,13 +28,15 @@ export class AdminAuthGuard implements CanActivate {
       process.env.NODE_ENV !== 'production' &&
       this.config.get<string>('SKIP_AUTH') === 'true'
     ) {
+      // DEV_ORG_ID is a local organization UUID; without it we fall back to
+      // whichever org comes first (fine for a single-tenant dev database).
       const devOrgId = this.config.get<string>('DEV_ORG_ID');
       const [org] = await this.db
         .select()
         .from(organizations)
         .where(
           devOrgId
-            ? eq(organizations.workosOrgId, devOrgId)
+            ? eq(organizations.id, devOrgId)
             : eq(organizations.id, organizations.id),
         )
         .limit(1);
@@ -77,50 +71,20 @@ export class AdminAuthGuard implements CanActivate {
       throw new UnauthorizedException('No Bearer token provided');
     }
 
-    let payload: {
-      sub: string;
-      org_id?: string;
-      role?: string;
-      sid?: string;
-      email?: string;
-    };
-    try {
-      const { payload: verified } = await jwtVerify(token, this.jwks);
-      payload = verified as typeof payload;
-    } catch {
-      throw new UnauthorizedException('Invalid or expired token');
+    const claims = this.adminAuth.verifyAccess(token);
+
+    if (!claims.org_id) {
+      throw new UnauthorizedException('Token is missing organization context');
     }
 
-    const workosOrgId = payload.org_id;
-
-    // No org_id in token — bootstrap endpoint is the only caller here.
-    // Set a minimal context so the controller can run provisioning logic.
-    if (!workosOrgId) {
-      request.tenantContext = {
-        organizationId: '',
-        userId: payload.sub,
-        email: payload.email,
-        role: undefined,
-      };
-      return true;
-    }
-
-    let [org] = await this.db
+    const [org] = await this.db
       .select()
       .from(organizations)
-      .where(eq(organizations.workosOrgId, workosOrgId))
+      .where(eq(organizations.id, claims.org_id))
       .limit(1);
 
     if (!org) {
-      const workosOrg = await this.workosAuth.getOrganization(workosOrgId);
-      const slug = workosOrg.name
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-|-$/g, '');
-      [org] = await this.db
-        .insert(organizations)
-        .values({ workosOrgId, name: workosOrg.name, slug })
-        .returning();
+      throw new UnauthorizedException('Organization not found');
     }
 
     const requestedStoreId = this.extractStoreId(request);
@@ -129,9 +93,9 @@ export class AdminAuthGuard implements CanActivate {
     request.tenantContext = {
       organizationId: org.id,
       storeId: activeStoreId,
-      userId: payload.sub,
-      email: payload.email,
-      role: payload.role as TenantContext['role'],
+      userId: claims.sub,
+      email: claims.email,
+      role: claims.role,
     };
 
     return true;

@@ -1,6 +1,5 @@
 import axios from "redaxios";
-import { getAuth } from "@workos/authkit-tanstack-react-start";
-import type { UserInfo } from "@workos/authkit-tanstack-react-start";
+import { getCookie } from "@tanstack/react-start/server";
 
 type ReqConfig = { headers?: Record<string, string> };
 type ApiResponse<T> = { data: T; status: number; headers: Headers };
@@ -13,11 +12,12 @@ const baseClient = axios.create({
   baseURL: import.meta.env.VITE_API_URL as string,
 });
 
+// Reads the httpOnly access-token cookie set by server/auth.ts. Refreshing is
+// handled once per navigation in getAdminSessionServerFn (route beforeLoad), so
+// by the time server fns call this the cookie is fresh.
 export async function authHeader(): Promise<Record<string, string>> {
-  const auth = await getAuth();
-  if (!auth.user) return {};
-  const { accessToken } = auth as UserInfo;
-  return { Authorization: `Bearer ${accessToken}` };
+  const accessToken = getCookie("admin-access");
+  return accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
 }
 
 export const apiClient = {

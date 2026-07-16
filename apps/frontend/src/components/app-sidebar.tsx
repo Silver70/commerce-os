@@ -1,5 +1,10 @@
 import * as React from "react";
-import { Link, useRouterState } from "@tanstack/react-router";
+import {
+  Link,
+  useNavigate,
+  useRouteContext,
+  useRouterState,
+} from "@tanstack/react-router";
 import {
   LayoutDashboardIcon,
   PackageIcon,
@@ -40,7 +45,6 @@ import {
   SidebarRail,
   SidebarSeparator,
 } from "~/components/ui/sidebar";
-import { useAuth } from "@workos/authkit-tanstack-react-start/client";
 
 type NavItem = {
   title: string;
@@ -98,20 +102,22 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  const { user, role, signOut } = useAuth();
+  // Session comes from the /admin route's beforeLoad — the sidebar only renders
+  // inside that layout, so it is always present.
+  const { session } = useRouteContext({ from: "/admin" });
+  const navigate = useNavigate();
   const [isLoggingOut, setIsLoggingOut] = React.useState(false);
 
-  const avatarInitial = user?.email?.[0]?.toUpperCase() ?? "U";
-  const displayEmail = user?.email ?? "Account";
-  const displayRole = role ? (ROLE_LABELS[role] ?? role) : "Admin";
+  const avatarInitial = session.email?.[0]?.toUpperCase() ?? "U";
+  const displayEmail = session.email ?? "Account";
+  const displayRole = session.role
+    ? (ROLE_LABELS[session.role] ?? session.role)
+    : "Admin";
 
-  async function handleLogout() {
+  function handleLogout() {
     setIsLoggingOut(true);
-    try {
-      await signOut();
-    } finally {
-      setIsLoggingOut(false);
-    }
+    // /auth/signout revokes the refresh token, clears cookies, then redirects.
+    void navigate({ to: "/auth/signout" });
   }
 
   return (

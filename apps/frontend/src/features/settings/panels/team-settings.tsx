@@ -20,7 +20,7 @@ import { ROLE_LABELS } from "../constants";
 import { RoleBadge } from "../components/role-badge";
 import { InviteSheet } from "../components/invite-sheet";
 
-// Mock data — WorkOS team management is out of scope for now.
+// Mock data — real team management (invites, roles) is not wired up yet.
 type MockTeamMember = {
   id: string;
   name: string;
@@ -66,7 +66,7 @@ export function TeamSettings() {
         <div>
           <h2 className="text-xl font-semibold">Team</h2>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            Team management via WorkOS — full integration coming in a future
+            Preview only — invites and role changes are coming in a future
             release.
           </p>
         </div>

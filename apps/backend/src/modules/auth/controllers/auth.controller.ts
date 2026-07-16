@@ -18,7 +18,7 @@ import {
 } from '@nestjs/swagger';
 import { IsString, IsNotEmpty, MaxLength } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
-import { WorkosAuthService } from '../services/workos-auth.service';
+import { AdminAuthService } from '../services/admin-auth.service';
 import { ApiKeyService } from '../services/api-key.service';
 import { AdminAuthGuard } from '../guards/admin-auth.guard';
 import { RbacGuard } from '../guards/rbac.guard';
@@ -26,6 +26,11 @@ import { RequirePermission } from '../decorators/require-permission.decorator';
 import { CurrentTenant } from '../decorators/current-tenant.decorator';
 import type { TenantContext } from '../../../shared/tenant/tenant-context';
 import { requireStoreContext } from '../../../shared/tenant/tenant.util';
+import {
+  AdminRegisterDto,
+  AdminLoginDto,
+  AdminRefreshDto,
+} from '../dto/admin-auth.dto';
 
 class CreateApiKeyDto {
   @ApiProperty({ description: 'Display name for this API key' })
@@ -39,56 +44,61 @@ class CreateApiKeyDto {
 @Controller('auth')
 export class AuthController {
   constructor(
-    private readonly workosAuth: WorkosAuthService,
+    private readonly adminAuth: AdminAuthService,
     private readonly apiKeyService: ApiKeyService,
   ) {}
 
-  // ─── Bootstrap (first-login org provisioning) ─────────────────────────────
+  // ─── Admin auth (self-hosted, replaces WorkOS) ──────────────────────────────
 
-  @Post('bootstrap')
-  @UseGuards(AdminAuthGuard)
-  @HttpCode(HttpStatus.OK)
-  @ApiBearerAuth()
+  @Post('admin/register')
+  @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
-    summary:
-      'Idempotently provision a WorkOS org + membership for a brand-new user',
+    summary: 'Self-serve signup: create an admin user, org, and super_admin role',
   })
-  async bootstrap(@CurrentTenant() tenant: TenantContext) {
-    const userId = tenant.userId!;
+  @ApiResponse({ status: 201 })
+  async register(@Body() dto: AdminRegisterDto) {
+    return this.adminAuth.register(dto.email, dto.password, dto.orgName);
+  }
 
-    // Idempotent: return existing org if user already has a membership
-    const memberships =
-      await this.workosAuth.listOrganizationMemberships(userId);
-    if (memberships.length > 0) {
-      return { workosOrgId: memberships[0].organizationId };
-    }
+  @Post('admin/login')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Authenticate an admin user with email + password' })
+  @ApiResponse({ status: 200 })
+  async login(@Body() dto: AdminLoginDto) {
+    return this.adminAuth.login(dto.email, dto.password);
+  }
 
-    const user = await this.workosAuth.getUser(userId);
-    const orgName = user.email.split('@')[0] ?? 'My Organization';
+  @Post('admin/refresh')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Rotate a refresh token and issue a new access token' })
+  @ApiResponse({ status: 200 })
+  async refresh(@Body() dto: AdminRefreshDto) {
+    return this.adminAuth.refresh(dto.refreshToken);
+  }
 
-    const workosOrg = await this.workosAuth.createOrganization(orgName);
-    await this.workosAuth.createMembership(userId, workosOrg.id, 'super_admin');
-
-    // The DB organizations row is auto-created by AdminAuthGuard on the next
-    // authenticated request once the JWT carries the new org_id claim.
-    return { workosOrgId: workosOrg.id };
+  @Post('admin/logout')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Revoke a refresh token' })
+  @ApiResponse({ status: 204 })
+  async logout(@Body() dto: AdminRefreshDto): Promise<void> {
+    await this.adminAuth.logout(dto.refreshToken);
   }
 
   // ─── Me ───────────────────────────────────────────────────────────────────
 
   @Get('me')
   @UseGuards(AdminAuthGuard)
-  @ApiOperation({ summary: 'Get current admin user info' })
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get current admin user info + memberships' })
   async me(@CurrentTenant() tenant: TenantContext) {
-    const memberships = await this.workosAuth.listOrganizationMemberships(
-      tenant.userId!,
-    );
+    const profile = await this.adminAuth.getProfile(tenant.userId!);
     return {
-      userId: tenant.userId,
-      email: tenant.email,
+      userId: profile.id,
+      email: profile.email,
+      name: profile.name,
       organizationId: tenant.organizationId,
       role: tenant.role,
-      memberships,
+      memberships: profile.memberships,
     };
   }
 

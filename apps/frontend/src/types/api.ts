@@ -2,17 +2,20 @@
 
 export type AdminRole = "super_admin" | "product_manager" | "support_agent";
 
-export type WorkOsMembership = {
+export type OrganizationMembership = {
   organizationId: string;
+  organizationName: string;
   role: AdminRole;
 };
 
+// Shape returned by GET /api/auth/me
 export type AdminUser = {
   userId: string;
   email: string;
+  name: string | null;
   organizationId: string;
   role: AdminRole;
-  memberships: WorkOsMembership[];
+  memberships: OrganizationMembership[];
 };
 
 // Returned by listByStore / listByOrg — rawKey is omitted (hash only stored)

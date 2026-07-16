@@ -7,12 +7,6 @@ import {
   CheckIcon,
   PlusIcon,
 } from "lucide-react";
-import {
-  getAuth,
-  getSignInUrl,
-  switchToOrganization,
-} from "@workos/authkit-tanstack-react-start";
-
 import { AppSidebar } from "~/components/app-sidebar";
 import { ThemeToggle } from "~/components/ThemeToggle";
 import { Button } from "~/components/ui/button";
@@ -37,28 +31,29 @@ import {
   getOnboardingStepServerFn,
   setActiveStoreServerFn,
 } from "~/server/stores";
-import { bootstrapOrgServerFn } from "~/server/auth";
+import { getAdminSessionServerFn } from "~/server/auth";
 import type { Store } from "~/types/api";
 
 export const Route = createFileRoute("/admin")({
-  beforeLoad: async ({ context }) => {
-    const auth = await getAuth();
-    if (!auth.user) throw redirect({ href: await getSignInUrl() });
-
-    const user = auth.user;
-    const organizationId = (auth as { organizationId?: string }).organizationId;
-
-    // First-login: no org yet — provision one then re-mint the session.
-    // switchToOrganization sets a fresh session cookie (now carrying org_id +
-    // role), but getAuth()/authHeader() within THIS request still hold the
-    // pre-switch token — so any backend call below hits RBAC as "No role
-    // assigned". Bounce through a fresh request so the re-minted session is the
-    // one that's read; this beforeLoad then re-runs with organizationId set.
-    if (!organizationId) {
-      const { workosOrgId } = await bootstrapOrgServerFn();
-      await switchToOrganization({ data: { organizationId: workosOrgId } });
-      throw redirect({ to: "/admin" });
+  beforeLoad: async ({ context, location }) => {
+    // Refreshes the access token when stale — the single refresh point per
+    // navigation, so every server fn below sees a fresh cookie.
+    const session = await getAdminSessionServerFn();
+    if (!session) {
+      throw redirect({
+        to: "/auth/login",
+        search: { redirect: location.href },
+      });
     }
+
+    // Tokens were just rotated: the new cookie is only on the response, so every
+    // server fn below would still send the stale token. Bounce through a fresh
+    // request that carries it. The next pass hits the fast path (no refresh), so
+    // this cannot loop.
+    if (session.refreshed) throw redirect({ href: location.href });
+
+    // No org bootstrap needed: registration creates the org + membership, so a
+    // signed-in session always carries an organizationId.
 
     const step = await getOnboardingStepServerFn();
     if (step === "1") throw redirect({ to: "/onboarding/step1" });
@@ -77,7 +72,7 @@ export const Route = createFileRoute("/admin")({
       data: { storeIds: stores.map((s) => s.id), fallbackId: stores[0].id },
     });
 
-    return { user };
+    return { session };
   },
   component: AdminLayout,
 });

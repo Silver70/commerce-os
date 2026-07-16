@@ -32,8 +32,6 @@ import { Route as AdminPriceListsIndexRouteImport } from './routes/admin/price-l
 import { Route as AdminOrdersIndexRouteImport } from './routes/admin/orders_/index'
 import { Route as AdminDiscountsIndexRouteImport } from './routes/admin/discounts_/index'
 import { Route as AdminCustomersIndexRouteImport } from './routes/admin/customers_/index'
-import { Route as ApiAuthSignInRouteImport } from './routes/api.auth.sign-in'
-import { Route as ApiAuthCallbackRouteImport } from './routes/api.auth.callback'
 import { Route as AdminProductsNewRouteImport } from './routes/admin/products_/new'
 import { Route as AdminProductsProductIdRouteImport } from './routes/admin/products_/$productId'
 import { Route as AdminPriceListsNewRouteImport } from './routes/admin/price-lists_/new'
@@ -159,16 +157,6 @@ const AdminCustomersIndexRoute = AdminCustomersIndexRouteImport.update({
   path: '/customers/',
   getParentRoute: () => AdminRouteRoute,
 } as any)
-const ApiAuthSignInRoute = ApiAuthSignInRouteImport.update({
-  id: '/api/auth/sign-in',
-  path: '/api/auth/sign-in',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiAuthCallbackRoute = ApiAuthCallbackRouteImport.update({
-  id: '/api/auth/callback',
-  path: '/api/auth/callback',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const AdminProductsNewRoute = AdminProductsNewRouteImport.update({
   id: '/products_/new',
   path: '/products/new',
@@ -246,8 +234,6 @@ export interface FileRoutesByFullPath {
   '/admin/price-lists/new': typeof AdminPriceListsNewRoute
   '/admin/products/$productId': typeof AdminProductsProductIdRoute
   '/admin/products/new': typeof AdminProductsNewRoute
-  '/api/auth/callback': typeof ApiAuthCallbackRoute
-  '/api/auth/sign-in': typeof ApiAuthSignInRoute
   '/admin/customers/': typeof AdminCustomersIndexRoute
   '/admin/discounts/': typeof AdminDiscountsIndexRoute
   '/admin/orders/': typeof AdminOrdersIndexRoute
@@ -282,8 +268,6 @@ export interface FileRoutesByTo {
   '/admin/price-lists/new': typeof AdminPriceListsNewRoute
   '/admin/products/$productId': typeof AdminProductsProductIdRoute
   '/admin/products/new': typeof AdminProductsNewRoute
-  '/api/auth/callback': typeof ApiAuthCallbackRoute
-  '/api/auth/sign-in': typeof ApiAuthSignInRoute
   '/admin/customers': typeof AdminCustomersIndexRoute
   '/admin/discounts': typeof AdminDiscountsIndexRoute
   '/admin/orders': typeof AdminOrdersIndexRoute
@@ -319,8 +303,6 @@ export interface FileRoutesById {
   '/admin/price-lists_/new': typeof AdminPriceListsNewRoute
   '/admin/products_/$productId': typeof AdminProductsProductIdRoute
   '/admin/products_/new': typeof AdminProductsNewRoute
-  '/api/auth/callback': typeof ApiAuthCallbackRoute
-  '/api/auth/sign-in': typeof ApiAuthSignInRoute
   '/admin/customers_/': typeof AdminCustomersIndexRoute
   '/admin/discounts_/': typeof AdminDiscountsIndexRoute
   '/admin/orders_/': typeof AdminOrdersIndexRoute
@@ -357,8 +339,6 @@ export interface FileRouteTypes {
     | '/admin/price-lists/new'
     | '/admin/products/$productId'
     | '/admin/products/new'
-    | '/api/auth/callback'
-    | '/api/auth/sign-in'
     | '/admin/customers/'
     | '/admin/discounts/'
     | '/admin/orders/'
@@ -393,8 +373,6 @@ export interface FileRouteTypes {
     | '/admin/price-lists/new'
     | '/admin/products/$productId'
     | '/admin/products/new'
-    | '/api/auth/callback'
-    | '/api/auth/sign-in'
     | '/admin/customers'
     | '/admin/discounts'
     | '/admin/orders'
@@ -429,8 +407,6 @@ export interface FileRouteTypes {
     | '/admin/price-lists_/new'
     | '/admin/products_/$productId'
     | '/admin/products_/new'
-    | '/api/auth/callback'
-    | '/api/auth/sign-in'
     | '/admin/customers_/'
     | '/admin/discounts_/'
     | '/admin/orders_/'
@@ -443,8 +419,6 @@ export interface RootRouteChildren {
   AdminRouteRoute: typeof AdminRouteRouteWithChildren
   AuthRouteRoute: typeof AuthRouteRouteWithChildren
   OnboardingRouteRoute: typeof OnboardingRouteRouteWithChildren
-  ApiAuthCallbackRoute: typeof ApiAuthCallbackRoute
-  ApiAuthSignInRoute: typeof ApiAuthSignInRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -610,20 +584,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminCustomersIndexRouteImport
       parentRoute: typeof AdminRouteRoute
     }
-    '/api/auth/sign-in': {
-      id: '/api/auth/sign-in'
-      path: '/api/auth/sign-in'
-      fullPath: '/api/auth/sign-in'
-      preLoaderRoute: typeof ApiAuthSignInRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/auth/callback': {
-      id: '/api/auth/callback'
-      path: '/api/auth/callback'
-      fullPath: '/api/auth/callback'
-      preLoaderRoute: typeof ApiAuthCallbackRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/admin/products_/new': {
       id: '/admin/products_/new'
       path: '/products/new'
@@ -781,8 +741,6 @@ const rootRouteChildren: RootRouteChildren = {
   AdminRouteRoute: AdminRouteRouteWithChildren,
   AuthRouteRoute: AuthRouteRouteWithChildren,
   OnboardingRouteRoute: OnboardingRouteRouteWithChildren,
-  ApiAuthCallbackRoute: ApiAuthCallbackRoute,
-  ApiAuthSignInRoute: ApiAuthSignInRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -51,19 +51,21 @@ npm run preview      # vite preview
 Every tenant-scoped table has `organization_id UUID NOT NULL` as its second column. **This is enforced everywhere without exception.** The `TenantScopedRepository` base class auto-injects `organization_id` on all queries. PostgreSQL Row-Level Security acts as a second line of defense (see PRD §3.4 and Appendix C).
 
 Auth resolves `organization_id` from three sources depending on caller:
-- **Admin dashboard** → WorkOS JWT (httpOnly cookie) → `organization_id` from JWT claims
+- **Admin dashboard** → self-issued admin JWT (httpOnly cookie) → `organization_id` from the `org_id` claim
 - **Storefront** → `X-API-Key` header → API key lookup → `organization_id`
 - **Stripe webhooks** → payment intent ID → internal payment record → `organization_id`
 
 ### API Split
 
 - **GraphQL** (`POST /graphql`): storefront-only. No admin mutations in GraphQL.
-- **REST** (`/api/admin/*`): admin dashboard + webhooks. Protected by WorkOS JWT + RBAC.
+- **REST** (`/api/admin/*`): admin dashboard + webhooks. Protected by the admin JWT + RBAC.
 
 ### Auth Split
 
-- **Admin users** → WorkOS AuthKit (hosted login, org memberships, three roles: `super_admin`, `product_manager`, `support_agent`).
-- **Storefront customers** → lightweight JWT issued by the commerce engine itself (not WorkOS). Separate auth stack.
+- **Admin users** → self-hosted email/password + JWT, issued by the commerce engine (`AdminAuthService`). Identities live in `admin_users`; org membership and role live in `organization_members` (three roles: `super_admin`, `product_manager`, `support_agent`). Access token is HS256/1h, refresh token 7d with rotation + revocation via `admin_sessions`. Self-serve signup at `POST /api/auth/admin/register` creates user + org + `super_admin` membership.
+- **Storefront customers** → lightweight JWT issued by the commerce engine. Separate auth stack (`CustomerAuthService`).
+
+Both stacks are first-party — there is no third-party identity provider. Frontend session lives in httpOnly `admin-access` / `admin-refresh` cookies set by `apps/frontend/src/server/auth.ts`.
 
 ### Money
 
@@ -83,7 +85,7 @@ The `apps/frontend` app uses TanStack Start (built on Vite + TanStack Router):
 
 ```
 src/modules/
-  auth/          WorkOS integration, customer JWT, API key service, RBAC middleware
+  auth/          Admin auth (JWT + sessions), customer JWT, API key service, RBAC middleware
   product/       Products, variants, options, categories, media
   inventory/     Stock items, reservations, threshold alerts
   pricing/       Discounts, coupons, pricing engine
@@ -117,9 +119,7 @@ See Appendix B of the PRD for the full list. Key ones:
 
 ```
 DATABASE_URL              PostgreSQL connection string
-WORKOS_API_KEY            WorkOS secret key
-WORKOS_CLIENT_ID          WorkOS client ID
-WORKOS_REDIRECT_URI       OAuth callback URL
+ADMIN_JWT_SECRET          64+ char secret for self-issued admin dashboard JWTs
 CUSTOMER_JWT_SECRET       64-char secret for storefront customer JWTs
 STRIPE_SECRET_KEY         Stripe secret
 STRIPE_WEBHOOK_SECRET     Stripe webhook signing secret

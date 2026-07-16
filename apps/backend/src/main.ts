@@ -41,7 +41,7 @@ async function bootstrap() {
     .setTitle('Commerce OS API')
     .setDescription('Headless commerce engine admin REST API')
     .setVersion('1.0')
-    .addCookieAuth('wos-session')
+    .addBearerAuth()
     .build();
   const document = SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup('api/docs', app, document);
