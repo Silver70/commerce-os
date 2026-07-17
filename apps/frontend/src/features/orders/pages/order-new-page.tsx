@@ -31,20 +31,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select";
-import type { Customer, ShippingMethod } from "~/types/api";
+import type { Coupon, Customer, ShippingMethod } from "~/types/api";
 import {
   customersQueryOptions,
   customerAddressesQueryOptions,
 } from "~/features/customers/queries";
+import { couponsQueryOptions } from "~/features/discounts/queries";
 import { shippingMethodsQueryOptions } from "~/features/shipping/queries";
 import { ProductSearch } from "../components/product-search";
 import { ShippingAddressSheet } from "../components/shipping-address-sheet";
 import { createOrderServerFn, type CreateOrderInput } from "../server";
-import { DISCOUNT_CODES } from "../mock-catalog";
 import { customerAddressToShipping } from "../utils";
 import type {
+  AppliedDiscount,
   CatalogVariant,
-  DiscountCode,
   LineItem,
   ShippingAddress,
 } from "../types";
@@ -78,6 +78,13 @@ function estimatedDelivery(m: ShippingMethod): string {
   if (max != null) return `Up to ${max} business days`;
   if (min != null) return `${min}+ business days`;
   return m.rateType === "free" ? "Free shipping" : "Delivery estimate varies";
+}
+
+/** Human-readable summary of an applied coupon for the summary card. */
+function couponLabel(c: Coupon): string {
+  if (c.type === "free_shipping") return `${c.code} — Free shipping`;
+  if (c.type === "percentage") return `${c.code} — ${c.value}% off`;
+  return `${c.code} — ${formatPrice(c.value)} off`;
 }
 
 export function OrderNewPage() {
@@ -155,8 +162,11 @@ export function OrderNewPage() {
   const [paymentMethod, setPaymentMethod] = React.useState("cash");
   const [discountCode, setDiscountCode] = React.useState("");
   const [appliedDiscount, setAppliedDiscount] =
-    React.useState<DiscountCode | null>(null);
+    React.useState<AppliedDiscount | null>(null);
   const [discountError, setDiscountError] = React.useState("");
+
+  // Real coupons for the active store — used to validate an entered code.
+  const { data: coupons = [] } = useQuery(couponsQueryOptions());
   const [note, setNote] = React.useState("");
   const [formError, setFormError] = React.useState("");
 
@@ -165,13 +175,19 @@ export function OrderNewPage() {
   const subtotal = items.reduce((s, i) => s + i.qty * i.unitPrice, 0);
   // Method prices are already stored in cents — no conversion needed.
   const shippingCost = activeMethods.find((m) => m.id === shipping)?.price ?? 0;
-  const discountAmount = appliedDiscount
-    ? appliedDiscount.type === "percent"
+  // A free_shipping coupon zeroes out the shipping charge; percentage/fixed
+  // coupons reduce the subtotal instead. Value units mirror the backend Coupon:
+  // percentage = whole percent, fixed_amount = cents.
+  const isFreeShipping = appliedDiscount?.type === "free_shipping";
+  const effectiveShipping = isFreeShipping ? 0 : shippingCost;
+  const discountAmount =
+    appliedDiscount?.type === "percentage"
       ? Math.round(subtotal * (appliedDiscount.value / 100))
-      : Math.min(appliedDiscount.value * 100, subtotal)
-    : 0;
+      : appliedDiscount?.type === "fixed_amount"
+        ? Math.min(appliedDiscount.value, subtotal)
+        : 0;
   const taxAmount = Math.round((subtotal - discountAmount) * 0.06);
-  const total = subtotal - discountAmount + taxAmount + shippingCost;
+  const total = subtotal - discountAmount + taxAmount + effectiveShipping;
 
   // ─── Actions ─────────────────────────────────────────────────────────────
 
@@ -227,13 +243,52 @@ export function OrderNewPage() {
 
   function applyDiscount() {
     const key = discountCode.trim().toUpperCase();
-    if (DISCOUNT_CODES[key]) {
-      setAppliedDiscount(DISCOUNT_CODES[key]);
-      setDiscountError("");
-    } else {
+    const coupon = coupons.find((c) => c.code.toUpperCase() === key);
+
+    // Reject with a specific reason so the admin can tell why a code failed.
+    if (!coupon) {
       setAppliedDiscount(null);
       setDiscountError("Invalid or expired code.");
+      return;
     }
+    const now = new Date();
+    if (!coupon.isActive) {
+      setAppliedDiscount(null);
+      setDiscountError("This code is no longer active.");
+      return;
+    }
+    if (coupon.startsAt && new Date(coupon.startsAt) > now) {
+      setAppliedDiscount(null);
+      setDiscountError("This code is not active yet.");
+      return;
+    }
+    if (coupon.endsAt && new Date(coupon.endsAt) < now) {
+      setAppliedDiscount(null);
+      setDiscountError("This code has expired.");
+      return;
+    }
+    if (
+      coupon.maxUsageCount !== null &&
+      coupon.usageCount >= coupon.maxUsageCount
+    ) {
+      setAppliedDiscount(null);
+      setDiscountError("This code has reached its usage limit.");
+      return;
+    }
+    if (coupon.minOrderAmount !== null && subtotal < coupon.minOrderAmount) {
+      setAppliedDiscount(null);
+      setDiscountError(
+        `Requires a minimum subtotal of ${formatPrice(coupon.minOrderAmount)}.`,
+      );
+      return;
+    }
+
+    setAppliedDiscount({
+      type: coupon.type,
+      value: coupon.value,
+      label: couponLabel(coupon),
+    });
+    setDiscountError("");
   }
 
   const custResults =
@@ -332,7 +387,7 @@ export function OrderNewPage() {
         phone: a.phone.trim() || undefined,
       },
       paymentType,
-      shippingAmount: shippingCost,
+      shippingAmount: effectiveShipping,
       discountAmount,
       taxAmount,
       couponCode: appliedDiscount
@@ -948,7 +1003,20 @@ export function OrderNewPage() {
                 <div className="flex justify-between text-muted-foreground">
                   <span>Shipping</span>
                   <span className="tabular-nums">
-                    {shippingCost === 0 ? "Free" : formatPrice(shippingCost)}
+                    {isFreeShipping ? (
+                      <>
+                        {shippingCost > 0 && (
+                          <span className="mr-1.5 text-muted-foreground/60 line-through">
+                            {formatPrice(shippingCost)}
+                          </span>
+                        )}
+                        <span className="text-emerald-600">Free</span>
+                      </>
+                    ) : effectiveShipping === 0 ? (
+                      "Free"
+                    ) : (
+                      formatPrice(effectiveShipping)
+                    )}
                   </span>
                 </div>
                 {discountAmount > 0 && (

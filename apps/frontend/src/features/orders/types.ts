@@ -24,9 +24,11 @@ export type LineItem = {
   unitPrice: number; // cents
 };
 
-export type DiscountCode = {
-  type: "percent" | "fixed";
-  // percent: 0–100, fixed: whole-dollar amount
+// A coupon resolved from the real backend coupon list and applied to the draft
+// order. Value units match the backend `Coupon`: percentage is a whole percent
+// (0–100), fixed_amount is integer cents, free_shipping ignores `value`.
+export type AppliedDiscount = {
+  type: "percentage" | "fixed_amount" | "free_shipping";
   value: number;
   label: string;
 };

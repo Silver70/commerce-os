@@ -2,6 +2,11 @@ import * as React from "react";
 import { LoaderCircleIcon, PlusIcon, SearchIcon, XIcon } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Input } from "~/components/ui/input";
+import {
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
+} from "~/components/ui/popover";
 import { cn } from "~/lib/utils";
 import type { Category } from "~/types/api";
 
@@ -56,71 +61,85 @@ export function CategoriesCard({
         <CardTitle className="text-sm font-semibold">Categories</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3 pt-4">
-        <div className="relative">
-          <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onFocus={() => setFocused(true)}
-            onBlur={() => setTimeout(() => setFocused(false), 120)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && canCreate) {
-                e.preventDefault();
-                handleCreate();
-              }
-            }}
-            placeholder={
-              onCreate ? "Search or create category…" : "Search categories…"
-            }
-            className="h-9 pl-8 text-sm"
-          />
-
-          {showDropdown && (
-            <div className="absolute z-10 mt-1 w-full overflow-hidden rounded-lg border border-border bg-popover py-1 shadow-md">
-              {suggestions.map((cat) => (
-                <button
-                  key={cat.id}
-                  type="button"
-                  onMouseDown={() => {
-                    onAdd(cat);
-                    setQuery("");
-                  }}
-                  className="flex w-full items-center gap-2 px-3 py-2 text-sm transition-colors hover:bg-muted/60"
-                >
-                  <PlusIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                  {cat.name}
-                </button>
-              ))}
-
-              {canCreate && (
-                <button
-                  type="button"
-                  disabled={isCreating}
-                  onMouseDown={(e) => {
+        <Popover
+          open={showDropdown}
+          onOpenChange={(open) => {
+            if (!open) setFocused(false);
+          }}
+        >
+          <PopoverAnchor asChild>
+            <div className="relative">
+              <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onFocus={() => setFocused(true)}
+                onBlur={() => setTimeout(() => setFocused(false), 120)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && canCreate) {
                     e.preventDefault();
                     handleCreate();
-                  }}
-                  className={cn(
-                    "flex w-full items-center gap-2 px-3 py-2 text-sm transition-colors hover:bg-muted/60 disabled:opacity-60",
-                    suggestions.length > 0 && "border-t border-border",
-                  )}
-                >
-                  {isCreating ? (
-                    <LoaderCircleIcon className="h-3.5 w-3.5 shrink-0 animate-spin text-muted-foreground" />
-                  ) : (
-                    <PlusIcon className="h-3.5 w-3.5 shrink-0 text-orange-700" />
-                  )}
-                  <span className="text-muted-foreground">
-                    Create{" "}
-                    <span className="font-medium text-foreground">
-                      “{trimmed}”
-                    </span>
-                  </span>
-                </button>
-              )}
+                  }
+                }}
+                placeholder={
+                  onCreate
+                    ? "Search or create category…"
+                    : "Search categories…"
+                }
+                className="h-9 pl-8 text-sm"
+              />
             </div>
-          )}
-        </div>
+          </PopoverAnchor>
+
+          <PopoverContent
+            align="start"
+            onOpenAutoFocus={(e) => e.preventDefault()}
+            onCloseAutoFocus={(e) => e.preventDefault()}
+            className="w-(--radix-popover-trigger-width) gap-0 overflow-hidden rounded-lg p-0 py-1"
+          >
+            {suggestions.map((cat) => (
+              <button
+                key={cat.id}
+                type="button"
+                onMouseDown={() => {
+                  onAdd(cat);
+                  setQuery("");
+                }}
+                className="flex w-full items-center gap-2 px-3 py-2 text-sm transition-colors hover:bg-muted/60"
+              >
+                <PlusIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                {cat.name}
+              </button>
+            ))}
+
+            {canCreate && (
+              <button
+                type="button"
+                disabled={isCreating}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  handleCreate();
+                }}
+                className={cn(
+                  "flex w-full items-center gap-2 px-3 py-2 text-sm transition-colors hover:bg-muted/60 disabled:opacity-60",
+                  suggestions.length > 0 && "border-t border-border",
+                )}
+              >
+                {isCreating ? (
+                  <LoaderCircleIcon className="h-3.5 w-3.5 shrink-0 animate-spin text-muted-foreground" />
+                ) : (
+                  <PlusIcon className="h-3.5 w-3.5 shrink-0 text-orange-700" />
+                )}
+                <span className="text-muted-foreground">
+                  Create{" "}
+                  <span className="font-medium text-foreground">
+                    “{trimmed}”
+                  </span>
+                </span>
+              </button>
+            )}
+          </PopoverContent>
+        </Popover>
 
         {selected.length > 0 ? (
           <div className="flex flex-wrap gap-1.5">
