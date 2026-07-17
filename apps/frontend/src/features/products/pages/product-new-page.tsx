@@ -323,36 +323,9 @@ export function ProductNewPage() {
           </div>
         </div>
 
-        <div className="flex shrink-0 items-center gap-2">
-          <Button variant="outline" size="lg" className="h-9 px-4" asChild>
-            <Link to="/admin/products">Discard</Link>
-          </Button>
-          <Button
-            variant="outline"
-            size="lg"
-            className="h-9 px-4"
-            onClick={() => handleSave("draft")}
-            disabled={isPending}
-          >
-            {isPending ? (
-              <LoaderCircleIcon className="h-4 w-4 animate-spin" />
-            ) : (
-              "Save draft"
-            )}
-          </Button>
-          <Button
-            size="lg"
-            className="h-9 px-5"
-            onClick={() => handleSave("active")}
-            disabled={isPending}
-          >
-            {isPending ? (
-              <LoaderCircleIcon className="h-4 w-4 animate-spin" />
-            ) : (
-              "Publish"
-            )}
-          </Button>
-        </div>
+        {/* No top action bar: on a pristine form Publish/Save-draft can't do
+            anything useful and Discard duplicates the breadcrumb, so all actions
+            live in the sticky "Unsaved changes" bar that appears once editing. */}
       </div>
 
       {/* Root error */}

@@ -22,6 +22,8 @@ import {
   payments,
   shipments,
   refunds,
+  productVariants,
+  productMedia,
 } from '../../../shared/database/schema';
 import type {
   Order,
@@ -208,13 +210,88 @@ export class OrderRepository {
           .orderBy(desc(shipments.createdAt)),
       ]);
 
+    // Fill missing line-item thumbnails from the product's current media.
+    // Manual orders historically didn't snapshot image_url, so without this the
+    // detail view shows blank placeholders for every item on those orders.
+    const missing = lineItemRows.filter((li) => !li.imageUrl && li.variantId);
+    let lineItems = lineItemRows;
+    if (missing.length > 0) {
+      const images = await this.resolveVariantImages(
+        missing.map((li) => li.variantId as string),
+        orgId,
+        storeId,
+      );
+      lineItems = lineItemRows.map((li) =>
+        !li.imageUrl && li.variantId && images.has(li.variantId)
+          ? { ...li, imageUrl: images.get(li.variantId) ?? null }
+          : li,
+      );
+    }
+
     return {
       ...order,
-      lineItems: lineItemRows,
+      lineItems,
       timeline: timelineRows,
       payment: paymentRows[0] ?? null,
       shipments: shipmentRows,
     };
+  }
+
+  /**
+   * Current primary image URL per variant, resolved via the variant's product
+   * media. Read-time fallback for line items whose image_url snapshot is null.
+   * Best image = primary first, then lowest position (mirrors the storefront).
+   */
+  private async resolveVariantImages(
+    variantIds: string[],
+    orgId: string,
+    storeId: string,
+  ): Promise<Map<string, string>> {
+    const out = new Map<string, string>();
+    if (variantIds.length === 0) return out;
+
+    const rows = await this.db
+      .select({
+        variantId: productVariants.id,
+        url: productMedia.url,
+        isPrimary: productMedia.isPrimary,
+        position: productMedia.position,
+      })
+      .from(productVariants)
+      .innerJoin(
+        productMedia,
+        eq(productMedia.productId, productVariants.productId),
+      )
+      .where(
+        and(
+          inArray(productVariants.id, variantIds),
+          eq(productVariants.organizationId, orgId),
+          eq(productVariants.storeId, storeId),
+          eq(productMedia.organizationId, orgId),
+          eq(productMedia.storeId, storeId),
+        ),
+      );
+
+    const best = new Map<
+      string,
+      { url: string; isPrimary: boolean; position: number }
+    >();
+    for (const r of rows) {
+      const cur = best.get(r.variantId);
+      const isBetter =
+        !cur ||
+        (r.isPrimary && !cur.isPrimary) ||
+        (r.isPrimary === cur.isPrimary && r.position < cur.position);
+      if (isBetter) {
+        best.set(r.variantId, {
+          url: r.url,
+          isPrimary: r.isPrimary,
+          position: r.position,
+        });
+      }
+    }
+    for (const [variantId, img] of best) out.set(variantId, img.url);
+    return out;
   }
 
   async listWithFilters(params: ListOrdersParams): Promise<ListOrdersResult> {
