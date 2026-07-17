@@ -77,8 +77,11 @@ export function encodeOrderCursor(o: { id: string }): string {
   return encodeCursor({ id: o.id });
 }
 
+/** A list row: the order plus the total quantity of units across its line items. */
+export type OrderListItem = Order & { itemCount: number };
+
 export interface ListOrdersResult {
-  items: Order[];
+  items: OrderListItem[];
   /** Set in cursor mode (storefront GraphQL); null in page mode. */
   nextCursor: string | null;
   totalCount: number;
@@ -269,9 +272,31 @@ export class OrderRepository {
     ]);
 
     const hasMore = !pageMode && rows.length > limit;
-    const data = hasMore ? rows.slice(0, limit) : rows;
-    const lastRow = data[data.length - 1];
+    const pageRows = hasMore ? rows.slice(0, limit) : rows;
+    const lastRow = pageRows[pageRows.length - 1];
     const nextCursor = hasMore && lastRow ? encodeOrderCursor(lastRow) : null;
+
+    // Total units per order, fetched in one grouped query and merged in. A
+    // correlated subquery is avoided on purpose: Drizzle renders columns
+    // embedded in a sql`` fragment unqualified, so the outer `orders.id` would
+    // collide with the line item's own `id` and always match zero rows.
+    const orderIds = pageRows.map((o) => o.id);
+    const countRows = orderIds.length
+      ? await this.db
+          .select({
+            orderId: orderLineItems.orderId,
+            itemCount: sql<number>`coalesce(sum(${orderLineItems.quantity}), 0)::int`,
+          })
+          .from(orderLineItems)
+          .where(inArray(orderLineItems.orderId, orderIds))
+          .groupBy(orderLineItems.orderId)
+      : [];
+    const countByOrder = new Map(countRows.map((r) => [r.orderId, r.itemCount]));
+
+    const data: OrderListItem[] = pageRows.map((o) => ({
+      ...o,
+      itemCount: countByOrder.get(o.id) ?? 0,
+    }));
 
     return {
       items: data,

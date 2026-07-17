@@ -173,6 +173,8 @@ export type Order = {
   total: number;
   currency: string;
   couponCode: string | null;
+  // total units across the order's line items — present on list responses
+  itemCount?: number;
   // only present on detail endpoint responses
   lineItems?: OrderLineItem[];
   timeline?: OrderTimelineEvent[];

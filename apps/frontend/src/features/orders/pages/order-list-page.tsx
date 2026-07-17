@@ -62,7 +62,7 @@ const COLUMNS: DataTableColumn<Order>[] = [
     className: "w-20",
     render: (row) => (
       <span className="text-sm tabular-nums text-muted-foreground">
-        {row.lineItems?.length ?? "—"}
+        {row.itemCount ?? "—"}
       </span>
     ),
   },
