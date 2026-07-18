@@ -3,6 +3,7 @@ import { useSuspenseQuery } from "@tanstack/react-query";
 import {
   DollarSignIcon,
   PercentIcon,
+  RepeatIcon,
   ShoppingCartIcon,
   TagIcon,
 } from "lucide-react";
@@ -11,6 +12,7 @@ import type { DashboardStats, Period } from "~/types/api";
 import { dashboardStatsQueryOptions } from "../queries";
 import { sparklineToTrend } from "../utils";
 import { KpiCard } from "../components/kpi-card";
+import { OpsSnapshot } from "../components/ops-snapshot";
 import { RevenueTrend } from "../components/revenue-trend";
 import { RecentOrders } from "../components/recent-orders";
 
@@ -51,7 +53,7 @@ export function DashboardPage() {
       </div>
 
       {/* KPI Row */}
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-5">
         <KpiCard
           label="Revenue"
           value={stats.revenue.current}
@@ -80,7 +82,21 @@ export function DashboardPage() {
           icon={TagIcon}
           format="currency"
         />
+        <KpiCard
+          label="Returning"
+          value={stats.returning.current}
+          delta={stats.returning.delta}
+          icon={RepeatIcon}
+          format="percent"
+        />
       </div>
+
+      {/* Operational snapshot */}
+      <OpsSnapshot
+        pendingOrders={stats.pendingOrders}
+        processingOrders={stats.processingOrders}
+        lowStockItems={stats.lowStockItems}
+      />
 
       {/* Revenue Chart — full width */}
       <RevenueTrend data={revenueTrend} />

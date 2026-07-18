@@ -1,9 +1,11 @@
 import {
   Injectable,
+  Logger,
   NotFoundException,
   BadRequestException,
   UnprocessableEntityException,
 } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
 import { CartRepository } from '../repositories/cart.repository';
 import { PricingEngineService } from '../../pricing/services/pricing-engine.service';
 import { PriceResolverService } from '../../pricing/services/price-resolver.service';
@@ -13,14 +15,40 @@ import type { CartItemWithVariant } from '../../pricing/services/pricing-engine.
 import type { CartWithItems } from '../repositories/cart.repository';
 import type { Cart } from '../../../shared/database/schema';
 
+/**
+ * Idle window after which an `active` cart holding items is considered
+ * abandoned. A cart's `updatedAt` is bumped on every mutation (each add/update/
+ * remove/coupon change recalculates totals), so this is measured from the last
+ * activity, not creation.
+ */
+const CART_ABANDON_MINUTES = 60;
+
 @Injectable()
 export class CartService {
+  private readonly logger = new Logger(CartService.name);
+
   constructor(
     private readonly cartRepo: CartRepository,
     private readonly pricingEngine: PricingEngineService,
     private readonly priceResolver: PriceResolverService,
     private readonly discountRepo: DiscountRepository,
   ) {}
+
+  /**
+   * Flips `active` carts that still hold items but have been idle past
+   * {@link CART_ABANDON_MINUTES} to `abandoned`. Without this sweep carts never
+   * leave `active`, leaving the dashboard conversion rate
+   * (`converted / (converted + abandoned)`) with an empty denominator. Runs
+   * every 15 minutes across all tenants.
+   */
+  @Cron('*/15 * * * *')
+  async expireStaleCarts(): Promise<void> {
+    const staleBefore = new Date(Date.now() - CART_ABANDON_MINUTES * 60_000);
+    const count = await this.cartRepo.markStaleCartsAbandoned(staleBefore);
+    if (count > 0) {
+      this.logger.log(`Marked ${count} stale cart(s) as abandoned`);
+    }
+  }
 
   async createCart(
     orgId: string,

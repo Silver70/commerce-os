@@ -31,6 +31,14 @@ export const getCartServerFn = createServerFn({ method: "GET" }).handler(
     if (!cartId) return null;
     try {
       const res = await gqlFetch<{ cart: Cart | null }>(CART_QUERY, { cartId });
+      // A cart that has been converted (checked out) or abandoned (expired by
+      // the backend's idle-cart sweep) is no longer usable. Forget the cookie
+      // and treat the visitor as having no cart, so a fresh one is minted on
+      // their next add rather than every mutation failing against the old cart.
+      if (!res.cart || res.cart.status !== "active") {
+        clearCartId();
+        return null;
+      }
       return res.cart;
     } catch (err) {
       if (err instanceof Error && /not found/i.test(err.message)) {
@@ -50,13 +58,30 @@ export const addToCartServerFn = createServerFn({ method: "POST" })
     }),
   )
   .handler(async ({ data }): Promise<Cart> => {
+    const addTo = (cartId: string) =>
+      gqlFetch<{ addToCart: Cart }>(ADD_TO_CART_MUTATION, {
+        cartId,
+        variantId: data.variantId,
+        quantity: data.quantity,
+      });
+
     const cartId = await getOrCreateCartId();
-    const res = await gqlFetch<{ addToCart: Cart }>(ADD_TO_CART_MUTATION, {
-      cartId,
-      variantId: data.variantId,
-      quantity: data.quantity,
-    });
-    return res.addToCart;
+    try {
+      return (await addTo(cartId)).addToCart;
+    } catch (err) {
+      // The cookie's cart may have been abandoned by the backend's idle sweep
+      // (or already converted / deleted). Discard it, mint a fresh cart, and
+      // retry once so the visitor never gets stuck on a dead cart.
+      if (
+        err instanceof Error &&
+        /no longer active|not found/i.test(err.message)
+      ) {
+        clearCartId();
+        const freshId = await getOrCreateCartId();
+        return (await addTo(freshId)).addToCart;
+      }
+      throw err;
+    }
   });
 
 export const updateCartItemServerFn = createServerFn({ method: "POST" })

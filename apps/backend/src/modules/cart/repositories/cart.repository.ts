@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { eq, and, inArray, sql } from 'drizzle-orm';
+import { eq, and, gt, lt, inArray, sql } from 'drizzle-orm';
 import { DRIZZLE_CLIENT } from '../../../shared/database/database.module';
 import type { DrizzleClient } from '../../../shared/database/database.module';
 import {
@@ -168,6 +168,29 @@ export class CartRepository {
       )
       .returning();
     return row ?? null;
+  }
+
+  /**
+   * Bulk-marks abandoned carts: `active` carts that still hold items
+   * (`subtotal > 0`) but have had no activity since `staleBefore`. Runs as a
+   * global sweep from the cart-expiry cron, so it is intentionally NOT
+   * tenant-scoped. Empty carts (auto-created sessions that never had a product
+   * added) are left untouched so they never pollute the conversion denominator.
+   * Returns the number of carts flipped.
+   */
+  async markStaleCartsAbandoned(staleBefore: Date): Promise<number> {
+    const rows = await this.db
+      .update(carts)
+      .set({ status: 'abandoned', updatedAt: new Date() })
+      .where(
+        and(
+          eq(carts.status, 'active'),
+          gt(carts.subtotal, 0),
+          lt(carts.updatedAt, staleBefore),
+        ),
+      )
+      .returning({ id: carts.id });
+    return rows.length;
   }
 
   // ─── Cart Items ─────────────────────────────────────────────────────────────
