@@ -5,6 +5,7 @@ import { SalesTab } from "../components/sales-tab";
 import { OrdersTab } from "../components/orders-tab";
 import { CustomersTab } from "../components/customers-tab";
 import { InventoryTab } from "../components/inventory-tab";
+import { TrafficTab } from "../components/traffic-tab";
 
 const PERIOD_LABELS: { value: Period; label: string }[] = [
   { value: "today", label: "Today" },
@@ -58,6 +59,7 @@ export function AnalyticsPage() {
         <TabsList>
           <TabsTrigger value="sales">Sales</TabsTrigger>
           <TabsTrigger value="orders">Orders</TabsTrigger>
+          <TabsTrigger value="traffic">Traffic</TabsTrigger>
           <TabsTrigger value="customers">Customers</TabsTrigger>
           <TabsTrigger value="inventory">Inventory</TabsTrigger>
         </TabsList>
@@ -70,6 +72,11 @@ export function AnalyticsPage() {
         <TabsContent value="orders">
           <React.Suspense fallback={<TabSkeleton />}>
             <OrdersTab period={period} />
+          </React.Suspense>
+        </TabsContent>
+        <TabsContent value="traffic">
+          <React.Suspense fallback={<TabSkeleton />}>
+            <TrafficTab period={period} />
           </React.Suspense>
         </TabsContent>
         <TabsContent value="customers">

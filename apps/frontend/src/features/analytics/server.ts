@@ -8,6 +8,7 @@ import type {
   OrdersAnalytics,
   CustomersAnalytics,
   InventoryAnalytics,
+  TrafficAnalytics,
 } from "~/types/api";
 
 const periodInput = z.object({
@@ -48,3 +49,9 @@ export const getInventoryAnalyticsServerFn = createServerFn({
 }).handler((): Promise<InventoryAnalytics> =>
   getJson(`/api/admin/analytics/inventory`),
 );
+
+export const getTrafficAnalyticsServerFn = createServerFn({ method: "GET" })
+  .inputValidator(periodInput)
+  .handler(({ data }): Promise<TrafficAnalytics> =>
+    getJson(`/api/admin/analytics/traffic?period=${data.period}`),
+  );

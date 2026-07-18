@@ -4,6 +4,8 @@ A phased plan to grow the current single-screen dashboard into a real analytics 
 
 > **Scope philosophy:** ship value in the order of _effort-to-value_, not doc order. Everything in **Phase 0 + 1** is queryable from tables we already have. Only **Phase 2** (traffic sources + top-of-funnel) needs new instrumentation, so it's deliberately last.
 
+> **Status (2026-07-18):** Phase 0 ✅, Phase 1 ✅, and Phase 2 ✅ shipped. Phase 2 landed **headless** — event-ingest API + admin Traffic tab, no storefront instrumentation (integrators own that). Migration `0005_analytics_events.sql` **applied**; the funnel + first-touch channel-derivation SQL was runtime-verified against the DB (funnel counts + Organic/Social/Paid classification correct). Deferred: Phase 1's revenue-vs-orders dual-axis overlay, and Phase 2's daily-rollup job (raw-event queries suffice at MVP volume). The `apps/backend` `analytics` module is **standalone** (`src/modules/analytics/`).
+
 ---
 
 ## 0. Current state (baseline)
@@ -24,11 +26,11 @@ The backend returns `returning`, `pendingOrders`, `processingOrders`, and `lowSt
 
 ### Conventions this plan follows
 
-Mirror the existing admin feature structure ([context/frontend-guideline.md](frontend-guideline.md)): thin routes → `src/features/<module>/` → `server.ts` (server fns) + `queries.ts` (query options) + `pages/` + `components/`. Money stays in **integer cents** end-to-end; never format server-side. New backend work lives in the existing `dashboard` module (rename-optional to `analytics`).
+Mirror the existing admin feature structure ([context/frontend-guideline.md](frontend-guideline.md)): thin routes → `src/features/<module>/` → `server.ts` (server fns) + `queries.ts` (query options) + `pages/` + `components/`. Money stays in **integer cents** end-to-end; never format server-side. Backend analytics lives in its **own `analytics` module** ([src/modules/analytics/](../apps/backend/src/modules/analytics/)) — extracted out of `dashboard` so it can keep growing independently; it owns its `AnalyticsPeriod` type and exports `AnalyticsService`.
 
 ---
 
-## Phase 0 — Fix what's broken, surface what's free
+## Phase 0 — Fix what's broken, surface what's free ✅ Done
 
 Small, high-trust changes. No new tables.
 
@@ -36,7 +38,9 @@ Small, high-trust changes. No new tables.
 
 Conversion is computed as `converted / (converted + abandoned)` carts ([dashboard.service.ts:232](../apps/backend/src/modules/dashboard/services/dashboard.service.ts#L232)), but **nothing ever sets a cart to `abandoned`** — the only status write is `→ converted` at [cart.repository.ts:161](../apps/backend/src/modules/cart/repositories/cart.repository.ts#L161). So the denominator ≈ the numerator and the card always reads ~100% (or 0%).
 
-**Fix:** add a cart-expiry cron that flips stale `active` carts (past `expiresAt`) to `abandoned`. `ScheduleModule` is already wired ([app.module.ts:38](../apps/backend/src/app.module.ts#L38)) and there's a working `@Cron` precedent in [inventory.service.ts:257](../apps/backend/src/modules/inventory/services/inventory.service.ts#L257). This one job makes conversion _and_ cart-abandonment analytics real.
+**Fix:** add a cart-expiry cron that flips stale `active` carts to `abandoned`. `ScheduleModule` is already wired ([app.module.ts:38](../apps/backend/src/app.module.ts#L38)) and there's a working `@Cron` precedent in [inventory.service.ts:257](../apps/backend/src/modules/inventory/services/inventory.service.ts#L257). This one job makes conversion _and_ cart-abandonment analytics real.
+
+**Shipped as:** `CartService.expireStaleCarts` (`@Cron */15`) → `CartRepository.markStaleCartsAbandoned`. `carts.expiresAt` turned out to be **never populated**, so staleness is measured by **inactivity on `updatedAt`** (bumped on every mutation) past a 60-min window, and only carts that actually held items (`subtotal > 0`) are flipped — empty auto-created carts never pollute the conversion denominator. Because `abandoned` became reachable for the first time, the storefront was hardened too: `getCart` treats a non-active cart as empty and `addToCart` mints a fresh cart + retries once (a returning guest never gets stuck on a dead cart).
 
 ### 0.2 Render the metrics already returned
 
@@ -46,64 +50,76 @@ Add cards/sections for **returning-customer rate** (already computed) and wire t
 
 ---
 
-## Phase 1 — Analytics from existing data (no new tracking)
+## Phase 1 — Analytics from existing data (no new tracking) ✅ Done
 
-The bulk of the MVP doc, all answerable with SQL over current tables. Suggested new endpoints under `/api/admin/analytics/*` (or extend the dashboard module), each period-aware and store-scoped, each returning integer-cents money.
+The bulk of the MVP doc, all answerable with SQL over current tables. **Shipped as four grouped, tab-aligned endpoints** under `/api/admin/analytics/*` (rather than ~11 discrete ones, to cut frontend round-trips), all `dashboard.read`-scoped, period-aware (except `inventory`, which is point-in-time), returning integer-cents money — in the standalone [analytics module](../apps/backend/src/modules/analytics/):
 
-| #   | Feature                                                               | Endpoint (proposed)                   | Source tables                                                    | Chart          |
-| --- | --------------------------------------------------------------------- | ------------------------------------- | ---------------------------------------------------------------- | -------------- |
-| 1   | **Sales by product** (top sellers: qty + revenue)                     | `GET .../analytics/top-products`      | `order_line_items`                                               | horizontal bar |
-| 2   | **Sales by category**                                                 | `GET .../analytics/sales-by-category` | line item → `variantId` → `product_categories` → `categories` ⚠️ | horizontal bar |
-| 3   | **Order status breakdown**                                            | `GET .../analytics/order-status`      | `orders.status`                                                  | donut          |
-| 4   | **Customer growth** (new over time) + total-customers KPI             | `GET .../analytics/customer-growth`   | `customers.createdAt`                                            | line           |
-| 5   | **New vs. returning**                                                 | (already computed)                    | `orders`                                                         | KPI / split    |
-| 6   | **Revenue vs. orders trend** (overlay orders on the revenue chart)    | existing `stats`                      | `orders`                                                         | dual-axis line |
-| 7   | **Cart abandonment rate + lost value**                                | `GET .../analytics/cart-abandonment`  | `carts` (needs 0.1)                                              | KPI + trend    |
-| 8   | **Refund rate / refunded revenue**                                    | `GET .../analytics/refunds`           | `refunds`                                                        | KPI + trend    |
-| 9   | **Discount & coupon effectiveness**                                   | `GET .../analytics/discounts`         | `orders.couponCode`, `discountAmount`                            | table          |
-| 10  | **Payment success/failure rate**                                      | `GET .../analytics/payments`          | `payments.status`                                                | donut / KPI    |
-| 11  | **Inventory overview** (low stock, out of stock, stock-on-hand value) | `GET .../analytics/inventory`         | `inventory_items` + `variants.costPrice`                         | bar + KPI      |
+- `GET /api/admin/analytics/sales` — top products, sales by category, profit/margin, coupon effectiveness
+- `GET /api/admin/analytics/orders` — status breakdown, cart abandonment, refunds, payments
+- `GET /api/admin/analytics/customers` — total/new customers, growth series, new-vs-returning
+- `GET /api/admin/analytics/inventory` — low/out-of-stock, stock-on-hand, stock value at cost
 
-### The two high-value items the MVP doc _omits_ (do these first in Phase 1)
+The table below maps each metric to the endpoint it landed in.
+
+| #   | Feature                                                               | Endpoint (built)          | Source tables                                                    | Chart          | Status      |
+| --- | --------------------------------------------------------------------- | ------------------------- | ---------------------------------------------------------------- | -------------- | ----------- |
+| 1   | **Sales by product** (top sellers: qty + revenue)                     | `.../analytics/sales`     | `order_line_items`                                               | ranked bars    | ✅          |
+| 2   | **Sales by category**                                                 | `.../analytics/sales`     | line item → `variantId` → `product_categories` → `categories` ⚠️ | ranked bars    | ✅          |
+| 3   | **Order status breakdown**                                            | `.../analytics/orders`    | `orders.status`                                                  | donut          | ✅          |
+| 4   | **Customer growth** (new over time) + total-customers KPI             | `.../analytics/customers` | `customers.createdAt`                                            | area           | ✅          |
+| 5   | **New vs. returning**                                                 | `.../analytics/customers` | `orders`                                                         | donut / KPI    | ✅          |
+| 6   | **Revenue vs. orders trend** (overlay orders on the revenue chart)    | dashboard `stats`         | `orders`                                                         | dual-axis line | ⬜ deferred |
+| 7   | **Cart abandonment rate + lost value**                                | `.../analytics/orders`    | `carts` (needs 0.1)                                              | KPI            | ✅          |
+| 8   | **Refund rate / refunded revenue**                                    | `.../analytics/orders`    | `refunds`                                                        | KPI            | ✅          |
+| 9   | **Discount & coupon effectiveness**                                   | `.../analytics/sales`     | `orders.couponCode`, `discountAmount`                            | ranked bars    | ✅          |
+| 10  | **Payment success/failure rate**                                      | `.../analytics/orders`    | `payments.status`                                                | donut / KPI    | ✅          |
+| 11  | **Inventory overview** (low stock, out of stock, stock-on-hand value) | `.../analytics/inventory` | `inventory_items` + `variants.costPrice`                         | KPI + table    | ✅          |
+| +   | **Gross margin / profit** (schema-unique)                             | `.../analytics/sales`     | `order_line_items` + `variants.costPrice`                        | KPI            | ✅          |
+
+> Item 6 (revenue-vs-orders dual-axis overlay on the dashboard chart) is the one Phase 1 metric not yet built — both series (`revenue.sparkline`, `orders.sparkline`) are already returned by dashboard `stats`, so it's a frontend-only change to [revenue-trend.tsx](../apps/frontend/src/features/dashboard/components/revenue-trend.tsx) whenever wanted.
+
+### The two high-value items the MVP doc _omits_ (shipped)
 
 Our schema uniquely pays for these — most MVPs can't:
 
-- **Gross margin / profit.** We store `product_variants.costPrice`, so margin = line-item `unitPrice`/`totalPrice` − cost. A profit KPI + margin-by-product view. `GET .../analytics/profit`.
-- **Cart abandonment rate** (item 7). Directly answers the user's opening question ("where are they abandoning"), and only needs the Phase 0.1 job.
+- **Gross margin / profit.** We store `product_variants.costPrice`, so margin = line-item `totalPrice` − cost. Shipped as a KPI in `/analytics/sales`, reported with a `coveragePct` caveat (share of revenue whose lines have a known cost) since `costPrice` is nullable.
+- **Cart abandonment rate.** Directly answers the user's opening question ("where are they abandoning"); shipped in `/analytics/orders`, powered by the Phase 0.1 job.
 
 ### ⚠️ Category-sales caveat
 
 `order_line_items` snapshots `productName` but **not** category, and `variantId` is **nullable**. Sales-by-category must join to the _live_ variant→product→category, so recategorizing a product reshapes historical category charts, and manual/line items with no `variantId` fall into an "uncategorized" bucket. Acceptable for analytics — just not immutable like the rest of the order. If we later want true point-in-time category attribution, snapshot `category_id` onto line items at order creation.
 
-### Frontend
+### Frontend (shipped)
 
-Promote analytics to its own nav entry (`/admin/analytics`) alongside the existing dashboard, or expand the dashboard route into tabbed sections (Overview / Sales / Customers / Inventory). Reuse the recharts + shadcn `chart.tsx` setup; add `donut`/`horizontal-bar` chart wrappers. New feature dir: `src/features/analytics/` following the established `server.ts`/`queries.ts`/`pages`/`components` layout.
+Analytics got its **own nav entry** ([/admin/analytics](../apps/frontend/src/routes/admin/analytics.tsx)) alongside the dashboard, built as a tabbed page (period selector × **Sales / Orders / Customers / Inventory**), each tab lazy-loaded behind its own Suspense boundary. New feature dir [src/features/analytics/](../apps/frontend/src/features/analytics/) follows the established `server.ts`/`queries.ts`/`pages`/`components` layout, with reusable `RankedBarList`, `DonutChart`, and `StatTile` components on top of the recharts + shadcn `chart.tsx` setup. (Phase 0's returning-rate KPI and ops-snapshot strip stayed on the dashboard home.)
 
-**Deliverable:** a genuine analytics dashboard answering "what's selling," "which categories," "are we profitable," "where are carts lost," "operational order/inventory health" — entirely from existing data.
+**Delivered:** a genuine analytics suite answering "what's selling," "which categories," "are we profitable," "where are carts lost," and "operational order/inventory health" — entirely from existing data.
 
 ---
 
-## Phase 2 — Traffic & full funnel (needs instrumentation)
+## Phase 2 — Traffic & full funnel ✅ Done (headless)
 
-The MVP doc's most-wanted items we **cannot** answer today: **Traffic Source Breakdown** and the **top of the conversion funnel** (Visitors → Product Views → Add to Cart). The `carts` table only gives the funnel _bottom_ (Add-to-Cart → Checkout → Purchase). Everything above it requires capturing events the system never sees.
+The MVP doc's most-wanted items we couldn't answer before: **Traffic Source Breakdown** and the **top of the conversion funnel** (Visitors → Product Views → Add to Cart). The `carts` table only gives the funnel _bottom_; everything above it requires capturing events the system never saw.
 
-### 2.1 Event pipeline
+> **Headless scope decision:** this is a headless platform, so Phase 2 shipped as **backend APIs any frontend can use** + the admin visualization — **not** storefront-specific instrumentation. The event-ingestion API is the contract; each integrating storefront owns its own `sessionId` and attribution capture. Our `apps/storefront` was intentionally left untouched.
 
-1. **New table `analytics_events`** — `(id, organization_id, store_id, session_id, event_type, product_id?, variant_id?, path, referrer, utm_source, utm_medium, utm_campaign, occurred_at)`. `event_type` ∈ `page_view | product_view | add_to_cart | checkout_start | purchase`. Tenant-scoped like every other table (RLS + `organization_id` as 2nd column, per CLAUDE.md).
-2. **Ingest endpoint** — lightweight REST, `X-API-Key` auth (same boundary the storefront already uses), batched, fire-and-forget. Bot filtering + basic rate limiting.
-3. **Storefront instrumentation** — emit `page_view` / `product_view` / `add_to_cart` from `apps/storefront`, keyed by a session cookie. There's already a session lib at `apps/storefront/src/lib/session.ts` to piggyback on. Capture `referrer` + UTM params on first landing and persist to the session.
+### 2.1 Event pipeline (shipped)
 
-### 2.2 What it unlocks
+1. **Table [`analytics_events`](../apps/backend/src/shared/database/schema/analytics-events.schema.ts)** — `(id, organization_id, store_id, session_id, event_type, product_id?, variant_id?, path, referrer, utm_source, utm_medium, utm_campaign, occurred_at, created_at)`. `event_type` ∈ `page_view | product_view | add_to_cart | checkout_start | purchase`. `organization_id` as 2nd column + explicit tenant scoping in every query (matches the codebase; RLS policies aren't in migrations for any table). Three composite indexes on `(org, store, …)`. Migration `0005_analytics_events.sql` — **applied**. `product_id`/`variant_id` are deliberately NOT FKs so events survive product deletion.
+2. **Ingest endpoint** — `POST /api/events` ([StorefrontEventsController](../apps/backend/src/modules/analytics/controllers/storefront-events.controller.ts)), `X-API-Key` auth via the existing `StorefrontAuthGuard` (resolves org + store; tenant never trusted from the body), batched (≤50 events), returns `202`. Sits under the `storefront` rate-limit bucket.
+3. **Instrumentation** — _delegated to the integrating frontend_ (headless). It sends `sessionId` + optional `referrer`/`utm_*`/`path`/`productId` per event; the backend derives channel + funnel at query time.
 
-- **Traffic source breakdown** (organic / ads / social / direct / referral) — donut, from `referrer` + UTM.
-- **True conversion rate** = orders ÷ unique visitors (today's "conversion" is only cart-level).
-- **Full conversion funnel** — Visitors → Product Views → Add to Cart → Checkout → Purchase, exposing exactly where drop-off happens.
+### 2.2 What it unlocks (shipped)
+
+- **Traffic source breakdown** — first-touch channel (Direct / Organic Search / Social / Paid / Campaign / Referral) derived in SQL from `utm_*` + referrer host; donut in the admin **Traffic** tab.
+- **True conversion rate** = orders ÷ unique visitors (vs. the cart-level "conversion" on the dashboard).
+- **Full conversion funnel** — Visitors → Product Views → Add to Cart → Checkout → Purchase, distinct sessions per stage, with step drop-off. Served by `GET /api/admin/analytics/traffic?period=`; visualized in [traffic-tab.tsx](../apps/frontend/src/features/analytics/components/traffic-tab.tsx) + [funnel-chart.tsx](../apps/frontend/src/features/analytics/components/funnel-chart.tsx).
 
 ### 2.3 Scale note
 
-Event volume dwarfs order volume. Design for it from the start: index on `(organization_id, store_id, occurred_at)`, and plan a **daily rollup** job (reuse `ScheduleModule`) into a summary table so dashboards query aggregates, not raw events. Raw events can be retained on a shorter window.
+Event volume dwarfs order volume. The composite indexes on `(organization_id, store_id, occurred_at | session_id | event_type,occurred_at)` are in place. A **daily rollup** job (reuse `ScheduleModule`) into a summary table is **not yet built** — current queries hit raw events, which is fine at MVP volume; add the rollup before traffic scales. Raw-event retention/TTL is also a future concern.
 
-**Deliverable:** the traffic + funnel views that answer the user's original "where are they coming from / where do they abandon" in full.
+**Delivered:** the traffic + funnel views that answer "where are they coming from / where do they abandon" — for any frontend that posts to the ingest API. (The admin Traffic tab shows an empty-state hint until events flow in.)
 
 ---
 
@@ -115,10 +131,12 @@ LTV, cohort retention, churn, heatmaps, advanced segmentation, geographic maps, 
 
 ## Sequencing summary
 
-| Phase                                                                              | Effort | Value        | Blocked by            |
-| ---------------------------------------------------------------------------------- | ------ | ------------ | --------------------- |
-| **0** — fix conversion + surface computed metrics                                  | XS     | High (trust) | —                     |
-| **1** — sales/product/category/status/customer/profit/abandonment/refund/inventory | M      | Highest      | 0.1 (for abandonment) |
-| **2** — traffic sources + full funnel                                              | L      | High         | new events pipeline   |
+| Phase                                                                              | Effort | Value        | Blocked by            | Status                    |
+| ---------------------------------------------------------------------------------- | ------ | ------------ | --------------------- | ------------------------- |
+| **0** — fix conversion + surface computed metrics                                  | XS     | High (trust) | —                     | ✅ Done                   |
+| **1** — sales/product/category/status/customer/profit/abandonment/refund/inventory | M      | Highest      | 0.1 (for abandonment) | ✅ Done (item 6 deferred) |
+| **2** — traffic sources + full funnel                                              | L      | High         | new events pipeline   | ✅ Done (headless)        |
 
-Recommended order: **0 → 1 → 2**. Phase 0 is a day's work and removes a misleading number; Phase 1 is the value core and touches no new infrastructure; Phase 2 is the larger build and is cleanly isolated behind a new events table + storefront instrumentation.
+Recommended order: **0 → 1 → 2**. Phase 0 is a day's work and removes a misleading number; Phase 1 is the value core and touches no new infrastructure; Phase 2 is the larger build, cleanly isolated behind the new `analytics_events` table + ingest API.
+
+**Remaining loose ends:** (1) the daily-rollup job for `analytics_events` (Phase 2.3) before traffic scales; (2) the revenue-vs-orders dual-axis overlay (Phase 1, item 6) — a small frontend-only change. None block the shipped functionality. (Migration `0005` is applied.)

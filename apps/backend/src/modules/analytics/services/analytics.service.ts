@@ -106,9 +106,154 @@ export interface InventoryAnalytics {
   }[];
 }
 
+export interface TrafficAnalytics {
+  period: AnalyticsPeriod;
+  uniqueVisitors: number;
+  orders: number;
+  /** orders ÷ unique visitors, as a percentage with one decimal. */
+  trueConversionRatePct: number;
+  sources: { channel: string; sessions: number }[];
+  funnel: { stage: string; sessions: number }[];
+}
+
 @Injectable()
 export class AnalyticsService {
   constructor(@Inject(DRIZZLE_CLIENT) private readonly db: DrizzleClient) {}
+
+  // ─── Traffic & funnel (Phase 2 — analytics_events) ──────────────────────────
+
+  async getTraffic(
+    orgId: string,
+    storeId: string,
+    period: AnalyticsPeriod,
+  ): Promise<TrafficAnalytics> {
+    const { start, end } = getRange(period);
+    const [funnel, sources, orders] = await Promise.all([
+      this.funnelCounts(orgId, storeId, start, end),
+      this.trafficSources(orgId, storeId, start, end),
+      this.ordersInPeriod(orgId, storeId, start, end),
+    ]);
+
+    const uniqueVisitors = funnel.visitors;
+    const trueConversionRatePct =
+      uniqueVisitors > 0
+        ? Math.round((orders / uniqueVisitors) * 1000) / 10
+        : 0;
+
+    return {
+      period,
+      uniqueVisitors,
+      orders,
+      trueConversionRatePct,
+      sources,
+      funnel: [
+        { stage: 'Visitors', sessions: funnel.visitors },
+        { stage: 'Product views', sessions: funnel.productViews },
+        { stage: 'Add to cart', sessions: funnel.addToCart },
+        { stage: 'Checkout', sessions: funnel.checkout },
+        { stage: 'Purchase', sessions: funnel.purchase },
+      ],
+    };
+  }
+
+  private async funnelCounts(
+    orgId: string,
+    storeId: string,
+    start: Date,
+    end: Date,
+  ): Promise<{
+    visitors: number;
+    productViews: number;
+    addToCart: number;
+    checkout: number;
+    purchase: number;
+  }> {
+    const res = await this.db.execute(sql`
+      SELECT
+        COUNT(DISTINCT session_id)::bigint AS visitors,
+        COUNT(DISTINCT session_id) FILTER (WHERE event_type = 'product_view')::bigint AS product_views,
+        COUNT(DISTINCT session_id) FILTER (WHERE event_type = 'add_to_cart')::bigint AS add_to_cart,
+        COUNT(DISTINCT session_id) FILTER (WHERE event_type = 'checkout_start')::bigint AS checkout,
+        COUNT(DISTINCT session_id) FILTER (WHERE event_type = 'purchase')::bigint AS purchase
+      FROM analytics_events
+      WHERE organization_id = ${orgId}
+        AND store_id = ${storeId}
+        AND occurred_at >= ${start.toISOString()}
+        AND occurred_at < ${end.toISOString()}
+    `);
+    const r = res.rows[0] as {
+      visitors: string;
+      product_views: string;
+      add_to_cart: string;
+      checkout: string;
+      purchase: string;
+    };
+    return {
+      visitors: Number(r.visitors),
+      productViews: Number(r.product_views),
+      addToCart: Number(r.add_to_cart),
+      checkout: Number(r.checkout),
+      purchase: Number(r.purchase),
+    };
+  }
+
+  private async trafficSources(
+    orgId: string,
+    storeId: string,
+    start: Date,
+    end: Date,
+  ): Promise<TrafficAnalytics['sources']> {
+    // Attribute each session to the channel of its FIRST event (first-touch),
+    // then group. Channel is derived from utm_medium/source and the referrer
+    // host — no attribution is stored server-side, callers just send raw values.
+    const res = await this.db.execute(sql`
+      WITH first_touch AS (
+        SELECT DISTINCT ON (session_id)
+          session_id, referrer, utm_source, utm_medium
+        FROM analytics_events
+        WHERE organization_id = ${orgId}
+          AND store_id = ${storeId}
+          AND occurred_at >= ${start.toISOString()}
+          AND occurred_at < ${end.toISOString()}
+        ORDER BY session_id, occurred_at ASC
+      )
+      SELECT
+        CASE
+          WHEN lower(coalesce(utm_medium, '')) IN ('cpc','ppc','paid','paid_social','paidsearch') THEN 'Paid'
+          WHEN coalesce(utm_source, '') <> '' THEN 'Campaign'
+          WHEN coalesce(referrer, '') = '' THEN 'Direct'
+          WHEN referrer ~* '(google|bing|yahoo|duckduckgo|ecosia|baidu|yandex)\\.' THEN 'Organic Search'
+          WHEN referrer ~* '(facebook|instagram|twitter|t\\.co|x\\.com|tiktok|linkedin|pinterest|youtube|reddit|snapchat)\\.' THEN 'Social'
+          ELSE 'Referral'
+        END AS channel,
+        COUNT(*)::bigint AS sessions
+      FROM first_touch
+      GROUP BY 1
+      ORDER BY sessions DESC
+    `);
+    return (res.rows as { channel: string; sessions: string }[]).map((r) => ({
+      channel: r.channel,
+      sessions: Number(r.sessions),
+    }));
+  }
+
+  private async ordersInPeriod(
+    orgId: string,
+    storeId: string,
+    start: Date,
+    end: Date,
+  ): Promise<number> {
+    const res = await this.db.execute(sql`
+      SELECT COUNT(*)::bigint AS count
+      FROM orders
+      WHERE organization_id = ${orgId}
+        AND store_id = ${storeId}
+        AND status ${REVENUE_STATUS_IN}
+        AND created_at >= ${start.toISOString()}
+        AND created_at < ${end.toISOString()}
+    `);
+    return Number((res.rows[0] as { count: string }).count);
+  }
 
   // ─── Sales ──────────────────────────────────────────────────────────────────
 

@@ -507,6 +507,15 @@ export type InventoryAnalytics = {
   }[];
 };
 
+export type TrafficAnalytics = {
+  period: Period;
+  uniqueVisitors: number;
+  orders: number;
+  trueConversionRatePct: number;
+  sources: { channel: string; sessions: number }[];
+  funnel: { stage: string; sessions: number }[];
+};
+
 // ─── Audit Log ────────────────────────────────────────────────────────────────
 
 export type AuditEntry = {

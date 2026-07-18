@@ -5,6 +5,7 @@ import {
   getOrdersAnalyticsServerFn,
   getCustomersAnalyticsServerFn,
   getInventoryAnalyticsServerFn,
+  getTrafficAnalyticsServerFn,
 } from "./server";
 
 const STALE = 60 * 1000;
@@ -34,5 +35,12 @@ export const inventoryAnalyticsQueryOptions = () =>
   queryOptions({
     queryKey: ["analytics", "inventory"],
     queryFn: () => getInventoryAnalyticsServerFn(),
+    staleTime: STALE,
+  });
+
+export const trafficAnalyticsQueryOptions = (period: Period) =>
+  queryOptions({
+    queryKey: ["analytics", "traffic", period],
+    queryFn: () => getTrafficAnalyticsServerFn({ data: { period } }),
     staleTime: STALE,
   });

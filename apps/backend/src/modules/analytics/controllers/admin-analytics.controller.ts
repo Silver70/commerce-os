@@ -93,4 +93,21 @@ export class AdminAnalyticsController {
     const { organizationId, storeId } = requireStoreContext(tenant);
     return this.analytics.getInventory(organizationId, storeId);
   }
+
+  @Get('traffic')
+  @RequirePermission('dashboard.read')
+  @ApiOperation({
+    summary: 'Traffic & funnel analytics',
+    description:
+      'Unique visitors, traffic-source breakdown (first-touch channel), conversion funnel (visitors → product view → add to cart → checkout → purchase), and true conversion rate (orders ÷ visitors). Powered by the analytics_events ingest API.',
+  })
+  @ApiQuery({ name: 'period', enum: ['today', '7d', '30d', '90d'] })
+  @ApiResponse({ status: 200, description: 'Traffic analytics' })
+  async getTraffic(
+    @Query() query: PeriodQueryDto,
+    @CurrentTenant() tenant: TenantContext,
+  ) {
+    const { organizationId, storeId } = requireStoreContext(tenant);
+    return this.analytics.getTraffic(organizationId, storeId, query.period);
+  }
 }

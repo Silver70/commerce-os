@@ -35,3 +35,4 @@ export * from './shipping-methods.schema';
 export * from './shipments.schema';
 export * from './tax-rates.schema';
 export * from './audit-logs.schema';
+export * from './analytics-events.schema';
