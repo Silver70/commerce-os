@@ -4,28 +4,13 @@ import type { Period, TrafficAnalytics } from "~/types/api";
 import { trafficAnalyticsQueryOptions } from "../queries";
 import { num } from "../utils";
 import { StatTile } from "./stat-tile";
-import { DonutChart, type DonutSlice } from "./donut-chart";
 import { FunnelChart } from "./funnel-chart";
-
-const CHANNEL_COLORS: Record<string, string> = {
-  Direct: "hsl(215 16% 47%)",
-  "Organic Search": "hsl(142 71% 45%)",
-  Social: "hsl(262 83% 63%)",
-  Paid: "hsl(217 91% 60%)",
-  Campaign: "hsl(38 92% 50%)",
-  Referral: "hsl(330 75% 55%)",
-};
+import { BarChartCard } from "./bar-chart-card";
 
 export function TrafficTab({ period }: { period: Period }) {
   const data: TrafficAnalytics = useSuspenseQuery(
     trafficAnalyticsQueryOptions(period),
   ).data;
-
-  const sourceSlices: DonutSlice[] = data.sources.map((s) => ({
-    name: s.channel,
-    value: s.sessions,
-    color: CHANNEL_COLORS[s.channel] ?? "hsl(215 16% 47%)",
-  }));
 
   return (
     <div className="space-y-4">
@@ -58,20 +43,24 @@ export function TrafficTab({ period }: { period: Period }) {
         />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <FunnelChart
-          title="Conversion funnel"
-          description="Distinct sessions reaching each stage"
-          stages={data.funnel}
-        />
-        <DonutChart
-          title="Traffic sources"
-          description="Sessions by first-touch channel"
-          data={sourceSlices}
-          centerValue={num(data.uniqueVisitors)}
-          centerLabel="visitors"
-        />
-      </div>
+      <FunnelChart
+        title="Conversion funnel"
+        description="Distinct sessions reaching each stage"
+        stages={data.funnel}
+      />
+
+      <BarChartCard
+        title="Traffic sources"
+        description="Sessions by first-touch channel"
+        valueLabel="Sessions"
+        formatValue={num}
+        maxLabel={16}
+        emptyLabel="No traffic events for this period"
+        data={data.sources.map((s) => ({
+          label: s.channel,
+          value: s.sessions,
+        }))}
+      />
     </div>
   );
 }

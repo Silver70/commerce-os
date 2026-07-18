@@ -5,6 +5,7 @@ import { salesAnalyticsQueryOptions } from "../queries";
 import { money, num } from "../utils";
 import { StatTile } from "./stat-tile";
 import { RankedBarList } from "./ranked-bar-list";
+import { BarChartCard } from "./bar-chart-card";
 
 export function SalesTab({ period }: { period: Period }) {
   const data: SalesAnalytics = useSuspenseQuery(
@@ -41,24 +42,24 @@ export function SalesTab({ period }: { period: Period }) {
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <RankedBarList
+        <BarChartCard
           title="Top products"
           description="By revenue this period"
-          items={data.topProducts.map((p) => ({
+          valueLabel="Revenue"
+          formatValue={money}
+          data={data.topProducts.map((p) => ({
             label: p.productName,
-            sublabel: `${num(p.quantity)} sold`,
-            value: money(p.revenue),
-            weight: p.revenue,
+            value: p.revenue,
           }))}
         />
-        <RankedBarList
+        <BarChartCard
           title="Sales by category"
           description="Live category attribution"
-          items={data.salesByCategory.map((c) => ({
+          valueLabel="Revenue"
+          formatValue={money}
+          data={data.salesByCategory.map((c) => ({
             label: c.categoryName,
-            sublabel: `${num(c.quantity)} sold`,
-            value: money(c.revenue),
-            weight: c.revenue,
+            value: c.revenue,
           }))}
         />
       </div>
