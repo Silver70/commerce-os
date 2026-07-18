@@ -441,6 +441,72 @@ export type DashboardStats = {
   lowStockItems: number;
 };
 
+// ─── Analytics ────────────────────────────────────────────────────────────────
+
+export type SalesAnalytics = {
+  period: Period;
+  topProducts: { productName: string; quantity: number; revenue: number }[];
+  salesByCategory: {
+    categoryName: string;
+    quantity: number;
+    revenue: number;
+  }[];
+  profit: {
+    revenue: number;
+    cost: number;
+    grossProfit: number;
+    marginPct: number;
+    coveragePct: number;
+  };
+  discounts: {
+    couponCode: string;
+    orders: number;
+    discountTotal: number;
+    revenue: number;
+  }[];
+};
+
+export type OrdersAnalytics = {
+  period: Period;
+  statusBreakdown: { status: OrderStatus; count: number; revenue: number }[];
+  cartAbandonment: {
+    convertedCount: number;
+    abandonedCount: number;
+    abandonmentRatePct: number;
+    lostValue: number;
+  };
+  refunds: { count: number; amount: number; refundRatePct: number };
+  payments: {
+    captured: number;
+    failed: number;
+    pending: number;
+    successRatePct: number;
+  };
+};
+
+export type CustomersAnalytics = {
+  period: Period;
+  totalCustomers: number;
+  newInPeriod: number;
+  growth: { date: string; count: number }[];
+  newVsReturning: { newCustomers: number; returning: number };
+};
+
+export type InventoryAnalytics = {
+  lowStockCount: number;
+  outOfStockCount: number;
+  inStockCount: number;
+  stockUnits: number;
+  stockValueAtCost: number;
+  lowStock: {
+    productName: string;
+    variantName: string | null;
+    sku: string;
+    available: number;
+    threshold: number;
+  }[];
+};
+
 // ─── Audit Log ────────────────────────────────────────────────────────────────
 
 export type AuditEntry = {

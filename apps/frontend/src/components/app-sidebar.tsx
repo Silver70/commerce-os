@@ -7,6 +7,7 @@ import {
 } from "@tanstack/react-router";
 import {
   LayoutDashboardIcon,
+  ChartColumnIcon,
   PackageIcon,
   FolderTreeIcon,
   BoxesIcon,
@@ -54,6 +55,7 @@ type NavItem = {
 
 const primaryNav: NavItem[] = [
   { title: "Dashboard", url: "/admin/dashboard", icon: LayoutDashboardIcon },
+  { title: "Analytics", url: "/admin/analytics", icon: ChartColumnIcon },
   { title: "Products", url: "/admin/products", icon: PackageIcon },
   { title: "Categories", url: "/admin/categories", icon: FolderTreeIcon },
   { title: "Inventory", url: "/admin/inventory", icon: BoxesIcon },

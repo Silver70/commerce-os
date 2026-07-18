@@ -27,6 +27,7 @@ import { Route as AdminInventoryRouteImport } from './routes/admin/inventory'
 import { Route as AdminDashboardRouteImport } from './routes/admin/dashboard'
 import { Route as AdminCustomerGroupsRouteImport } from './routes/admin/customer-groups'
 import { Route as AdminCategoriesRouteImport } from './routes/admin/categories'
+import { Route as AdminAnalyticsRouteImport } from './routes/admin/analytics'
 import { Route as AdminProductsIndexRouteImport } from './routes/admin/products_/index'
 import { Route as AdminPriceListsIndexRouteImport } from './routes/admin/price-lists_/index'
 import { Route as AdminOrdersIndexRouteImport } from './routes/admin/orders_/index'
@@ -132,6 +133,11 @@ const AdminCategoriesRoute = AdminCategoriesRouteImport.update({
   path: '/categories',
   getParentRoute: () => AdminRouteRoute,
 } as any)
+const AdminAnalyticsRoute = AdminAnalyticsRouteImport.update({
+  id: '/analytics',
+  path: '/analytics',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
 const AdminProductsIndexRoute = AdminProductsIndexRouteImport.update({
   id: '/products_/',
   path: '/products/',
@@ -211,6 +217,7 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AdminRouteRouteWithChildren
   '/auth': typeof AuthRouteRouteWithChildren
   '/onboarding': typeof OnboardingRouteRouteWithChildren
+  '/admin/analytics': typeof AdminAnalyticsRoute
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/customer-groups': typeof AdminCustomerGroupsRoute
   '/admin/dashboard': typeof AdminDashboardRoute
@@ -245,6 +252,7 @@ export interface FileRoutesByTo {
   '/admin': typeof AdminRouteRouteWithChildren
   '/auth': typeof AuthRouteRouteWithChildren
   '/onboarding': typeof OnboardingRouteRouteWithChildren
+  '/admin/analytics': typeof AdminAnalyticsRoute
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/customer-groups': typeof AdminCustomerGroupsRoute
   '/admin/dashboard': typeof AdminDashboardRoute
@@ -280,6 +288,7 @@ export interface FileRoutesById {
   '/admin': typeof AdminRouteRouteWithChildren
   '/auth': typeof AuthRouteRouteWithChildren
   '/onboarding': typeof OnboardingRouteRouteWithChildren
+  '/admin/analytics': typeof AdminAnalyticsRoute
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/customer-groups': typeof AdminCustomerGroupsRoute
   '/admin/dashboard': typeof AdminDashboardRoute
@@ -316,6 +325,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/auth'
     | '/onboarding'
+    | '/admin/analytics'
     | '/admin/categories'
     | '/admin/customer-groups'
     | '/admin/dashboard'
@@ -350,6 +360,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/auth'
     | '/onboarding'
+    | '/admin/analytics'
     | '/admin/categories'
     | '/admin/customer-groups'
     | '/admin/dashboard'
@@ -384,6 +395,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/auth'
     | '/onboarding'
+    | '/admin/analytics'
     | '/admin/categories'
     | '/admin/customer-groups'
     | '/admin/dashboard'
@@ -549,6 +561,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminCategoriesRouteImport
       parentRoute: typeof AdminRouteRoute
     }
+    '/admin/analytics': {
+      id: '/admin/analytics'
+      path: '/analytics'
+      fullPath: '/admin/analytics'
+      preLoaderRoute: typeof AdminAnalyticsRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
     '/admin/products_/': {
       id: '/admin/products_/'
       path: '/products'
@@ -651,6 +670,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface AdminRouteRouteChildren {
+  AdminAnalyticsRoute: typeof AdminAnalyticsRoute
   AdminCategoriesRoute: typeof AdminCategoriesRoute
   AdminCustomerGroupsRoute: typeof AdminCustomerGroupsRoute
   AdminDashboardRoute: typeof AdminDashboardRoute
@@ -674,6 +694,7 @@ interface AdminRouteRouteChildren {
 }
 
 const AdminRouteRouteChildren: AdminRouteRouteChildren = {
+  AdminAnalyticsRoute: AdminAnalyticsRoute,
   AdminCategoriesRoute: AdminCategoriesRoute,
   AdminCustomerGroupsRoute: AdminCustomerGroupsRoute,
   AdminDashboardRoute: AdminDashboardRoute,
