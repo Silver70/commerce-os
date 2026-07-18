@@ -2,14 +2,19 @@ import { Injectable, Inject } from '@nestjs/common';
 import { sql } from 'drizzle-orm';
 import { DRIZZLE_CLIENT } from '../../../shared/database/database.module';
 import type { DrizzleClient } from '../../../shared/database/database.module';
-import type { StatsPeriod } from './dashboard.service';
+
+/**
+ * Time window for analytics aggregation. Owned by this module so analytics
+ * stays independent of the dashboard module (which has its own AnalyticsPeriod).
+ */
+export type AnalyticsPeriod = 'today' | '7d' | '30d' | '90d';
 
 // Statuses that count as realized revenue — mirrors DashboardService. Composed
 // as an inline SQL fragment (not a bound array) so it coerces cleanly against
 // the `order_status` enum column, exactly as DashboardService does.
 const REVENUE_STATUS_IN = sql`in ('paid', 'processing', 'shipped', 'delivered')`;
 
-function periodDays(period: StatsPeriod): number {
+function periodDays(period: AnalyticsPeriod): number {
   if (period === 'today') return 1;
   if (period === '7d') return 7;
   if (period === '30d') return 30;
@@ -17,7 +22,7 @@ function periodDays(period: StatsPeriod): number {
 }
 
 /** [start, now) window for the selected period. */
-function getRange(period: StatsPeriod): { start: Date; end: Date } {
+function getRange(period: AnalyticsPeriod): { start: Date; end: Date } {
   const now = new Date();
   if (period === 'today') {
     const start = new Date(now);
@@ -37,7 +42,7 @@ function pct(numerator: number, denominator: number): number {
 // ─── Response shapes ──────────────────────────────────────────────────────────
 
 export interface SalesAnalytics {
-  period: StatsPeriod;
+  period: AnalyticsPeriod;
   topProducts: { productName: string; quantity: number; revenue: number }[];
   salesByCategory: {
     categoryName: string;
@@ -61,7 +66,7 @@ export interface SalesAnalytics {
 }
 
 export interface OrdersAnalytics {
-  period: StatsPeriod;
+  period: AnalyticsPeriod;
   statusBreakdown: { status: string; count: number; revenue: number }[];
   cartAbandonment: {
     convertedCount: number;
@@ -79,7 +84,7 @@ export interface OrdersAnalytics {
 }
 
 export interface CustomersAnalytics {
-  period: StatsPeriod;
+  period: AnalyticsPeriod;
   totalCustomers: number;
   newInPeriod: number;
   growth: { date: string; count: number }[];
@@ -110,7 +115,7 @@ export class AnalyticsService {
   async getSales(
     orgId: string,
     storeId: string,
-    period: StatsPeriod,
+    period: AnalyticsPeriod,
   ): Promise<SalesAnalytics> {
     const { start, end } = getRange(period);
     const [topProducts, salesByCategory, profit, discounts] = await Promise.all(
@@ -283,7 +288,7 @@ export class AnalyticsService {
   async getOrders(
     orgId: string,
     storeId: string,
-    period: StatsPeriod,
+    period: AnalyticsPeriod,
   ): Promise<OrdersAnalytics> {
     const { start, end } = getRange(period);
     const [statusBreakdown, cartAbandonment, refunds, payments, grossRevenue] =
@@ -437,7 +442,7 @@ export class AnalyticsService {
   async getCustomers(
     orgId: string,
     storeId: string,
-    period: StatsPeriod,
+    period: AnalyticsPeriod,
   ): Promise<CustomersAnalytics> {
     const { start, end } = getRange(period);
     // NB: `customers` is org-scoped (no store_id column), so total/new/growth

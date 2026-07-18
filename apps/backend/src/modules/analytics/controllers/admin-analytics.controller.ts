@@ -13,12 +13,14 @@ import { RequirePermission } from '../../auth/decorators/require-permission.deco
 import { CurrentTenant } from '../../auth/decorators/current-tenant.decorator';
 import type { TenantContext } from '../../../shared/tenant/tenant-context';
 import { requireStoreContext } from '../../../shared/tenant/tenant.util';
-import { AnalyticsService } from '../services/analytics.service';
-import type { StatsPeriod } from '../services/dashboard.service';
+import {
+  AnalyticsService,
+  type AnalyticsPeriod,
+} from '../services/analytics.service';
 
 class PeriodQueryDto {
   @IsEnum(['today', '7d', '30d', '90d'])
-  declare period: StatsPeriod;
+  declare period: AnalyticsPeriod;
 }
 
 @ApiTags('Analytics')

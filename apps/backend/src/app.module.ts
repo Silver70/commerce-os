@@ -26,6 +26,7 @@ import { CustomerModule } from './modules/customer/customer.module';
 import { PaymentModule } from './modules/payment/payment.module';
 import { OrderModule } from './modules/order/order.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { AnalyticsModule } from './modules/analytics/analytics.module';
 
 @Module({
   imports: [
@@ -86,6 +87,7 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
     PaymentModule,
     OrderModule,
     DashboardModule,
+    AnalyticsModule,
   ],
   providers: [MoneyScalar, DateTimeScalar, R2StorageService, HealthResolver],
   exports: [R2StorageService],

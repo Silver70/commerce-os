@@ -92,11 +92,11 @@ export function DashboardPage() {
       </div>
 
       {/* Operational snapshot */}
-      <OpsSnapshot
+      {/* <OpsSnapshot
         pendingOrders={stats.pendingOrders}
         processingOrders={stats.processingOrders}
         lowStockItems={stats.lowStockItems}
-      />
+      /> */}
 
       {/* Revenue Chart — full width */}
       <RevenueTrend data={revenueTrend} />
