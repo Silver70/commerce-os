@@ -21,7 +21,7 @@ function OnboardingLayout() {
     <div className="flex h-screen">
       <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden flex-col">
         <img
-          src="/images/auth-hero.jpg"
+          src="/images/auth-layout.png"
           alt=""
           className="w-full h-full object-cover"
         />

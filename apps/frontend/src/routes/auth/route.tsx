@@ -9,7 +9,7 @@ function AuthLayout() {
     <div className="flex h-screen">
       <div className="hidden lg:block w-1/2 relative overflow-hidden">
         <img
-          src="/images/auth-hero.jpg"
+          src="/images/auth-layout.png"
           alt=""
           className="w-full h-full object-cover"
         />
