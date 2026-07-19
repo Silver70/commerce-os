@@ -6,6 +6,8 @@ A phased plan to grow the current single-screen dashboard into a real analytics 
 
 > **Status (2026-07-18):** Phase 0 ✅, Phase 1 ✅, and Phase 2 ✅ shipped. Phase 2 landed **headless** — event-ingest API + admin Traffic tab, no storefront instrumentation (integrators own that). Migration `0005_analytics_events.sql` **applied**; the funnel + first-touch channel-derivation SQL was runtime-verified against the DB (funnel counts + Organic/Social/Paid classification correct). Deferred: Phase 1's revenue-vs-orders dual-axis overlay, and Phase 2's daily-rollup job (raw-event queries suffice at MVP volume). The `apps/backend` `analytics` module is **standalone** (`src/modules/analytics/`).
 
+> **Update (2026-07-19):** **Phase 3 📋 drafted below** — ship a first-party **drop-in tracking script** so any storefront gets instrumentation for free, and widen the event model from a 5-stage funnel logger into a general **behavioral collector**: page views, devices, locations, channels (incl. **LLM referrals**), click-level breakdown, form-submission tracking, and custom attributes. Nothing in Phase 3 is built yet; it also promotes two Phase 2 "loose ends" (the daily-rollup job + raw-event retention) from _optional_ to _required_, because clicks + pageviews multiply event volume 10–100×.
+
 ---
 
 ## 0. Current state (baseline)
@@ -123,9 +125,131 @@ Event volume dwarfs order volume. The composite indexes on `(organization_id, st
 
 ---
 
+## Phase 3 — Behavioral collector + the drop-in tracking script 📋 Planned
+
+Phase 2 built the ingest _contract_ but deliberately left instrumentation to integrators — so the pipeline exists with **zero data flowing** (grep confirms no storefront code posts to `/api/events`). Phase 3 closes both halves of the gap the user asked for:
+
+1. **Ship a first-party drop-in script** (`ca.js`) so any storefront — ours or a third party's — gets full instrumentation from a single `<script>` tag, no integration work.
+2. **Widen the event model** from a narrow 5-stage funnel logger into a general **behavioral collector**: page views, devices, locations, channels (incl. **LLM referrals**), click-level breakdown, form submissions, and arbitrary custom **attributes**.
+
+> **Scope philosophy (unchanged):** effort-to-value order, and stay **headless**. The script is the reference integration, not a hard dependency — the ingest API stays the contract, so a store can still send its own events. Data flows the moment slices 3.1 + 3.2 land; the UI (3.4) just makes it visible.
+
+> **The single shape change:** today's [`analytics_events`](../apps/backend/src/shared/database/schema/analytics-events.schema.ts) is fixed-column with a **closed enum** of 5 funnel stages. Clicks, form submits, and custom events need an **open taxonomy + a `properties` bag**. That, plus server-side enrichment (device/geo/channel) and the script, is the whole of Phase 3.
+
+### 3.1 Schema evolution — open taxonomy + enrichment columns
+
+Extend `analytics_events` in place (migration `0006_analytics_events_behavioral.sql`); no new raw-event table.
+
+- **`event_type` enum → `varchar(48)`** (`ALTER COLUMN ... TYPE varchar USING event_type::text`, then drop the `analytics_event_type` type). The taxonomy is now open — validated at the app layer, not the DB. Reserved names keep the funnel working: `page_view`, `product_view`, `add_to_cart`, `checkout_start`, `purchase`; new reserved: `session_start`, `click`, `form_submit`, `custom`.
+- **`visitor_id varchar(128)`** — persistent anonymous id from the script (distinct from `session_id`). Unlocks accurate uniques across sessions and returning-visitor rate at the traffic level, which the session-only model can't express.
+- **`event_name varchar(128)`** — human label for `click` / `custom` events (e.g. `"Add to cart button"`, `"newsletter_signup"`).
+- **`properties jsonb`** — the **attributes** bag. Click details (element tag, text, href, selector), form details (form id/name, field _names_), and any custom `props` live here — not in dedicated columns, since they're high-cardinality and varied.
+- **`device_type varchar(16)`, `browser varchar(64)`, `os varchar(64)`** — server-derived (see 3.2).
+- **`country_code char(2)`, `region varchar(128)`** — server-derived from IP/CDN header. **City deliberately omitted** at MVP (privacy).
+- **Indexes:** add `(organization_id, store_id, visitor_id)` and `(organization_id, store_id, event_name, occurred_at)`. Keep the three existing composites.
+
+⚠️ **Volume:** clicks + pageviews are **10–100× funnel-event volume.** Month-based **partitioning** of `analytics_events` should land with this migration (or immediately after) — retrofitting a partition key onto a large table is painful. See 3.5.
+
+### 3.2 Ingest enrichment + transport fix
+
+The current ingest is a raw insert ([event-ingest.service.ts](../apps/backend/src/modules/analytics/services/event-ingest.service.ts)). Phase 3 adds an **enrichment step** before insert:
+
+- **Device** — parse `User-Agent` (`ua-parser-js`, small + maintained) → `device_type` / `browser` / `os`. **Drop known bots** (or flag + exclude from counts) to keep numbers clean.
+- **Location** — resolve client IP → `country_code` / `region`. Prefer a CDN geo header (`CF-IPCountry`, `x-vercel-ip-country`) when present; optional GeoLite2 (`@maxmind/geoip2-node` + `GeoLite2-Country.mmdb`) fallback. Requires **`app.set('trust proxy', …)`** in [main.ts](../apps/backend/src/main.ts) so `X-Forwarded-For` is honored. **Derive geo, then discard the raw IP** — never store it (GDPR).
+- **Channel / LLM referrals** — keep channel derivation at **query time** (no backfill, flexible), and extend the `CASE` in [`trafficSources`](../apps/backend/src/modules/analytics/services/analytics.service.ts#L200) with an **"AI Assistant"** bucket matching `chatgpt.com`, `chat.openai.com`, `perplexity.ai`, `claude.ai`, `gemini.google.com`, `copilot.microsoft.com`, `you.com`, `poe.com`, plus `utm_source` values these set. High-value and currently invisible (they land in the generic "Referral" bucket today).
+
+⚠️ **Transport fix the script forces:** `navigator.sendBeacon` (the only reliable on-unload transport) **cannot set an `X-API-Key` header.** The ingest route must also accept the key via **query param** (`POST /api/events?k=…`). A body field won't work — the global `ValidationPipe({ forbidNonWhitelisted: true })` ([main.ts](../apps/backend/src/main.ts)) rejects unknown body fields. Do this with a small ingest-specific guard variant (header **or** `?k=`), leaving [StorefrontAuthGuard](../apps/backend/src/modules/auth/guards/storefront-auth.guard.ts) untouched for GraphQL/cart. Also bump `ArrayMaxSize` from **50 → 100** in [track-events.dto.ts](../apps/backend/src/modules/analytics/dto/track-events.dto.ts) (click-heavy pages batch more), and confirm the `storefront` throttle bucket (100 req/min/key, [app.module.ts](../apps/backend/src/app.module.ts)) is sized for it — 100×100 = 10k events/min/key headroom.
+
+### 3.3 The tracking script — `ca.js`
+
+A ~4KB, zero-dependency IIFE built as a new monorepo package **`packages/analytics-js`** and served by the backend at a **stable, cacheable, unauthenticated** path (`GET /ca.js`). Integrators embed:
+
+```html
+<script src="https://api.<host>/ca.js" data-key="pk_live_…" defer></script>
+```
+
+Responsibilities:
+
+- **Identity + sessionization** — persistent anonymous `visitor_id` + a `session_id` that rolls after 30 min inactivity. Two modes (see decision D2): a first-party cookie, or a **cookieless** daily-rotating hash (Plausible-style — no consent banner, at the cost of cross-day returning-visitor accuracy).
+- **Page views** — fire on load, and patch `history.pushState`/`replaceState` + `popstate` so **SPA route changes** (our storefronts are TanStack Router) emit page views. Captures path, referrer, `utm_*`, title, viewport, language.
+- **Click breakdown** — one **delegated** listener; records tag, truncated text, `href`, `id`, and nearest `data-ca-*` into `properties`. On/opt-in per decision D1.
+- **Form submissions** — `submit` listener records form `id`/`name`/`action` + **field names only, never values** (PII). Optionally a `form_start` on first field focus for form-abandonment.
+- **Custom events + attributes** — `window.ca('track', name, props)`; `props` → `properties`. Plus ecommerce helpers (`ca('productView', {productId})`, `ca('addToCart', …)`, `ca('purchase', {orderId, value})`) that keep the **Phase 2 funnel** populated.
+- **Transport** — queue + batch; flush on a timer and on `visibilitychange:hidden` / `pagehide` via `sendBeacon` (falling back to `fetch({keepalive:true})`). Uses the `?k=` key form.
+- **Consent + DNT** — honors Do-Not-Track / GPC when configured (`data-respect-dnt`); no-ops until `ca('consent','granted')` when consent-gating is enabled.
+
+### 3.4 Admin surfaces — new tabs + endpoints
+
+All reuse the existing `StatTile` / `DonutChart` / `BarChartCard` / `RankedBarList` components and follow the `server.ts` / `queries.ts` / `pages` / `components` layout in [src/features/analytics/](../apps/frontend/src/features/analytics/). New endpoints are `dashboard.read`-scoped and period-aware, mirroring [admin-analytics.controller.ts](../apps/backend/src/modules/analytics/controllers/admin-analytics.controller.ts).
+
+| Surface | Endpoint | Content |
+| --- | --- | --- |
+| **Traffic** (extend) | `.../analytics/traffic` | Add an **AI Assistant** channel tile + a **Top referrers** table |
+| **Audience** (new tab) | `GET .../analytics/audience` | Device-type donut, browser + OS bars, **country** table, language bar |
+| **Behavior** (new tab) | `GET .../analytics/behavior` | **Top pages** (views + uniques), **top clicks** (element + text), **form submissions** (starts vs submits, top forms), entry/exit pages |
+
+Wire the two new tabs into [analytics-page.tsx](../apps/frontend/src/features/analytics/pages/analytics-page.tsx) alongside Sales / Orders / Traffic / Customers / Inventory, each behind its own Suspense boundary.
+
+### 3.5 Volume, rollups & retention (now required, not deferred)
+
+Phase 2 flagged the daily rollup + retention as optional at funnel-only volume. With clicks + pageviews they're **table stakes**:
+
+- **Rollup job** — a nightly `@Cron` (reuse `ScheduleModule`) aggregates raw events into summary tables keyed by `(organization_id, store_id, day, dimension)` — pageviews-by-path, sessions-by-channel, device/geo breakdowns. Admin queries hit rollups for anything older than "today"; today reads raw.
+- **Retention TTL** — a cron deletes raw `analytics_events` past ~90 days; rollups are permanent.
+- **Partitioning** — month partitions on `analytics_events` (from 3.1) make the TTL a cheap `DROP PARTITION` instead of a mass `DELETE`.
+
+### 3.6 Privacy & compliance
+
+This is where the data model turns from "orders we already had" into **real behavioral tracking** — treat it as such:
+
+- **No PII in the payload** — form **field names only**, never values; truncate click text; option to strip query-string values from `path`.
+- **No raw IP stored** — geo is derived at ingest, IP discarded.
+- **Cookieless-first** — default to the rotating-hash `visitor_id` (decision D2) so the script drops in without a consent banner in most jurisdictions.
+- **DNT / GPC honored**, and a **consent-gating** no-op mode for stores that need it.
+
+### Feature → delivery map
+
+| Feature (requested)      | Lands in     | Mechanism                                                          |
+| ------------------------ | ------------ | ----------------------------------------------------------------- |
+| **Page views**           | 3.1/3.3/3.4  | `page_view` + SPA route hook → Behavior · Top pages               |
+| **Devices**              | 3.2/3.4      | UA parse → `device_type`/`browser`/`os` → Audience                |
+| **Locations**            | 3.2/3.4      | IP/CDN header → `country_code`/`region` → Audience                |
+| **Channels**             | 3.2/3.4      | query-time derivation (extended) → Traffic                        |
+| **LLM referrals**        | 3.2/3.4      | "AI Assistant" bucket in the channel `CASE` → Traffic tile        |
+| **Click breakdown**      | 3.1/3.3/3.4  | `click` events + `properties` → Behavior · Top clicks             |
+| **Form submissions**     | 3.1/3.3/3.4  | `form_submit` (+ `form_start`) → Behavior · Forms                 |
+| **Attributes**           | 3.1/3.3      | `properties jsonb` + `ca('track', name, props)`                   |
+
+### Decisions needed before building
+
+| #  | Decision                    | Options                                                        | Recommendation                                                              |
+| -- | --------------------------- | ------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| D1 | **Autocapture default**     | Clicks/forms on-by-default vs opt-in via `data-ca-*`          | **Opt-in** for clicks/forms (privacy + volume), with a global `data-autocapture` escape hatch |
+| D2 | **Visitor identity**        | Persistent cookie vs cookieless rotating hash                 | **Cookieless default**, persistent as opt-in                                |
+| D3 | **Ingest key**              | Reuse the storefront read key vs a new write-only publishable key | New **publishable ingest key** eventually; **reuse acceptable for MVP** (documented caveat: it's exposed in a public `<script>`) |
+| D4 | **Geo source**              | CDN header only vs bundle GeoLite2                            | **CDN header first**, GeoLite2 fallback only if a store isn't behind a geo-aware edge |
+| D5 | **Script hosting**          | Backend static route (`GET /ca.js`) vs external CDN           | **Backend route** for MVP (versioned + long cache), CDN later               |
+
+### Phase 3 sequencing
+
+Four slices; data flows after the first two.
+
+| Slice  | Scope                                                    | Effort | Unblocks                          |
+| ------ | ------------------------------------------------------- | ------ | --------------------------------- |
+| **A**  | 3.1 schema widen + 3.2 enrichment + `?k=` guard variant | M      | events can be ingested + enriched |
+| **B**  | 3.3 `ca.js` package + `GET /ca.js`                      | M      | any storefront emits real data    |
+| **C**  | 3.4 Audience + Behavior tabs + LLM channel in Traffic   | M      | the data becomes visible          |
+| **D**  | 3.5 rollup job + retention TTL + partitioning           | M–L    | keeps queries fast as traffic grows |
+
+Recommended order **A → B → C → D**; A+B together light up live data, C makes it visible, D must land before real traffic scales.
+
+> **Status (2026-07-19):** slices **A ✅** and **B ✅** shipped & verified. A: `analytics_events` widened (migration `0006` applied), server-side device/geo enrichment, `?k=` ingest guard — smoke-tested end-to-end. B: `@repo/analytics-js` builds `ca.js` (5.7KB min, cookieless, SPA page views, opt-in click/form autocapture, `sendBeacon`/keepalive transport), served by the backend at `GET /ca.js` (byte-identical + ETag/304 verified; ran the minified bundle in a stubbed-DOM harness). **Live data now flows** for any storefront embedding the script. Pending: **C** (Audience/Behavior admin tabs + LLM channel in Traffic — the enriched columns aren't visualized yet, and traffic queries still need a `device_type <> 'bot'` filter) and **D** (rollup + retention + partitioning).
+
+---
+
 ## Deliberately deferred (per the MVP doc's "leave out")
 
-LTV, cohort retention, churn, heatmaps, advanced segmentation, geographic maps, ad-campaign ROI, demand forecasting, predictive analytics. Revisit once Phase 2 has accumulated data.
+LTV, cohort retention, churn, click **heatmaps** (Phase 3 gives per-element click _counts_, not positional overlays), full self-serve **segmentation** (Phase 3's `properties` bag is the groundwork, not the query UI), geo **maps** (Phase 3 ships a country _table_; a choropleth is later), ad-campaign ROI, demand forecasting, predictive analytics. Revisit once Phase 3 has accumulated data.
 
 ---
 
@@ -136,7 +260,8 @@ LTV, cohort retention, churn, heatmaps, advanced segmentation, geographic maps, 
 | **0** — fix conversion + surface computed metrics                                  | XS     | High (trust) | —                     | ✅ Done                   |
 | **1** — sales/product/category/status/customer/profit/abandonment/refund/inventory | M      | Highest      | 0.1 (for abandonment) | ✅ Done (item 6 deferred) |
 | **2** — traffic sources + full funnel                                              | L      | High         | new events pipeline   | ✅ Done (headless)        |
+| **3** — behavioral collector + drop-in script (devices, geo, channels/LLM, clicks, forms, attributes) | L | High | schema widen + `ca.js` | 📋 Planned |
 
-Recommended order: **0 → 1 → 2**. Phase 0 is a day's work and removes a misleading number; Phase 1 is the value core and touches no new infrastructure; Phase 2 is the larger build, cleanly isolated behind the new `analytics_events` table + ingest API.
+Recommended order: **0 → 1 → 2 → 3**. Phase 0 is a day's work and removes a misleading number; Phase 1 is the value core and touches no new infrastructure; Phase 2 is the larger build, cleanly isolated behind the new `analytics_events` table + ingest API; Phase 3 turns that dormant pipeline into a live behavioral collector via a first-party script (slices A→D, see above).
 
-**Remaining loose ends:** (1) the daily-rollup job for `analytics_events` (Phase 2.3) before traffic scales; (2) the revenue-vs-orders dual-axis overlay (Phase 1, item 6) — a small frontend-only change. None block the shipped functionality. (Migration `0005` is applied.)
+**Remaining loose ends:** (1) the revenue-vs-orders dual-axis overlay (Phase 1, item 6) — a small frontend-only change. (2) Phase 2's daily-rollup job + raw-event retention are **now folded into Phase 3.5**, where clicks + pageviews make them required rather than optional. None block the shipped functionality. (Migration `0005` is applied; Phase 3's `0006` is not.)

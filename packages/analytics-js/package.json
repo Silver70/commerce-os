@@ -1,0 +1,21 @@
+{
+  "name": "@repo/analytics-js",
+  "version": "0.0.0",
+  "private": true,
+  "description": "commerce-os drop-in storefront analytics tracker (ca.js)",
+  "exports": {
+    "./ca.js": "./dist/ca.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "esbuild src/ca.ts --bundle --minify --format=iife --target=es2019 --outfile=dist/ca.js --legal-comments=none",
+    "dev": "esbuild src/ca.ts --bundle --format=iife --target=es2019 --outfile=dist/ca.js --watch",
+    "check-types": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.0",
+    "typescript": "5.9.2"
+  }
+}
