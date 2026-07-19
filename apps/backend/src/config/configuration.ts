@@ -26,4 +26,8 @@ export const validationSchema = Joi.object({
   STORAGE_PUBLIC_URL: Joi.string().uri().required(),
 
   CORS_ORIGINS: Joi.string().default(''),
+
+  // Days of raw analytics_events to retain before the nightly purge. Daily
+  // rollups are permanent regardless. Set to 0 to disable purging entirely.
+  ANALYTICS_RETENTION_DAYS: Joi.number().integer().min(0).default(90),
 });

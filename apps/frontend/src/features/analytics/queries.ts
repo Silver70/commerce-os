@@ -6,6 +6,8 @@ import {
   getCustomersAnalyticsServerFn,
   getInventoryAnalyticsServerFn,
   getTrafficAnalyticsServerFn,
+  getAudienceAnalyticsServerFn,
+  getBehaviorAnalyticsServerFn,
 } from "./server";
 
 const STALE = 60 * 1000;
@@ -42,5 +44,19 @@ export const trafficAnalyticsQueryOptions = (period: Period) =>
   queryOptions({
     queryKey: ["analytics", "traffic", period],
     queryFn: () => getTrafficAnalyticsServerFn({ data: { period } }),
+    staleTime: STALE,
+  });
+
+export const audienceAnalyticsQueryOptions = (period: Period) =>
+  queryOptions({
+    queryKey: ["analytics", "audience", period],
+    queryFn: () => getAudienceAnalyticsServerFn({ data: { period } }),
+    staleTime: STALE,
+  });
+
+export const behaviorAnalyticsQueryOptions = (period: Period) =>
+  queryOptions({
+    queryKey: ["analytics", "behavior", period],
+    queryFn: () => getBehaviorAnalyticsServerFn({ data: { period } }),
     staleTime: STALE,
   });

@@ -9,6 +9,8 @@ import type {
   CustomersAnalytics,
   InventoryAnalytics,
   TrafficAnalytics,
+  AudienceAnalytics,
+  BehaviorAnalytics,
 } from "~/types/api";
 
 const periodInput = z.object({
@@ -28,30 +30,48 @@ async function getJson<T>(path: string): Promise<T> {
 
 export const getSalesAnalyticsServerFn = createServerFn({ method: "GET" })
   .inputValidator(periodInput)
-  .handler(({ data }): Promise<SalesAnalytics> =>
-    getJson(`/api/admin/analytics/sales?period=${data.period}`),
+  .handler(
+    ({ data }): Promise<SalesAnalytics> =>
+      getJson(`/api/admin/analytics/sales?period=${data.period}`),
   );
 
 export const getOrdersAnalyticsServerFn = createServerFn({ method: "GET" })
   .inputValidator(periodInput)
-  .handler(({ data }): Promise<OrdersAnalytics> =>
-    getJson(`/api/admin/analytics/orders?period=${data.period}`),
+  .handler(
+    ({ data }): Promise<OrdersAnalytics> =>
+      getJson(`/api/admin/analytics/orders?period=${data.period}`),
   );
 
 export const getCustomersAnalyticsServerFn = createServerFn({ method: "GET" })
   .inputValidator(periodInput)
-  .handler(({ data }): Promise<CustomersAnalytics> =>
-    getJson(`/api/admin/analytics/customers?period=${data.period}`),
+  .handler(
+    ({ data }): Promise<CustomersAnalytics> =>
+      getJson(`/api/admin/analytics/customers?period=${data.period}`),
   );
 
 export const getInventoryAnalyticsServerFn = createServerFn({
   method: "GET",
-}).handler((): Promise<InventoryAnalytics> =>
-  getJson(`/api/admin/analytics/inventory`),
+}).handler(
+  (): Promise<InventoryAnalytics> => getJson(`/api/admin/analytics/inventory`),
 );
 
 export const getTrafficAnalyticsServerFn = createServerFn({ method: "GET" })
   .inputValidator(periodInput)
-  .handler(({ data }): Promise<TrafficAnalytics> =>
-    getJson(`/api/admin/analytics/traffic?period=${data.period}`),
+  .handler(
+    ({ data }): Promise<TrafficAnalytics> =>
+      getJson(`/api/admin/analytics/traffic?period=${data.period}`),
+  );
+
+export const getAudienceAnalyticsServerFn = createServerFn({ method: "GET" })
+  .inputValidator(periodInput)
+  .handler(
+    ({ data }): Promise<AudienceAnalytics> =>
+      getJson(`/api/admin/analytics/audience?period=${data.period}`),
+  );
+
+export const getBehaviorAnalyticsServerFn = createServerFn({ method: "GET" })
+  .inputValidator(periodInput)
+  .handler(
+    ({ data }): Promise<BehaviorAnalytics> =>
+      getJson(`/api/admin/analytics/behavior?period=${data.period}`),
   );

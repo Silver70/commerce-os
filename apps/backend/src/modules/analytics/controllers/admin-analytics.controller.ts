@@ -99,7 +99,7 @@ export class AdminAnalyticsController {
   @ApiOperation({
     summary: 'Traffic & funnel analytics',
     description:
-      'Unique visitors, traffic-source breakdown (first-touch channel), conversion funnel (visitors → product view → add to cart → checkout → purchase), and true conversion rate (orders ÷ visitors). Powered by the analytics_events ingest API.',
+      'Unique visitors, traffic-source breakdown (first-touch channel incl. AI Assistant referrals), top referrers, conversion funnel (visitors → product view → add to cart → checkout → purchase), and true conversion rate (orders ÷ visitors). Bots excluded. Powered by the analytics_events ingest API.',
   })
   @ApiQuery({ name: 'period', enum: ['today', '7d', '30d', '90d'] })
   @ApiResponse({ status: 200, description: 'Traffic analytics' })
@@ -109,5 +109,39 @@ export class AdminAnalyticsController {
   ) {
     const { organizationId, storeId } = requireStoreContext(tenant);
     return this.analytics.getTraffic(organizationId, storeId, query.period);
+  }
+
+  @Get('audience')
+  @RequirePermission('dashboard.read')
+  @ApiOperation({
+    summary: 'Audience analytics',
+    description:
+      'Visitor breakdown by device type, browser, operating system, and country (distinct sessions per bucket, bots excluded). Powered by the analytics_events ingest API.',
+  })
+  @ApiQuery({ name: 'period', enum: ['today', '7d', '30d', '90d'] })
+  @ApiResponse({ status: 200, description: 'Audience analytics' })
+  async getAudience(
+    @Query() query: PeriodQueryDto,
+    @CurrentTenant() tenant: TenantContext,
+  ) {
+    const { organizationId, storeId } = requireStoreContext(tenant);
+    return this.analytics.getAudience(organizationId, storeId, query.period);
+  }
+
+  @Get('behavior')
+  @RequirePermission('dashboard.read')
+  @ApiOperation({
+    summary: 'Behavior analytics',
+    description:
+      'On-site behavior: top pages (views + unique visitors), landing/entry pages, top tracked clicks, and form submissions. Bots excluded. Powered by the analytics_events ingest API.',
+  })
+  @ApiQuery({ name: 'period', enum: ['today', '7d', '30d', '90d'] })
+  @ApiResponse({ status: 200, description: 'Behavior analytics' })
+  async getBehavior(
+    @Query() query: PeriodQueryDto,
+    @CurrentTenant() tenant: TenantContext,
+  ) {
+    const { organizationId, storeId } = requireStoreContext(tenant);
+    return this.analytics.getBehavior(organizationId, storeId, query.period);
   }
 }

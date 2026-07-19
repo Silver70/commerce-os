@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AnalyticsService } from './services/analytics.service';
+import { AnalyticsRollupService } from './services/analytics-rollup.service';
 import { EventIngestService } from './services/event-ingest.service';
 import { AdminAnalyticsController } from './controllers/admin-analytics.controller';
 import { StorefrontEventsController } from './controllers/storefront-events.controller';
@@ -13,7 +14,7 @@ import { AuthModule } from '../auth/auth.module';
     StorefrontEventsController,
     AnalyticsScriptController,
   ],
-  providers: [AnalyticsService, EventIngestService],
+  providers: [AnalyticsService, AnalyticsRollupService, EventIngestService],
   exports: [AnalyticsService, EventIngestService],
 })
 export class AnalyticsModule {}

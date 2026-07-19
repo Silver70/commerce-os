@@ -1,5 +1,5 @@
 import { Injectable, Inject } from '@nestjs/common';
-import { sql } from 'drizzle-orm';
+import { sql, type SQL } from 'drizzle-orm';
 import { DRIZZLE_CLIENT } from '../../../shared/database/database.module';
 import type { DrizzleClient } from '../../../shared/database/database.module';
 
@@ -13,6 +13,11 @@ export type AnalyticsPeriod = 'today' | '7d' | '30d' | '90d';
 // as an inline SQL fragment (not a bound array) so it coerces cleanly against
 // the `order_status` enum column, exactly as DashboardService does.
 const REVENUE_STATUS_IN = sql`in ('paid', 'processing', 'shipped', 'delivered')`;
+
+// Human traffic only — exclude server-flagged bots from all event analytics.
+// NULL device_type (Phase 2 events, ingested before device enrichment) counts
+// as human so historical numbers don't collapse.
+const NOT_BOT = sql`(device_type IS NULL OR device_type <> 'bot')`;
 
 function periodDays(period: AnalyticsPeriod): number {
   if (period === 'today') return 1;
@@ -113,7 +118,25 @@ export interface TrafficAnalytics {
   /** orders ÷ unique visitors, as a percentage with one decimal. */
   trueConversionRatePct: number;
   sources: { channel: string; sessions: number }[];
+  topReferrers: { referrer: string; sessions: number }[];
   funnel: { stage: string; sessions: number }[];
+}
+
+export interface AudienceAnalytics {
+  period: AnalyticsPeriod;
+  totalSessions: number;
+  devices: { label: string; sessions: number }[];
+  browsers: { label: string; sessions: number }[];
+  operatingSystems: { label: string; sessions: number }[];
+  countries: { countryCode: string; sessions: number }[];
+}
+
+export interface BehaviorAnalytics {
+  period: AnalyticsPeriod;
+  topPages: { path: string; views: number; visitors: number }[];
+  entryPages: { path: string; sessions: number }[];
+  topClicks: { label: string; count: number }[];
+  forms: { name: string; submissions: number }[];
 }
 
 @Injectable()
@@ -128,10 +151,11 @@ export class AnalyticsService {
     period: AnalyticsPeriod,
   ): Promise<TrafficAnalytics> {
     const { start, end } = getRange(period);
-    const [funnel, sources, orders] = await Promise.all([
+    const [funnel, sources, orders, topReferrers] = await Promise.all([
       this.funnelCounts(orgId, storeId, start, end),
       this.trafficSources(orgId, storeId, start, end),
       this.ordersInPeriod(orgId, storeId, start, end),
+      this.trafficReferrers(orgId, storeId, start, end),
     ]);
 
     const uniqueVisitors = funnel.visitors;
@@ -146,6 +170,7 @@ export class AnalyticsService {
       orders,
       trueConversionRatePct,
       sources,
+      topReferrers,
       funnel: [
         { stage: 'Visitors', sessions: funnel.visitors },
         { stage: 'Product views', sessions: funnel.productViews },
@@ -180,6 +205,7 @@ export class AnalyticsService {
         AND store_id = ${storeId}
         AND occurred_at >= ${start.toISOString()}
         AND occurred_at < ${end.toISOString()}
+        AND ${NOT_BOT}
     `);
     const r = res.rows[0] as {
       visitors: string;
@@ -215,11 +241,14 @@ export class AnalyticsService {
           AND store_id = ${storeId}
           AND occurred_at >= ${start.toISOString()}
           AND occurred_at < ${end.toISOString()}
+          AND ${NOT_BOT}
         ORDER BY session_id, occurred_at ASC
       )
       SELECT
         CASE
           WHEN lower(coalesce(utm_medium, '')) IN ('cpc','ppc','paid','paid_social','paidsearch') THEN 'Paid'
+          WHEN referrer ~* '(chatgpt\\.com|chat\\.openai\\.com|perplexity\\.ai|claude\\.ai|gemini\\.google\\.com|copilot\\.microsoft\\.com|you\\.com|poe\\.com)'
+            OR lower(coalesce(utm_source, '')) ~ '(chatgpt|openai|perplexity|gemini|copilot|claude)' THEN 'AI Assistant'
           WHEN coalesce(utm_source, '') <> '' THEN 'Campaign'
           WHEN coalesce(referrer, '') = '' THEN 'Direct'
           WHEN referrer ~* '(google|bing|yahoo|duckduckgo|ecosia|baidu|yandex)\\.' THEN 'Organic Search'
@@ -253,6 +282,271 @@ export class AnalyticsService {
         AND created_at < ${end.toISOString()}
     `);
     return Number((res.rows[0] as { count: string }).count);
+  }
+
+  private async trafficReferrers(
+    orgId: string,
+    storeId: string,
+    start: Date,
+    end: Date,
+  ): Promise<TrafficAnalytics['topReferrers']> {
+    // Group distinct sessions by referrer host (strip scheme + path).
+    const res = await this.db.execute(sql`
+      SELECT
+        COALESCE(substring(referrer from '^https?://([^/]+)'), referrer) AS referrer,
+        COUNT(DISTINCT session_id)::bigint AS sessions
+      FROM analytics_events
+      WHERE organization_id = ${orgId}
+        AND store_id = ${storeId}
+        AND occurred_at >= ${start.toISOString()}
+        AND occurred_at < ${end.toISOString()}
+        AND ${NOT_BOT}
+        AND referrer IS NOT NULL
+        AND referrer <> ''
+      GROUP BY 1
+      ORDER BY sessions DESC
+      LIMIT 10
+    `);
+    return (res.rows as { referrer: string; sessions: string }[]).map((r) => ({
+      referrer: r.referrer,
+      sessions: Number(r.sessions),
+    }));
+  }
+
+  // ─── Audience (device / browser / OS / geo — Phase 3) ───────────────────────
+
+  async getAudience(
+    orgId: string,
+    storeId: string,
+    period: AnalyticsPeriod,
+  ): Promise<AudienceAnalytics> {
+    const { start, end } = getRange(period);
+    const [devices, browsers, operatingSystems, countryRows, totalSessions] =
+      await Promise.all([
+        this.groupSessions(
+          orgId,
+          storeId,
+          start,
+          end,
+          sql`COALESCE(device_type, 'unknown')`,
+        ),
+        this.groupSessions(
+          orgId,
+          storeId,
+          start,
+          end,
+          sql`browser`,
+          sql`browser IS NOT NULL`,
+        ),
+        this.groupSessions(
+          orgId,
+          storeId,
+          start,
+          end,
+          sql`os`,
+          sql`os IS NOT NULL`,
+        ),
+        this.groupSessions(
+          orgId,
+          storeId,
+          start,
+          end,
+          sql`country_code`,
+          sql`country_code IS NOT NULL`,
+        ),
+        this.totalSessions(orgId, storeId, start, end),
+      ]);
+    return {
+      period,
+      totalSessions,
+      devices,
+      browsers,
+      operatingSystems,
+      countries: countryRows.map((r) => ({
+        countryCode: r.label,
+        sessions: r.sessions,
+      })),
+    };
+  }
+
+  // Distinct sessions grouped by a (trusted, non-user-supplied) column/expr.
+  private async groupSessions(
+    orgId: string,
+    storeId: string,
+    start: Date,
+    end: Date,
+    expr: SQL,
+    extra?: SQL,
+  ): Promise<{ label: string; sessions: number }[]> {
+    const res = await this.db.execute(sql`
+      SELECT ${expr} AS label, COUNT(DISTINCT session_id)::bigint AS sessions
+      FROM analytics_events
+      WHERE organization_id = ${orgId}
+        AND store_id = ${storeId}
+        AND occurred_at >= ${start.toISOString()}
+        AND occurred_at < ${end.toISOString()}
+        AND ${NOT_BOT}
+        ${extra ? sql`AND ${extra}` : sql``}
+      GROUP BY 1
+      ORDER BY sessions DESC
+      LIMIT 12
+    `);
+    return (res.rows as { label: string | null; sessions: string }[])
+      .filter((r) => r.label != null)
+      .map((r) => ({ label: r.label as string, sessions: Number(r.sessions) }));
+  }
+
+  private async totalSessions(
+    orgId: string,
+    storeId: string,
+    start: Date,
+    end: Date,
+  ): Promise<number> {
+    const res = await this.db.execute(sql`
+      SELECT COUNT(DISTINCT session_id)::bigint AS count
+      FROM analytics_events
+      WHERE organization_id = ${orgId}
+        AND store_id = ${storeId}
+        AND occurred_at >= ${start.toISOString()}
+        AND occurred_at < ${end.toISOString()}
+        AND ${NOT_BOT}
+    `);
+    return Number((res.rows[0] as { count: string }).count);
+  }
+
+  // ─── Behavior (pages / clicks / forms — Phase 3) ────────────────────────────
+
+  async getBehavior(
+    orgId: string,
+    storeId: string,
+    period: AnalyticsPeriod,
+  ): Promise<BehaviorAnalytics> {
+    const { start, end } = getRange(period);
+    const [topPages, entryPages, topClicks, forms] = await Promise.all([
+      this.topPages(orgId, storeId, start, end),
+      this.entryPages(orgId, storeId, start, end),
+      this.topClicks(orgId, storeId, start, end),
+      this.formSubmissions(orgId, storeId, start, end),
+    ]);
+    return { period, topPages, entryPages, topClicks, forms };
+  }
+
+  private async topPages(
+    orgId: string,
+    storeId: string,
+    start: Date,
+    end: Date,
+  ): Promise<BehaviorAnalytics['topPages']> {
+    const res = await this.db.execute(sql`
+      SELECT
+        path,
+        COUNT(*)::bigint AS views,
+        COUNT(DISTINCT session_id)::bigint AS visitors
+      FROM analytics_events
+      WHERE organization_id = ${orgId}
+        AND store_id = ${storeId}
+        AND occurred_at >= ${start.toISOString()}
+        AND occurred_at < ${end.toISOString()}
+        AND ${NOT_BOT}
+        AND event_type = 'page_view'
+        AND path IS NOT NULL
+      GROUP BY path
+      ORDER BY views DESC
+      LIMIT 10
+    `);
+    return (
+      res.rows as { path: string; views: string; visitors: string }[]
+    ).map((r) => ({
+      path: r.path,
+      views: Number(r.views),
+      visitors: Number(r.visitors),
+    }));
+  }
+
+  private async entryPages(
+    orgId: string,
+    storeId: string,
+    start: Date,
+    end: Date,
+  ): Promise<BehaviorAnalytics['entryPages']> {
+    // The first page_view of each session = the landing page.
+    const res = await this.db.execute(sql`
+      WITH first_pv AS (
+        SELECT DISTINCT ON (session_id) session_id, path
+        FROM analytics_events
+        WHERE organization_id = ${orgId}
+          AND store_id = ${storeId}
+          AND occurred_at >= ${start.toISOString()}
+          AND occurred_at < ${end.toISOString()}
+          AND ${NOT_BOT}
+          AND event_type = 'page_view'
+          AND path IS NOT NULL
+        ORDER BY session_id, occurred_at ASC
+      )
+      SELECT path, COUNT(*)::bigint AS sessions
+      FROM first_pv
+      GROUP BY path
+      ORDER BY sessions DESC
+      LIMIT 10
+    `);
+    return (res.rows as { path: string; sessions: string }[]).map((r) => ({
+      path: r.path,
+      sessions: Number(r.sessions),
+    }));
+  }
+
+  private async topClicks(
+    orgId: string,
+    storeId: string,
+    start: Date,
+    end: Date,
+  ): Promise<BehaviorAnalytics['topClicks']> {
+    const res = await this.db.execute(sql`
+      SELECT
+        COALESCE(NULLIF(event_name, ''), properties->>'text', properties->>'tag', 'unknown') AS label,
+        COUNT(*)::bigint AS count
+      FROM analytics_events
+      WHERE organization_id = ${orgId}
+        AND store_id = ${storeId}
+        AND occurred_at >= ${start.toISOString()}
+        AND occurred_at < ${end.toISOString()}
+        AND ${NOT_BOT}
+        AND event_type = 'click'
+      GROUP BY 1
+      ORDER BY count DESC
+      LIMIT 10
+    `);
+    return (res.rows as { label: string; count: string }[]).map((r) => ({
+      label: r.label,
+      count: Number(r.count),
+    }));
+  }
+
+  private async formSubmissions(
+    orgId: string,
+    storeId: string,
+    start: Date,
+    end: Date,
+  ): Promise<BehaviorAnalytics['forms']> {
+    const res = await this.db.execute(sql`
+      SELECT
+        COALESCE(NULLIF(event_name, ''), properties->>'name', properties->>'id', 'form') AS name,
+        COUNT(*)::bigint AS submissions
+      FROM analytics_events
+      WHERE organization_id = ${orgId}
+        AND store_id = ${storeId}
+        AND occurred_at >= ${start.toISOString()}
+        AND occurred_at < ${end.toISOString()}
+        AND ${NOT_BOT}
+        AND event_type = 'form_submit'
+      GROUP BY 1
+      ORDER BY submissions DESC
+      LIMIT 10
+    `);
+    return (res.rows as { name: string; submissions: string }[]).map((r) => ({
+      name: r.name,
+      submissions: Number(r.submissions),
+    }));
   }
 
   // ─── Sales ──────────────────────────────────────────────────────────────────

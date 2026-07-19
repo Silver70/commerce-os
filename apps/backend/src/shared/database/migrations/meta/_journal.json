@@ -50,6 +50,13 @@
       "when": 1784447977428,
       "tag": "0006_analytics_events_behavioral",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1784450669771,
+      "tag": "0007_analytics_daily_metrics",
+      "breakpoints": true
     }
   ]
 }

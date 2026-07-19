@@ -513,7 +513,25 @@ export type TrafficAnalytics = {
   orders: number;
   trueConversionRatePct: number;
   sources: { channel: string; sessions: number }[];
+  topReferrers: { referrer: string; sessions: number }[];
   funnel: { stage: string; sessions: number }[];
+};
+
+export type AudienceAnalytics = {
+  period: Period;
+  totalSessions: number;
+  devices: { label: string; sessions: number }[];
+  browsers: { label: string; sessions: number }[];
+  operatingSystems: { label: string; sessions: number }[];
+  countries: { countryCode: string; sessions: number }[];
+};
+
+export type BehaviorAnalytics = {
+  period: Period;
+  topPages: { path: string; views: number; visitors: number }[];
+  entryPages: { path: string; sessions: number }[];
+  topClicks: { label: string; count: number }[];
+  forms: { name: string; submissions: number }[];
 };
 
 // ─── Audit Log ────────────────────────────────────────────────────────────────
