@@ -54,11 +54,8 @@ export function DiscountDetailPage() {
   // Discount details
   const [name, setName] = React.useState(discount.name);
   const [type, setType] = React.useState<DiscountType>(discount.type);
-  const [value, setValue] = React.useState(
-    discount.type === "fixed_amount"
-      ? String(discount.value / 100)
-      : String(discount.value),
-  );
+  // Stored at 100x either way (cents / basis points) — divide back for display.
+  const [value, setValue] = React.useState(String(discount.value / 100));
   const [appliesTo, setAppliesTo] = React.useState<AppliesTo>(discount.scope);
   const [category, setCategory] = React.useState(
     discount.scope === "category" ? (discount.scopeId ?? "") : "",
@@ -88,9 +85,9 @@ export function DiscountDetailPage() {
 
   const updateMutation = useMutation({
     mutationFn: () => {
-      const rawValue = parseFloat(value);
-      const sentValue =
-        type === "fixed_amount" ? Math.round(rawValue * 100) : rawValue;
+      // See discount-new-page: both types are stored at 100x the typed value —
+      // cents for fixed_amount, basis points for percentage.
+      const sentValue = Math.round(parseFloat(value) * 100);
 
       const payload = {
         name: name.trim(),

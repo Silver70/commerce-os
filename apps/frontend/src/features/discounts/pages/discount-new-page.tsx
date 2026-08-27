@@ -102,9 +102,12 @@ export function DiscountNewPage() {
 
   const createMutation = useMutation({
     mutationFn: async () => {
-      const rawValue = parseFloat(value);
-      const sentValue =
-        type === "fixed_amount" ? Math.round(rawValue * 100) : rawValue;
+      // Both types scale by 100, for different reasons: fixed_amount is typed in
+      // currency units and stored in cents; percentage is typed in percent and
+      // stored in basis points (20% -> 2000), which is what the backend's
+      // applyPercentage() divides by 10000. Sending the raw percent here applies
+      // 1/100th of the intended discount.
+      const sentValue = Math.round(parseFloat(value) * 100);
 
       const payload = {
         name: name.trim(),
