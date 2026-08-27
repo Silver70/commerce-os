@@ -1,98 +1,90 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Backend — Commerce OS engine
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+The commerce engine: a multi-tenant headless commerce API built with NestJS, Drizzle ORM and PostgreSQL. It is the single source of truth for catalog, inventory, orders, payments and analytics.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+> **Setting the project up for the first time?** Follow the [root README](../../README.md) — it covers prerequisites, environment variables, migrations, creating your admin account and seeding demo data for the whole monorepo. This file covers the backend specifically.
 
-## Description
+## Surfaces
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+| Surface | Path | Auth | Consumer |
+|---|---|---|---|
+| **GraphQL** | `POST /graphql` | `x-api-key` header | Storefronts |
+| **REST** | `/api/admin/*` | Admin JWT (Bearer) + RBAC | Admin dashboard |
+| **Webhooks** | `/api/webhooks/stripe` | Stripe signature | Stripe |
+| **Swagger** | `/api/docs` | — | Humans |
 
-## Project setup
+There are no admin mutations in GraphQL, and no storefront reads in REST. The split is deliberate.
 
-```bash
-$ npm install
+## Layout
+
+```
+src/
+  modules/
+    analytics/   Event ingest, funnel/traffic queries, daily rollups, retention
+    audit/       Audit log service + viewer
+    auth/        Admin auth (JWT + sessions), customer JWT, API keys, RBAC guards
+    cart/        Cart CRUD and checkout
+    customer/    Storefront customer accounts, addresses, groups
+    dashboard/   Aggregate metrics and sparklines for the admin home
+    inventory/   Stock items, reservations, low-stock thresholds
+    order/       Order state machine, timeline, refunds
+    payment/     Stripe adapter behind a PaymentProvider interface, webhooks
+    pricing/     Discounts, coupons, price lists, tax rates
+    product/     Products, variants, options, categories, media
+    shipping/    Zones, methods, shipments
+    tenant/      Organizations, stores, API key management
+
+  shared/
+    database/    Connection, schema, migrations, seeds
+    events/      In-process event bus + typed event definitions
+    graphql/     Merged schema, scalars (Money, DateTime)
+    storage/     Cloudflare R2 adapter for product media
+    tenant/      TenantContext, TenantScopedRepository, RLS helpers
+    utils/       Integer money arithmetic, slugs, cursor pagination
 ```
 
-## Compile and run the project
+## Commands
 
-```bash
-# development
-$ npm run start
+```sh
+npm run dev            # watch mode (port 4000)
+npm run build          # compile to dist/
+npm run start:prod     # run the compiled build
+npm run lint           # eslint --fix
+npm run test           # unit tests
+npm run test:e2e       # end-to-end tests
+npm run test:cov       # coverage
 
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+npm run db:generate    # generate a migration from schema changes
+npm run db:migrate     # apply pending migrations
+npm run db:push        # push schema directly (dev only — skips migration files)
+npm run db:seed-demo   # ~90 days of demo catalog, orders and analytics
+npm run db:seed        # small fixed dataset for smoke tests
+npm run db:seed-admin  # create or reset an admin user in an existing org
 ```
 
-## Run tests
+> Do not run `npm run build` while `npm run dev` is live — `nest-cli.json` sets `deleteOutDir: true`, so the build wipes the `dist/` the dev server is executing from. Use `npx tsc --noEmit` to type-check instead.
 
-```bash
-# unit tests
-$ npm run test
+## Conventions that are enforced, not suggested
 
-# e2e tests
-$ npm run test:e2e
+**Every tenant-scoped table has `organization_id` as its second column.** `TenantScopedRepository` injects it into all queries, and `findById` always verifies it — never assume a UUID belongs to the current tenant.
 
-# test coverage
-$ npm run test:cov
+**Money is always an integer** in the smallest currency unit. Never floats, and never format server-side except in the GraphQL `Money.formatted` field.
+
+**Order line items are immutable snapshots.** Name, SKU, price and image are captured at order creation so repricing or deleting a product cannot rewrite history.
+
+**Inventory mutations are atomic.** Stock changes take `SELECT FOR UPDATE` inside a transaction; `quantity - reserved` may not go negative unless `allow_backorder` is set.
+
+**Timestamps are UTC.** Columns are `timestamp without time zone` and queries send UTC bounds, so every connection pins its session to UTC (`options: '-c timezone=UTC'` in `database.module.ts`). If you insert rows from an external tool, make sure it does the same or they will be shifted.
+
+## Database
+
+Drizzle ORM over `node-postgres`, with a connection pool created in `src/shared/database/database.module.ts` and drained on module destroy.
+
+Schema lives in `src/shared/database/schema/`, one file per table, re-exported from `index.ts`. After changing it:
+
+```sh
+npm run db:generate   # writes a new SQL migration
+npm run db:migrate    # applies it
 ```
 
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
-```
-
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+Migrations need no PostgreSQL extensions — `gen_random_uuid()` is built in from 13 onward.
