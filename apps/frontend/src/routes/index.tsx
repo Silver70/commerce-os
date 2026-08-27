@@ -1,46 +1,26 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "../components/ui/select";
+import { createFileRoute, redirect } from "@tanstack/react-router";
+import { getAdminSessionServerFn } from "~/server/auth";
 
+/**
+ * The dashboard has no marketing home page — "/" is purely a router. Signed-out
+ * visitors go to the login form, signed-in ones straight to the dashboard.
+ *
+ * No `redirect` search param is passed to /auth/login: the target would just be
+ * "/", and login already defaults to /admin/dashboard via safeRedirectPath.
+ */
 export const Route = createFileRoute("/")({
-  // beforeLoad: async () => {
-  //   const auth = await getAuth();
-  //   if (auth.user) throw redirect({ to: "/admin/dashboard" });
-  //   throw redirect({ href: "/api/auth/sign-in" });
-  // },
-  component: HomePage,
-});
+  beforeLoad: async ({ location }) => {
+    const session = await getAdminSessionServerFn();
+    if (!session) throw redirect({ to: "/auth/login" });
 
-function HomePage() {
-  const [count, setCount] = useState(0);
-  return (
-    <div>
-      <h1>hello world</h1>
-      <button
-        onClick={() => setCount((c) => c + 1)}
-        className="rounded border px-3 py-1"
-      >
-        count is {count}
-      </button>
-      <Select>
-        <SelectTrigger className="w-[180px]">
-          <SelectValue placeholder="Theme" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectGroup>
-            <SelectItem value="light">Light</SelectItem>
-            <SelectItem value="dark">Dark</SelectItem>
-            <SelectItem value="system">System</SelectItem>
-          </SelectGroup>
-        </SelectContent>
-      </Select>
-    </div>
-  );
-}
+    // Tokens were just rotated: the new cookie is only on the response, so the
+    // next hop would still send the stale one. Bounce through a fresh request
+    // that carries it. That pass hits the fast path, so this cannot loop.
+    if (session.refreshed) throw redirect({ href: location.href });
+
+    throw redirect({ to: "/admin/dashboard" });
+  },
+  // beforeLoad always throws, so this never renders — it exists only to satisfy
+  // the route contract.
+  component: () => null,
+});
