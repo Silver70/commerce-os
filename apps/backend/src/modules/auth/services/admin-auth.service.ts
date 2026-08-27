@@ -61,9 +61,11 @@ export class AdminAuthService {
 
   /**
    * Self-serve signup. Creates the admin user, their organization, and a
-   * super_admin membership, then issues a session. The neon-http driver has no
-   * interactive transactions (see the rest of the codebase), so inserts run
-   * sequentially; the unique email constraint guards against duplicate users.
+   * super_admin membership, then issues a session. These inserts still run
+   * sequentially rather than in one transaction; the unique email constraint
+   * guards against duplicate users. TODO: now that the node-postgres driver
+   * supports interactive transactions, wrap this in db.transaction() so a
+   * mid-way failure cannot leave an orphaned user or org.
    */
   async register(
     email: string,

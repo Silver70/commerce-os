@@ -16,59 +16,13 @@
  * created only if missing.
  */
 
-import { neon, neonConfig } from '@neondatabase/serverless';
-import { drizzle } from 'drizzle-orm/neon-http';
+import { drizzle } from 'drizzle-orm/node-postgres';
+import { Pool } from 'pg';
 import * as dotenv from 'dotenv';
 import { resolve } from 'path';
-import * as https from 'https';
 import * as bcrypt from 'bcrypt';
 import { and, eq } from 'drizzle-orm';
 import { adminUsers, organizations, organizationMembers } from '../schema';
-
-// ─── HTTPS fetch shim — forces IPv4 (mirrors migrate.ts / seed.ts) ───────────
-
-function httpsFetch(
-  input: RequestInfo | URL,
-  init?: RequestInit,
-): Promise<Response> {
-  const url =
-    typeof input === 'string'
-      ? new URL(input)
-      : input instanceof URL
-        ? input
-        : new URL(input.url);
-  const body = init?.body as string | undefined;
-
-  return new Promise((res, rej) => {
-    const req = https.request(
-      {
-        hostname: url.hostname,
-        port: url.port || 443,
-        path: url.pathname + url.search,
-        method: (init?.method ?? 'GET').toUpperCase(),
-        headers: init?.headers as Record<string, string> | undefined,
-        family: 4,
-      },
-      (response) => {
-        const chunks: Buffer[] = [];
-        response.on('data', (c: Buffer) => chunks.push(c));
-        response.on('end', () =>
-          res(
-            new globalThis.Response(Buffer.concat(chunks), {
-              status: response.statusCode,
-              headers: response.headers as Record<string, string>,
-            }),
-          ),
-        );
-      },
-    );
-    req.on('error', rej);
-    if (body) req.write(body);
-    req.end();
-  });
-}
-
-neonConfig.fetchFunction = httpsFetch;
 
 async function main() {
   dotenv.config({ path: resolve(process.cwd(), '.env') });
@@ -92,8 +46,11 @@ async function main() {
     process.exit(1);
   }
 
-  const sql = neon(dbUrl);
-  const db = drizzle(sql);
+  const pool = new Pool({
+    connectionString: dbUrl,
+    options: '-c timezone=UTC',
+  });
+  const db = drizzle(pool);
 
   // ── Resolve target org ───────────────────────────────────────────────────────
   const orgId = process.env.SEED_ORG_ID;
@@ -160,6 +117,8 @@ async function main() {
   console.log(`\nLogin at POST /api/auth/admin/login`);
   console.log(`  email    : ${email}`);
   console.log(`  org      : ${org.name} (${org.id})`);
+
+  await pool.end();
 }
 
 main().catch((err) => {

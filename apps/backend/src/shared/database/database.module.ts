@@ -1,72 +1,49 @@
-import { Global, Module } from '@nestjs/common';
+import { Global, Inject, Module, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { neon, neonConfig } from '@neondatabase/serverless';
-import { drizzle } from 'drizzle-orm/neon-http';
-import * as https from 'https';
+import { drizzle } from 'drizzle-orm/node-postgres';
+import { Pool } from 'pg';
 import * as schema from './schema';
 
 export const DRIZZLE_CLIENT = 'DRIZZLE_CLIENT';
+export const DRIZZLE_POOL = 'DRIZZLE_POOL';
 
 export type DrizzleClient = ReturnType<typeof drizzle>;
-
-// Node.js undici (native fetch) times out on some networks due to IPv6 fallback.
-// This shim forces IPv4 and uses the https module which connects reliably.
-function httpsFetch(
-  input: RequestInfo | URL,
-  init?: RequestInit,
-): Promise<Response> {
-  const url =
-    typeof input === 'string'
-      ? new URL(input)
-      : input instanceof URL
-        ? input
-        : new URL(input.url);
-
-  return new Promise((resolve, reject) => {
-    const req = https.request(
-      {
-        hostname: url.hostname,
-        port: url.port || 443,
-        path: url.pathname + url.search,
-        method: (init?.method ?? 'GET').toUpperCase(),
-        headers: init?.headers as Record<string, string> | undefined,
-        family: 4,
-      },
-      (res) => {
-        const chunks: Buffer[] = [];
-        res.on('data', (chunk: Buffer) => chunks.push(chunk));
-        res.on('end', () => {
-          resolve(
-            new globalThis.Response(Buffer.concat(chunks), {
-              status: res.statusCode,
-              headers: res.headers as Record<string, string>,
-            }),
-          );
-        });
-      },
-    );
-    req.on('error', reject);
-    const body = init?.body as string | undefined;
-    if (body) req.write(body);
-    req.end();
-  });
-}
-
-neonConfig.fetchFunction = httpsFetch;
 
 @Global()
 @Module({
   providers: [
     {
-      provide: DRIZZLE_CLIENT,
+      provide: DRIZZLE_POOL,
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {
         const databaseUrl = config.getOrThrow<string>('DATABASE_URL');
-        const sql = neon(databaseUrl);
-        return drizzle(sql, { schema });
+        // Every timestamp column is `timestamp without time zone` defaulting to
+        // now(), so the wall-clock value stored depends on the SERVER's
+        // timezone — while query bounds are sent as UTC ISO strings
+        // (date.toISOString()). Those only line up if the server is on UTC.
+        // Neon was; a local Postgres inherits the host's zone, which silently
+        // shifted every `now()` and hid recent rows from the dashboard.
+        // Pin the session to UTC so any dev machine matches production.
+        return new Pool({
+          connectionString: databaseUrl,
+          options: '-c timezone=UTC',
+        });
       },
     },
+    {
+      provide: DRIZZLE_CLIENT,
+      inject: [DRIZZLE_POOL],
+      useFactory: (pool: Pool) => drizzle(pool, { schema }),
+    },
   ],
-  exports: [DRIZZLE_CLIENT],
+  exports: [DRIZZLE_CLIENT, DRIZZLE_POOL],
 })
-export class DatabaseModule {}
+export class DatabaseModule implements OnModuleDestroy {
+  constructor(@Inject(DRIZZLE_POOL) private readonly pool: Pool) {}
+
+  // neon-http was stateless; a TCP pool holds open sockets that would keep the
+  // process alive on shutdown, so drain it when Nest tears the module down.
+  async onModuleDestroy(): Promise<void> {
+    await this.pool.end();
+  }
+}

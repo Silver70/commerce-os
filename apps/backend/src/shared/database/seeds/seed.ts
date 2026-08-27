@@ -13,11 +13,10 @@
  * Re-running is safe — existing seed data for the target store is wiped first.
  */
 
-import { neon, neonConfig } from '@neondatabase/serverless';
-import { drizzle } from 'drizzle-orm/neon-http';
+import { drizzle } from 'drizzle-orm/node-postgres';
+import { Pool } from 'pg';
 import * as dotenv from 'dotenv';
 import { resolve } from 'path';
-import * as https from 'https';
 import * as bcrypt from 'bcrypt';
 import { eq } from 'drizzle-orm';
 import {
@@ -36,51 +35,6 @@ import {
   shippingZones,
   shippingMethods,
 } from '../schema';
-
-// ─── HTTPS fetch shim (mirrors migrate.ts) ───────────────────────────────────
-
-function httpsFetch(
-  input: RequestInfo | URL,
-  init?: RequestInit,
-): Promise<Response> {
-  const url =
-    typeof input === 'string'
-      ? new URL(input)
-      : input instanceof URL
-        ? input
-        : new URL(input.url);
-  const body = init?.body as string | undefined;
-
-  return new Promise((res, rej) => {
-    const req = https.request(
-      {
-        hostname: url.hostname,
-        port: url.port || 443,
-        path: url.pathname + url.search,
-        method: (init?.method ?? 'GET').toUpperCase(),
-        headers: init?.headers as Record<string, string> | undefined,
-        family: 4,
-      },
-      (response) => {
-        const chunks: Buffer[] = [];
-        response.on('data', (c: Buffer) => chunks.push(c));
-        response.on('end', () =>
-          res(
-            new globalThis.Response(Buffer.concat(chunks), {
-              status: response.statusCode,
-              headers: response.headers as Record<string, string>,
-            }),
-          ),
-        );
-      },
-    );
-    req.on('error', rej);
-    if (body) req.write(body);
-    req.end();
-  });
-}
-
-neonConfig.fetchFunction = httpsFetch;
 
 // ─── Seed data ────────────────────────────────────────────────────────────────
 
@@ -127,8 +81,11 @@ async function main() {
 
   const storeId = process.env.SEED_STORE_ID ?? DEV_STORE_ID;
 
-  const sql = neon(dbUrl);
-  const db = drizzle(sql);
+  const pool = new Pool({
+    connectionString: dbUrl,
+    options: '-c timezone=UTC',
+  });
+  const db = drizzle(pool);
 
   // Resolve the store and its org
   const [store] = await db.select().from(stores).where(eq(stores.id, storeId));
@@ -428,6 +385,8 @@ async function main() {
   console.log('\n✅ Seed complete!');
   console.log(`\nOrganization ID : ${orgId}`);
   console.log(`Store ID        : ${storeId}`);
+
+  await pool.end();
 }
 
 main().catch((err) => {
